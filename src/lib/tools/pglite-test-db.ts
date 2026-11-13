@@ -163,13 +163,15 @@ export async function openTestDb(): Promise<TestDb> {
   const chatLog = (userId: string): ChatLogWriter => ({
     insert: (row: ChatLogRow) =>
       as(userId, async () => {
-        await db.query(
+        const result = await db.query<{ id: string }>(
           `insert into public.chat_messages
              (user_id, session_id, turn, user_text, reply_text, tools_called, template_id, input_tokens, output_tokens)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           returning id`,
           [row.userId, row.sessionId, row.turn, row.userText, row.replyText,
             row.toolsCalled, row.templateId, row.inputTokens, row.outputTokens],
         );
+        return result.rows[0].id;
       }),
   });
 

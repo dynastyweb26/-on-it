@@ -180,22 +180,24 @@ const logRow = (over: Partial<ChatLogRow> = {}): ChatLogRow => ({
 });
 
 test('a turn writes one row listing every tool call it made', async () => {
-  const ok = await logTurn(
+  const id = await logTurn(
     db.chatLog(OWNER),
     logRow({ toolsCalled: ['unpaid_invoices', 'open_record'] }),
   );
-  assert.equal(ok, true);
+  assert.match(id ?? '', /^[0-9a-f-]{36}$/, 'logTurn returns the inserted row id');
 
   const mine = await db.as(OWNER, (q) =>
     q.query<{
+      id: string;
       user_id: string;
       user_text: string;
       reply_text: string | null;
       tools_called: string[];
       template_id: string | null;
-    }>('select user_id, user_text, reply_text, tools_called, template_id from public.chat_messages'),
+    }>('select id, user_id, user_text, reply_text, tools_called, template_id from public.chat_messages'),
   );
   assert.equal(mine.rows.length, 1);
+  assert.equal(mine.rows[0].id, id);
   assert.equal(mine.rows[0].user_id, OWNER);
   assert.equal(mine.rows[0].user_text, 'Who owes me money?');
   assert.equal(mine.rows[0].reply_text, 'Two invoices are unpaid, $120.00 in total.');
@@ -211,7 +213,7 @@ test('a turn writes one row listing every tool call it made', async () => {
 
 test('a log row attributed to another owner is refused, never thrown', async () => {
   const forged = await logTurn(db.chatLog(OWNER), logRow({ userId: OTHER, turn: 2 }));
-  assert.equal(forged, false, 'logTurn reports the failure instead of breaking the turn');
+  assert.equal(forged, null, 'logTurn reports the failure instead of breaking the turn');
 
   const theirs = await db.as(OTHER, (q) =>
     q.query<{ count: number }>('select count(*)::int as count from public.chat_messages'),

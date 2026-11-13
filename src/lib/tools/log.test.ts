@@ -18,21 +18,23 @@ const row: ChatLogRow = {
 
 test('a turn is written with its tools, template and tokens', async () => {
   const written: ChatLogRow[] = [];
-  const ok = await logTurn({ insert: async (r) => { written.push(r); } }, row);
-  assert.equal(ok, true);
+  const id = await logTurn({
+    insert: async (r) => { written.push(r); return 'message-1'; },
+  }, row);
+  assert.equal(id, 'message-1');
   assert.deepEqual(written, [row]);
 });
 
 test('a write failure is logged and swallowed, never thrown into the turn', async () => {
-  const ok = await logTurn({
+  const id = await logTurn({
     insert: async () => { throw new Error('permission denied'); },
   }, row);
-  assert.equal(ok, false);
+  assert.equal(id, null);
 });
 
 test('out-of-range values are bounded instead of rejected by the table', async () => {
   const written: ChatLogRow[] = [];
-  await logTurn({ insert: async (r) => { written.push(r); } }, {
+  await logTurn({ insert: async (r) => { written.push(r); return 'message-1'; } }, {
     ...row,
     sessionId: 'x'.repeat(300),
     turn: 0,
@@ -49,7 +51,7 @@ test('out-of-range values are bounded instead of rejected by the table', async (
 
 test('a turn without a reply stores a null reply, not an empty one', async () => {
   const written: ChatLogRow[] = [];
-  await logTurn({ insert: async (r) => { written.push(r); } }, { ...row, replyText: null });
+  await logTurn({ insert: async (r) => { written.push(r); return 'message-1'; } }, { ...row, replyText: null });
   assert.equal(written[0].replyText, null);
 });
 
