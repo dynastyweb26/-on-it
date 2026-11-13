@@ -28,32 +28,39 @@ export const USER_TEXT_MAX = 4000;
 export const REPLY_TEXT_MAX = 8000;
 
 export interface ChatLogWriter {
-  insert(row: ChatLogRow): Promise<void>;
+  /** Returns the inserted row's id. */
+  insert(row: ChatLogRow): Promise<string>;
 }
 
 export function supabaseChatLog(client: SupabaseClient): ChatLogWriter {
   return {
     async insert(row: ChatLogRow) {
-      const { error } = await client.from('chat_messages').insert({
-        user_id: row.userId,
-        session_id: row.sessionId,
-        turn: row.turn,
-        user_text: row.userText,
-        reply_text: row.replyText,
-        tools_called: row.toolsCalled,
-        template_id: row.templateId,
-        input_tokens: row.inputTokens,
-        output_tokens: row.outputTokens,
-      });
+      const { data, error } = await client
+        .from('chat_messages')
+        .insert({
+          user_id: row.userId,
+          session_id: row.sessionId,
+          turn: row.turn,
+          user_text: row.userText,
+          reply_text: row.replyText,
+          tools_called: row.toolsCalled,
+          template_id: row.templateId,
+          input_tokens: row.inputTokens,
+          output_tokens: row.outputTokens,
+        })
+        .select('id')
+        .single();
       if (error) throw new Error(error.message);
+      if (!data?.id) throw new Error('chat log insert returned no id');
+      return data.id as string;
     },
   };
 }
 
-/** Best effort by design. Returns whether the row landed, never throws. */
-export async function logTurn(writer: ChatLogWriter, row: ChatLogRow): Promise<boolean> {
+/** Best effort by design. Returns the row id, or null on failure; never throws. */
+export async function logTurn(writer: ChatLogWriter, row: ChatLogRow): Promise<string | null> {
   try {
-    await writer.insert({
+    return await writer.insert({
       ...row,
       sessionId: row.sessionId.slice(0, 120) || 'unknown',
       turn: Math.max(1, Math.trunc(row.turn)),
@@ -61,10 +68,9 @@ export async function logTurn(writer: ChatLogWriter, row: ChatLogRow): Promise<b
       replyText: row.replyText == null ? null : row.replyText.slice(0, REPLY_TEXT_MAX),
       toolsCalled: row.toolsCalled.slice(0, 20),
     });
-    return true;
   } catch (e) {
     console.error('[chat-log] turn not recorded', (e as Error)?.message);
-    return false;
+    return null;
   }
 }
 
