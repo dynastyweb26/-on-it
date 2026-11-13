@@ -118,6 +118,8 @@ import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
 import { askQuestion } from '@/lib/ask-client';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
+import ChatTemplate from '@/components/chat/templates/ChatTemplate';
+import { resolveTemplate } from '@/components/chat/templates/render-model';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
 // The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
@@ -147,6 +149,12 @@ interface Msg {
   /** A daily or weekly recap (alive layer 07): a local assistant card built from
    *  the owner's own rows, never an event and never anything /api/parse sees. */
   recapCard?: RecapModel;
+  /** AI Smart answer card (flag on only): the template id and props exactly as
+   *  /api/ask sent them. Re-checked against lib/templates/props.ts on every render,
+   *  so a stored card that no longer fits shows `fallbackText` instead. */
+  template?: { id: string; props: unknown };
+  /** The server's plain-text answer for the card above; shown when it cannot draw. */
+  fallbackText?: string;
   /** Posted by the open-time dice, not asked for: never saved with the thread. */
   auto?: true;
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
@@ -1539,7 +1547,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
       const out = await askQuestion(trimmed, fetch, turnId);
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
-          const replyMsg = aMsg(out.reply, { skipHistory: true });
+          // A card is kept only when it can be drawn; otherwise the server's plain
+          // fallback is the answer (never a makeshift card). `reply` is what voice speaks.
+          const card = out.kind === 'ok' && resolveTemplate(out.template) ? out.template : undefined;
+          const replyMsg = out.kind === 'ok' && (card || out.fallback)
+            ? aMsg(card ? out.reply : (out.fallback as string), {
+                skipHistory: true,
+                ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}) } : {}),
+              })
+            : aMsg(out.reply, { skipHistory: true });
           setMessages((m) => {
             // Keep the Q&A out of the job history parse reads later.
             const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
@@ -5046,6 +5062,20 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </div>
               </div>
             </div>
+          ) : m.template && resolveTemplate(m.template) ? (
+            <div key={m.id} className="flex justify-start gap-2">
+              {messages[mi - 1]?.role !== 'assistant' && (
+                <AssistantMark pulsing={false} />
+              )}
+              <div className="flex min-w-0 flex-1 flex-col items-stretch gap-2">
+                {m.content && (
+                  <div className="max-w-[82%] self-start whitespace-pre-wrap rounded-[18px] rounded-bl-md border border-outline-variant/50 bg-surface-container px-3.5 py-2.5 text-[15px] leading-snug">
+                    {m.content}
+                  </div>
+                )}
+                <ChatTemplate card={resolveTemplate(m.template)!} handlers={{}} />
+              </div>
+            </div>
           ) : m.signInLink ? (
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">
@@ -5355,7 +5385,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     the line. Restored history, and everything you wrote, is
                     static — no error, card or quick reply goes through it. */}
                 {restoredMsgIdsRef.current.has(m.id) || m.role === 'user'
-                  ? m.content
+                  ? (m.template && m.fallbackText ? m.fallbackText : m.content)
                   : <StreamText text={m.content} />}
               </div>
             </div>
