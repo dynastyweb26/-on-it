@@ -73,7 +73,7 @@ function Chart({ pts, sel, W, onSel }: { pts: TrendPoint[]; sel: number; W: numb
   );
 }
 
-export default function TrendChart({ state = 'filled', eyebrow, title, points }: TrendChartProps) {
+export default function TrendChart({ state = 'filled', eyebrow, title, points, onRetry }: TrendChartProps & { onRetry?: () => void }) {
   const [sel, setSel] = useState<number | null>(null);
   const [w, setW] = useState(300);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -132,7 +132,7 @@ export default function TrendChart({ state = 'filled', eyebrow, title, points }:
               <div style={{ fontSize: 13, color: 'var(--tpl-muted)' }}>Check your connection and try again.</div>
             </div>
           </div>
-          <TryAgain />
+          <TryAgain onClick={onRetry} />
         </div>
       )}
 

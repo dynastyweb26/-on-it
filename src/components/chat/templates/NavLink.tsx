@@ -10,7 +10,7 @@ const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'elli
 const TILE = { width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' } as const;
 
 export default function NavLink({
-  state = 'filled', items, emptyTitle, onOpen,
+  state = 'filled', items, emptyTitle, onOpen, onRetry,
 }: NavLinkProps & NavLinkCallbacks) {
   return (
     <div
@@ -49,7 +49,7 @@ export default function NavLink({
             <div style={{ fontSize: 16, fontWeight: 600, ...ELLIPSIS }}>{`Couldn't open ${items[0]?.title ?? ''}`}</div>
             <div style={{ fontSize: 13, color: 'var(--tpl-muted)' }}>Check your connection.</div>
           </div>
-          <div {...tap()} style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: 15, fontWeight: 600, color: 'var(--tpl-gold-ink)', cursor: 'pointer', flex: 'none' }}>Retry</div>
+          <div {...tap(onRetry)} style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: 15, fontWeight: 600, color: 'var(--tpl-gold-ink)', cursor: 'pointer', flex: 'none' }}>Retry</div>
         </div>
       )}
 

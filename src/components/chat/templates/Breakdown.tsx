@@ -13,8 +13,8 @@ const MONT = 'var(--font-montserrat), Montserrat, sans-serif';
 const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
 
 export default function Breakdown({
-  state = 'filled', tone = 'out', eyebrow, total, rows, onRowTap,
-}: BreakdownProps & BreakdownCallbacks) {
+  state = 'filled', tone = 'out', eyebrow, total, rows, onRowTap, onRetry,
+}: BreakdownProps & BreakdownCallbacks & { onRetry?: () => void }) {
   const isIn = tone === 'in';
   const sign = isIn ? '+' : '−';
   const color = isIn ? 'var(--tpl-green)' : 'var(--tpl-red)';
@@ -58,7 +58,7 @@ export default function Breakdown({
               <div style={{ fontSize: 13, color: 'var(--tpl-muted)' }}>Check your connection and try again.</div>
             </div>
           </div>
-          <TryAgain />
+          <TryAgain onClick={onRetry} />
         </div>
       )}
 

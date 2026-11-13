@@ -22,7 +22,7 @@ const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'elli
 const MONT = 'var(--font-montserrat), Montserrat, sans-serif';
 
 export default function RankedList({
-  state = 'filled', eyebrow, title, totalCount, rows, total, hideTotal = false, onRowTap, onShowAll,
+  state = 'filled', eyebrow, title, totalCount, rows, total, hideTotal = false, onRowTap, onShowAll, onRetry,
 }: RankedListProps & RankedListCallbacks) {
   const heading = state === 'empty' ? 'Nobody owes you.' : title;
   const showTitle = state === 'filled' || state === 'empty';
@@ -67,7 +67,7 @@ export default function RankedList({
               <div style={{ fontSize: 13, lineHeight: 1.4, color: 'var(--tpl-muted)' }}>Nothing changed. Check your connection and try again.</div>
             </div>
           </div>
-          <TryAgain />
+          <TryAgain onClick={onRetry} />
         </div>
       )}
 

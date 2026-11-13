@@ -3,6 +3,7 @@
 // strings (sign included); the only logic is the layout rule in the file's script.
 import { Eyebrow, Sym, TONE, TryAgain } from './shared';
 import type { StatTilesProps } from '@/lib/templates/props';
+import type { StatTilesCallbacks } from '@/lib/templates/callbacks';
 import './templates.css';
 
 const ICON = { up: 'arrow_upward', down: 'arrow_downward', flat: 'remove' } as const;
@@ -10,7 +11,7 @@ const LINE = '1px solid var(--tpl-line)';
 const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
 const MONT = 'var(--font-montserrat), Montserrat, sans-serif';
 
-export default function StatTiles({ state = 'filled', eyebrow, title, tiles }: StatTilesProps) {
+export default function StatTiles({ state = 'filled', eyebrow, title, tiles, onRetry }: StatTilesProps & StatTilesCallbacks) {
   const src = tiles.slice(0, 3);
   const n = src.length;
   const compact = n === 3 && src.every((t) => t.value.length <= 7);
@@ -54,7 +55,7 @@ export default function StatTiles({ state = 'filled', eyebrow, title, tiles }: S
               <div style={{ fontSize: 13, color: 'var(--tpl-muted)' }}>Check your connection and try again.</div>
             </div>
           </div>
-          <TryAgain />
+          <TryAgain onClick={onRetry} />
         </div>
       )}
 
