@@ -52,9 +52,9 @@ const fixture = {
     eyebrow: 'Ruth Lawrence',
     title: 'Since you started.',
     tiles: [
-      { label: 'Still owed', value: '$120.00', tone: 'neutral' as const, period: 'open invoices' },
+      { label: 'Owed', value: '$120.00', tone: 'neutral' as const, period: 'unpaid' },
       { label: 'Paid', value: '$0.00', tone: 'in' as const, period: 'all time' },
-      { label: 'Open documents', value: '1', tone: 'neutral' as const, period: 'invoices and estimates' },
+      { label: 'Open', value: '1', tone: 'neutral' as const, period: 'docs' },
     ],
     rows: [{ name: 'Ruth Lawrence', secondary: 'INV-0001 · Due Sep 1', amount: '$120.00', tone: 'neutral' as const }],
     totalCount: 1,
@@ -168,10 +168,13 @@ export const getClientSummaryTool = defineTool({
 
     return {
       ...base,
+      // Three tiles at 390 wide: each label and its sub must stay short enough
+      // to print in full. 'Still owed' / 'Open documents' / 'invoices and
+      // estimates' did not.
       tiles: [
-        { label: 'Still owed', value: moneyText(owedTotal), tone: 'neutral' as const, period: 'open invoices' },
+        { label: 'Owed', value: moneyText(owedTotal), tone: 'neutral' as const, period: 'unpaid' },
         { label: 'Paid', value: moneyText(paid), tone: 'in' as const, period: 'all time' },
-        { label: 'Open documents', value: String(open), tone: 'neutral' as const, period: 'invoices and estimates' },
+        { label: 'Open', value: String(open), tone: 'neutral' as const, period: 'docs' },
       ],
       summary: { clientName: matched[0].name, owed: moneyText(owedTotal), paid: moneyText(paid), open, estimates },
     };
