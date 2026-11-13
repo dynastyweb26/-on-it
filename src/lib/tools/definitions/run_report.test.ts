@@ -278,3 +278,13 @@ test('the profile timezone decides the local day', async () => {
   assert.equal(out.value.amount, 0);
   assert.equal(out.match, 'none');
 });
+
+test('period "year" and "this year" mean this_year, never a quiet fall back to this month', async () => {
+  for (const period of ['year', 'this_year', 'this year']) {
+    const out = (await run(baseFixture(), { metric: 'collected', period })) as never as {
+      period: { id: string }; ignored: string[];
+    };
+    assert.equal(out.period.id, 'this_year', period);
+    assert.deepEqual(out.ignored, [], period);
+  }
+});

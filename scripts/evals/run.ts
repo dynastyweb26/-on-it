@@ -135,7 +135,11 @@ function argsMatch(expected: Record<string, unknown> | undefined, actual: unknow
   if (!expected) return true;
   if (!actual || typeof actual !== 'object') return false;
   const got = actual as Record<string, unknown>;
-  return Object.entries(expected).every(([key, value]) => got[key] === value);
+  // An array means "any of these": the model may say "year" where the tool also
+  // accepts "this_year", and both are the same request.
+  return Object.entries(expected).every(([key, value]) =>
+    Array.isArray(value) ? value.includes(got[key]) : got[key] === value,
+  );
 }
 
 async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Result> {

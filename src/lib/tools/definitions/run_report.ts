@@ -594,11 +594,15 @@ export const runReportTool = defineTool({
       : 'none';
     if (rawGroup && group !== rawGroup) ignored.push(args.group_by as string);
 
-    const rawPeriod = args.period?.trim().toLowerCase();
-    const period: PeriodName = (PERIODS as readonly string[]).includes(rawPeriod ?? '')
-      ? rawPeriod as PeriodName
+    // The model says "year" (or "this year"); the tool's own ids say
+    // "this_year". They are the same request, so a plain word it understands
+    // must never fall back to this month or land in `ignored`.
+    const rawPeriod = args.period?.trim().toLowerCase().replace(/\s+/g, '_');
+    const periodId = rawPeriod === 'year' ? 'this_year' : rawPeriod;
+    const period: PeriodName = (PERIODS as readonly string[]).includes(periodId ?? '')
+      ? periodId as PeriodName
       : 'this_month';
-    if (rawPeriod && period !== rawPeriod) ignored.push(args.period as string);
+    if (rawPeriod && period !== periodId) ignored.push(args.period as string);
 
     const rawSort = args.sort?.trim().toLowerCase();
     const sort = rawSort === 'slowest' ? 'slowest' : 'amount';
