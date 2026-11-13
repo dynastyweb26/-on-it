@@ -121,14 +121,15 @@ export const DRAFT_MESSAGE_FIXTURE = {
 } satisfies DraftMessageProps;
 
 /**
- * One sample per design state. Text on phone is the base; copied needs the
- * laptop, and sent/error are the Email-only states.
+ * One sample per design state. Text on phone is the base; copied and
+ * copyError need the laptop, and sent/error are the Email-only states.
  */
 export const DRAFT_MESSAGE_STATE_FIXTURES = {
   draft: DRAFT_MESSAGE_FIXTURE,
   editing: { ...DRAFT_MESSAGE_FIXTURE, state: 'editing' },
   opened: { ...DRAFT_MESSAGE_FIXTURE, state: 'opened', device: 'phone' },
   copied: { ...DRAFT_MESSAGE_FIXTURE, state: 'copied', device: 'laptop' },
+  copyError: { ...DRAFT_MESSAGE_FIXTURE, state: 'copyError', channel: 'Text', device: 'laptop' },
   done: { ...DRAFT_MESSAGE_FIXTURE, state: 'done', device: 'phone' },
   openError: { ...DRAFT_MESSAGE_FIXTURE, state: 'openError', device: 'phone' },
   sent: { ...DRAFT_MESSAGE_FIXTURE, state: 'sent', channel: 'Email', device: 'phone' },
@@ -141,11 +142,61 @@ export const DRAFT_MESSAGE_STATE_FIXTURES = {
 export const CONFIRM_BATCH_FIXTURE = {
   state: 'pending',
   actions: [
-    { icon: 'payments', summary: 'Record Ruth Lawrence paid · Zelle', amount: '+$270.00', tone: 'in' },
-    { icon: 'notifications', summary: 'Remind Tony about INV-0077', amount: '$640.00', tone: 'neutral' },
-    { icon: 'receipt_long', summary: 'Log The Home Depot · Supplies', amount: '−$39.70', tone: 'out' },
+    {
+      id: 'pay-ruth',
+      kind: 'record',
+      icon: 'payments',
+      summary: 'Record Ruth Lawrence paid · Zelle',
+      amount: '+$270.00',
+      tone: 'in',
+      status: 'pending',
+    },
+    {
+      id: 'remind-tony',
+      kind: 'draft',
+      icon: 'notifications',
+      summary: 'Remind Tony about INV-0077',
+      amount: '$640.00',
+      tone: 'neutral',
+      status: 'pending',
+    },
+    {
+      id: 'expense-home-depot',
+      kind: 'record',
+      icon: 'receipt_long',
+      summary: 'Log The Home Depot · Supplies',
+      amount: '−$39.70',
+      tone: 'out',
+      status: 'pending',
+    },
   ],
 } satisfies ConfirmBatchProps;
+
+/** The partial state names the failed row; there is no fail index to infer. */
+export const CONFIRM_BATCH_PARTIAL_FIXTURE = {
+  ...CONFIRM_BATCH_FIXTURE,
+  state: 'partial',
+  actions: CONFIRM_BATCH_FIXTURE.actions.map((action) => ({
+    ...action,
+    status: action.id === 'expense-home-depot' ? 'failed' as const : 'saved' as const,
+  })),
+} satisfies ConfirmBatchProps;
+
+/** One sample per design state, including the server-produced row statuses. */
+export const CONFIRM_BATCH_STATE_FIXTURES = {
+  pending: CONFIRM_BATCH_FIXTURE,
+  confirming: { ...CONFIRM_BATCH_FIXTURE, state: 'confirming' },
+  done: {
+    ...CONFIRM_BATCH_FIXTURE,
+    state: 'done',
+    actions: CONFIRM_BATCH_FIXTURE.actions.map((action) => ({
+      ...action,
+      status: 'saved' as const,
+    })),
+  },
+  partial: CONFIRM_BATCH_PARTIAL_FIXTURE,
+  loading: { ...CONFIRM_BATCH_FIXTURE, state: 'loading' },
+} satisfies Record<ConfirmBatchProps['state'], ConfirmBatchProps>;
 
 export const CANT_DO_FIXTURE = {
   state: 'filled',

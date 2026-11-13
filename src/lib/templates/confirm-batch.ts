@@ -12,7 +12,7 @@
 // the outcomes back; every headline and label the design computes follows from
 // this state.
 
-export type BatchRowKind = 'record' | 'reminder';
+export type BatchRowKind = 'record' | 'draft';
 
 export type BatchRow = {
   /** Stable id from the proposal the server recorded. */
@@ -27,6 +27,7 @@ export type BatchRow = {
 export type BatchPhase = 'pending' | 'confirming' | 'done' | 'partial';
 
 export type RowOutcome = 'saved' | 'failed';
+export type RowStatus = 'pending' | RowOutcome;
 
 export type BatchState = {
   phase: BatchPhase;
@@ -82,7 +83,7 @@ export function settle(
   }
   const anyFailed = state.rows.some((row) => outcomes[row.id] === 'failed');
   const drafts = state.rows
-    .filter((row) => row.kind === 'reminder' && outcomes[row.id] === 'saved')
+    .filter((row) => row.kind === 'draft' && outcomes[row.id] === 'saved')
     .map((row) => row.id);
   return {
     ...state,
@@ -152,6 +153,25 @@ export function batchHeadline(state: BatchState): { head: string; sub: string } 
       return { head: `${saved} saved, ${n - saved} didn't.`, sub: 'Retry the one that failed.' };
     }
   }
+}
+
+/**
+ * The per-row status the card renders. A row with no server answer yet is
+ * pending; once answered it is saved or failed. The component never derives
+ * this from an index or from the phase.
+ */
+export function rowStatus(state: BatchState, id: string): RowStatus {
+  return state.outcomes[id] ?? 'pending';
+}
+
+/** Every row's status, keyed by the action's stable id. */
+export function rowStatuses(state: BatchState): Record<string, RowStatus> {
+  return Object.fromEntries(state.rows.map((row) => [row.id, rowStatus(state, row.id)]));
+}
+
+/** Props-ready action rows: the server's status travels with each row. */
+export function batchRows(state: BatchState): Array<BatchRow & { status: RowStatus }> {
+  return state.rows.map((row) => ({ ...row, status: rowStatus(state, row.id) }));
 }
 
 /** How many rows a retry would run, for the design's "Retry 1" label. */

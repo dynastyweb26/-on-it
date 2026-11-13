@@ -117,6 +117,7 @@ export const DraftMessageState = State([
   'editing',
   'opened',
   'copied',
+  'copyError',
   'done',
   'openError',
   'sent',
@@ -150,7 +151,8 @@ export type DraftMessageProps = z.infer<typeof DraftMessageProps>;
 /**
  * The design file's own state/channel reconciliation. Text cannot know whether
  * a message was sent, and Email cannot know it was opened or copied; an
- * Email-only state with Text (or the reverse) becomes its counterpart.
+ * Email-only state with Text (or the reverse) becomes its counterpart. A copy
+ * error exists only for Text on a laptop.
  */
 export function resolveDraftMessageState(
   state: DraftMessageState,
@@ -160,27 +162,47 @@ export function resolveDraftMessageState(
   if (channel === 'Text') {
     if (state === 'sent') return device === 'laptop' ? 'copied' : 'opened';
     if (state === 'error') return 'openError';
+    // Copy exists only on a laptop; on a phone the same failure is the
+    // Messages handoff failure the card already knows how to explain.
+    if (state === 'copyError') return device === 'laptop' ? 'copyError' : 'openError';
     return state;
   }
-  if (state === 'opened' || state === 'copied' || state === 'done' || state === 'openError') {
-    return state === 'openError' ? 'error' : 'sent';
+  if (
+    state === 'opened' ||
+    state === 'copied' ||
+    state === 'copyError' ||
+    state === 'done' ||
+    state === 'openError'
+  ) {
+    return state === 'openError' || state === 'copyError' ? 'error' : 'sent';
   }
   return state;
 }
 
 // ── confirm.batch · BatchConfirm.dc.html (2 to 4 actions) ───────────────────
 
+export const BatchActionKind = z.enum(['record', 'draft']);
+export type BatchActionKind = z.infer<typeof BatchActionKind>;
+
+export const BatchActionStatus = z.enum(['pending', 'saved', 'failed']);
+export type BatchActionStatus = z.infer<typeof BatchActionStatus>;
+
 export const ConfirmBatchProps = z.object({
   state: State(['pending', 'confirming', 'done', 'partial', 'loading']).default('pending'),
-  failIndex: z.number().int().min(0).optional(),
   actions: z
     .array(
       z.object({
+        /** Stable id from the proposal; the row's status is keyed by it. */
+        id: z.string().min(1),
+        /** A record saves; a draft produces a draft.message card instead. */
+        kind: BatchActionKind,
         icon: z.string().min(1),
         summary: z.string().min(1),
         /** A finished money string, sign included when it moves money. */
         amount: z.string(),
         tone: Tone,
+        /** The server's own per-row outcome; the component never infers it. */
+        status: BatchActionStatus,
       }),
     )
     .min(2)
@@ -271,6 +293,7 @@ export const TEMPLATE_STATES = {
     'editing',
     'opened',
     'copied',
+    'copyError',
     'done',
     'openError',
     'sent',
