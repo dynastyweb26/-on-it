@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { REGISTRY, TOOLS, cardFor, findTool, parseCall } from './registry';
+import { parseTemplateProps } from '@/lib/templates/props';
 import { buildRegistry } from './contract';
 import { z } from 'zod';
 import { TURN_MODEL_CALL_CAP } from './budget';
@@ -95,6 +96,7 @@ test('a card is handed over only when the template accepts the result', () => {
   assert.equal(card.id, 'list.ranked');
   assert.deepEqual(card.props, {
     eyebrow: 'Who owes you',
+    title: 'Oldest first.',
     rows: [{
       id: '11111111-1111-1111-1111-111111111111',
       name: 'Maria Santos',
@@ -109,5 +111,19 @@ test('a card is handed over only when the template accepts the result', () => {
 
   // Data the template does not accept is not drawn as a makeshift card.
   assert.equal(cardFor(REGISTRY.get(UNPAID_TOOL_NAME), { rows: 'nope' }), null);
-  assert.equal(cardFor(tool, null), null);
+    assert.equal(cardFor(tool, null), null);
+});
+
+test('every tool\'s sample card parses against its central template props', () => {
+  for (const tool of REGISTRY.list) {
+    const result = tool.output.parse(tool.fixture.result);
+    const card = cardFor(tool, result);
+    assert.ok(card, `${tool.name} has a sample card`);
+    const parsed = parseTemplateProps(card.id, card.props);
+    assert.equal(
+      parsed.success,
+      true,
+      `${tool.name} sample does not fit ${card.id}: ${parsed.success ? '' : parsed.error.message}`,
+    );
+  }
 });

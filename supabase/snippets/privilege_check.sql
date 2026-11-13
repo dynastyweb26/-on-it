@@ -2398,6 +2398,52 @@ results(id, ok, expected, actual) as (
         || ' auth_delete=' || has_table_privilege('authenticated', 'public.help_gaps', 'DELETE')::text
         || ' anon_select=' || has_table_privilege('anon', 'public.help_gaps', 'SELECT')::text end
 
+  -- BG4-BG5. Help gap feature requests (20261113190000). SKIP until pushed.
+  --     message_id is optional and clears if the turn is deleted; one gap per
+  --     user/message; the insert policy requires the caller's own message.
+  union all
+  select 'BG4 help gaps message link',
+    case when not exists (select 1 from applied where version = '20261113190000') then null
+      else (select count(*) from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'help_gaps'
+          and c.column_name = 'message_id') = 1
+        and exists (select 1 from pg_constraint con
+          where con.conrelid = to_regclass('public.help_gaps')
+            and con.confrelid = to_regclass('public.chat_messages')
+            and con.contype = 'f' and con.confdeltype = 'n')
+        and exists (select 1 from pg_indexes
+          where schemaname = 'public' and indexname = 'help_gaps_user_message_uidx'
+            and indexdef ilike '%unique%'
+            and indexdef ilike '%user_id, message_id%'
+            and indexdef ilike '%where%')
+      end,
+    'help_gaps.message_id -> chat_messages ON DELETE SET NULL; partial unique (user_id, message_id)',
+    case when not exists (select 1 from applied where version = '20261113190000') then 'not applied yet'
+      else 'message_id_cols=' || (select count(*) from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'help_gaps'
+          and c.column_name = 'message_id')::text
+        || ' set_null_fk=' || (select count(*) from pg_constraint con
+          where con.conrelid = to_regclass('public.help_gaps')
+            and con.confrelid = to_regclass('public.chat_messages')
+            and con.contype = 'f' and con.confdeltype = 'n')::text
+        || ' unique_index=' || (select count(*) from pg_indexes
+          where schemaname = 'public' and indexname = 'help_gaps_user_message_uidx')::text end
+  union all
+  select 'BG5 help gaps feature request policy',
+    case when not exists (select 1 from applied where version = '20261113190000') then null
+      else (select count(*) from pg_policies p
+        where p.schemaname = 'public' and p.tablename = 'help_gaps' and p.cmd = 'INSERT') = 1
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'help_gaps' and p.cmd = 'INSERT'
+            and p.with_check ilike '%auth.uid()%'
+            and p.with_check ilike '%chat_messages%'
+            and p.with_check ilike '%message_id%') = 1
+      end,
+    'help_gaps: feature-request insert requires a message owned by the caller',
+    case when not exists (select 1 from applied where version = '20261113190000') then 'not applied yet'
+      else 'insert_policies=' || (select count(*) from pg_policies p
+        where p.schemaname = 'public' and p.tablename = 'help_gaps' and p.cmd = 'INSERT')::text end
+
   -- BH1-BH2. AI pending actions (20261111170000). SKIP until pushed. A proposal
   --     is write-once: the only column a browser session may UPDATE is
   --     executed_at, and only on its own row. Commit records are insert + read.
