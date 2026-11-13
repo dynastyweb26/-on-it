@@ -30,7 +30,8 @@ type EvalCase = {
   tags?: string[];
   request: string;
   signedIn?: boolean;
-  fixture: FixtureRows;
+  /** No fixture means an empty account, never a crash. */
+  fixture?: FixtureRows;
   /** Known bug this case documents: the gate expects it to fail. */
   expectedFail?: boolean;
   /** Why it is expected to fail. Required whenever expectedFail is true. */
@@ -206,8 +207,9 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
   if (JSON.stringify(db.rows) !== before) reasons.push('the graded turn changed database state');
 
   // The model said something, even if it had no tools: an empty reply is a fail
-  // only when the case expected a tool result to be phrased.
-  if (expect.tools.length > 0 && !result.replyText.trim()) {
+  // only when the case expected a tool result to be phrased. A case may leave
+  // `tools` out entirely (the record-payment cases do).
+  if ((expect.tools ?? []).length > 0 && !result.replyText.trim()) {
     reasons.push('empty reply');
   }
 
