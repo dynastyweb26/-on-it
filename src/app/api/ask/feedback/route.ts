@@ -8,6 +8,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
+import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { FEEDBACK_NOTE_MAX, FeedbackReasonsSchema } from '@/lib/templates/reasons';
 import { supabaseFeedbackStore } from '@/lib/templates/feedback-store';
 
@@ -21,18 +24,57 @@ const Body = z.object({
   note: z.string().max(FEEDBACK_NOTE_MAX).nullish(),
 });
 
+type FeedbackGuards = {
+  limit: typeof rateLimit;
+  identify: typeof rateIdentifier;
+};
+
+const GUARDS: FeedbackGuards = { limit: rateLimit, identify: rateIdentifier };
+
 export async function POST(req: NextRequest) {
+  // Same two gates as /api/ask: the build-time flag and a preview deployment.
+  if (!AI_TOOLS || !aiToolsForEnv(process.env.VERCEL_ENV)) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
+
+  // Same production-database refusal as /api/ask: a preview pointed at the
+  // production project must not write feedback.
+  const refusal = aiEnvRefusal({
+    flagOn: AI_TOOLS,
+    vercelEnv: process.env.VERCEL_ENV,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  if (refusal) {
+    logEnvRefusal(refusal, 'ask/feedback');
+    return NextResponse.json(
+      { error: refusal, reply: 'The assistant is not available on this preview.' },
+      { status: 503, ...NO_STORE },
+    );
+  }
+
   const supabase = await createClient();
   return handleFeedback(req, supabase);
 }
 
-/** Exported for the ownership test; the route itself only wraps this. */
-export async function handleFeedback(req: NextRequest, supabase: SupabaseClient) {
+/** Exported for the guard and ownership tests; the route itself only wraps this. */
+export async function handleFeedback(
+  req: NextRequest,
+  supabase: SupabaseClient,
+  guards: FeedbackGuards = GUARDS,
+) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json(
       { error: 'signed_out', reply: "You're signed out. Sign in, then try again." },
       { status: 401, ...NO_STORE },
+    );
+  }
+
+  // Same bucket as /api/ask and /api/parse: one conversation-shaped AI surface.
+  if (!(await guards.limit('parse', guards.identify(req, user.id)))) {
+    return NextResponse.json(
+      { reply: 'One sec — slow down a moment.' },
+      { status: 429, ...NO_STORE },
     );
   }
 
