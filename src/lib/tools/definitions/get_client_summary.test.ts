@@ -90,6 +90,18 @@ test('a refund row nets out of Paid, as Books counts it', async () => {
   assert.equal(out.summary.paid, '$30.00');
 });
 
+test('three tiles fit a 390-wide phone: no label or sub truncates', async () => {
+  // Three tiles share the card, so each gets about a third of 390 minus gaps
+  // and padding. These budgets are what prints in full at that width.
+  const out = (await run('ruth', [client('Ruth Lawrence')], [doc(1)])) as never as Summary;
+  assert.equal(out.tiles.length, 3);
+  for (const tile of out.tiles) {
+    assert.ok(tile.label.length <= 4, `label "${tile.label}" is too wide for three tiles`);
+    assert.ok(tile.period.length <= 8, `sub "${tile.period}" is too wide for three tiles`);
+  }
+  assert.deepEqual(out.tiles.map((t) => t.label), ['Owed', 'Paid', 'Open']);
+});
+
 test('two Ruths are never guessed between', async () => {
   const out = (await run('ruth', [client('Ruth Lawrence'), client('Ruth Chen')])) as never as {
     match: string; tiles: unknown[]; summary: unknown; clients: unknown[];
