@@ -77,8 +77,8 @@ function Thread() {
   const nav = resolveTemplate({ id: 'nav.link', props: TEMPLATE_FIXTURES['nav.link'] });
   if (!ranked || !nav) return null;
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col xl:max-w-[720px]">
-      <div data-thread className="min-h-0 flex-1 space-y-3 overflow-x-hidden px-4 py-4 md:px-6">
+    <main className="mx-auto flex w-full max-w-4xl flex-col xl:max-w-[768px] xl:px-6">
+      <div data-thread className="min-h-0 flex-1 space-y-3 overflow-x-hidden px-4 py-4 md:px-6 xl:space-y-[14px] xl:px-0 xl:py-5">
         <div className="flex justify-end"><div className={USER_BUBBLE}>who owes me</div></div>
         <TemplateReply content="Here is who owes you." card={ranked} handlers={{}} prevRole="user" />
         <div className="flex justify-end"><div className={USER_BUBBLE}>show me Ruth&apos;s invoice</div></div>

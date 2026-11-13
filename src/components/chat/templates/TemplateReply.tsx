@@ -12,7 +12,7 @@ export default function TemplateReply({
   content, card, handlers, prevRole,
 }: { content: string; card: ResolvedTemplate; handlers: ChatTemplateHandlers; prevRole?: 'user' | 'assistant' }) {
   return (
-    <div data-template-reply className={`flex justify-start gap-2 pb-3 ${prevRole === 'user' ? '!mt-4' : '!mt-6'}`}>
+    <div data-template-reply className={`flex justify-start gap-2 pb-3 xl:pb-2.5 ${prevRole === 'user' ? '!mt-4' : '!mt-6'}`}>
       <AssistantAvatar />
       <div className="flex min-w-0 flex-1 flex-col items-stretch gap-2">
         {content && (
