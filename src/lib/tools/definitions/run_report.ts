@@ -562,7 +562,7 @@ const fixtureTile = {
 export const runReportTool = defineTool({
   name: RUN_REPORT,
   description:
-    'Read-only money report: collected, spent, net, invoiced or outstanding for this/last week, month or year, or a custom from/to. Uses the owner’s profile timezone; weeks start Monday. Group by none (tiles), week or month (trend), category (spending breakdown) or client (ranked list). Pass sort "slowest" to answer who pays slowest: it always groups by client and ranks clients with two or more fully paid invoices across all time by average days to pay, ignoring the requested period for the ranking; each row shows what that client still owes now. Optional compare to the previous period. Outstanding is always as of now, never limited to the past period. Figures equal the Books tab for the same period.',
+    'Read-only money report, and the tool for any "how much" question about a total — spent, collected, net, invoiced or outstanding — including one category and one month ("how much did I spend on gas in October" is metric spent, category gas, period custom). Collected, spent, net, invoiced or outstanding for this/last week, month or year, or a custom from/to. Uses the owner’s profile timezone; weeks start Monday. Group by none (tiles), week or month (trend), category (spending breakdown) or client (ranked list). Pass sort "slowest" to answer who pays slowest: it always groups by client and ranks clients with two or more fully paid invoices across all time by average days to pay, ignoring the requested period for the ranking; each row shows what that client still owes now. Optional compare to the previous period. Outstanding is always as of now, never limited to the past period. Figures equal the Books tab for the same period.',
   input: RunReportInput,
   output: RunReportOutput,
   type: 'read',
@@ -953,18 +953,20 @@ export const runReportTool = defineTool({
     }
     : result,
   fallback: (result) => {
+    // Plain words only: this line is read aloud to the user. The word the
+    // owner typed is kept, so they can hear which part was not understood.
     if (result.problem?.kind === 'unknown_period') {
       return result.problem.word
-        ? `No figures: I did not understand the period "${result.problem.word}".`
-        : 'No figures: I did not understand that period.';
+        ? `No figures: I don't know which dates you mean by "${result.problem.word}".`
+        : "No figures: I don't know which dates you mean.";
     }
     if (result.problem?.kind === 'unknown_metric') {
       return result.problem.word
-        ? `No figures: I did not understand the metric "${result.problem.word}".`
-        : 'No figures: I did not understand that metric.';
+        ? `No figures: I don't know what "${result.problem.word}" means to add up.`
+        : "No figures: I don't know what to add up.";
     }
     if (result.problem?.kind === 'custom_needs_dates') {
-      return 'No figures: a custom period needs a real from and to date.';
+      return "No figures: give me a real first day and last day and I'll add it up.";
     }
     if (!result.value) return `Nothing logged for ${result.period.label}.`;
     if (result.match === 'none') return `Nothing logged for ${result.period.label}.`;

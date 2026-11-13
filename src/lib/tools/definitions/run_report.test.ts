@@ -411,3 +411,21 @@ test('an alias reports the same figures as the metric it names', async () => {
   assert.equal(owed.metric, 'outstanding');
   assert.equal(figured(owed).amount, 400);
 });
+
+test('an unknown word is answered in plain words, keeping what the user typed', () => {
+  const say = (problem: { kind: string; word: string }) =>
+    runReportTool.fallback({ problem } as never);
+  const lines = [
+    say({ kind: 'unknown_period', word: 'banana' }),
+    say({ kind: 'unknown_period', word: '' }),
+    say({ kind: 'unknown_metric', word: 'profit' }),
+    say({ kind: 'unknown_metric', word: '' }),
+    say({ kind: 'custom_needs_dates', word: '' }),
+  ];
+  assert.match(lines[0], /"banana"/);
+  assert.match(lines[2], /"profit"/);
+  for (const line of lines) {
+    assert.doesNotMatch(line, /metric|period/i);
+    assert.match(line, /^No figures: /);
+  }
+});

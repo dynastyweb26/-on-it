@@ -26,16 +26,17 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { MODEL } from '@/lib/ai';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
-import { TURN_BUDGET_REPLY, createTurnBudget } from '@/lib/tools/budget';
+import { createTurnBudget } from '@/lib/tools/budget';
 import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
 import { supabaseToolDb } from '@/lib/tools/db';
-import { FALLBACK, replyFor } from '@/lib/tools/reply';
+import { FALLBACK } from '@/lib/tools/reply';
+import { answerFor } from '@/lib/tools/answer';
 import { guardModelMoney } from '@/lib/tools/money';
 import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
-import { REGISTRY, cardFor } from '@/lib/tools/registry';
+import { REGISTRY } from '@/lib/tools/registry';
 import { askResponseBody } from '@/lib/ask-response';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
@@ -142,14 +143,6 @@ export async function POST(req: NextRequest) {
     (run) => run.status === 'ok' && run.name === UNPAID_TOOL_NAME,
   )?.output ?? null) as UnpaidSummary | null;
 
-  // The data the result's template may render, and the plain text shown when no
-  // component exists for that template (or its props do not fit). A null card is
-  // never replaced by a makeshift one.
-  const okRun = result.toolRuns.find((run) => run.status === 'ok');
-  const okTool = okRun ? REGISTRY.find(okRun.name) : undefined;
-  const card = okRun && okTool ? cardFor(okTool, okRun.output) : null;
-  const fallback = okRun && okTool ? okTool.fallback(okRun.output as never) : null;
-
   // Money guard: a dollar figure the model states must already exist in this
   // turn's tool results. A sentence carrying one that does not is dropped.
   const moneyGuard = guardModelMoney(result.replyText, result.toolResults);
@@ -157,11 +150,19 @@ export async function POST(req: NextRequest) {
     console.error('[ask] dropped model money with no tool source', moneyGuard.offending);
   }
 
-  // A turn that ran out of model calls says so in plain words: the server
-  // sentence when one was composed, otherwise the reserve reply. Never an error.
-  const reply = result.budgetExhausted
-    ? summary?.sentence ?? TURN_BUDGET_REPLY
-    : replyFor({ modelText: moneyGuard.text, summary, toolCalled: !!summary });
+  // What the user reads, whichever tool ran: the card (or the cant.do card when
+  // no tool ran), that tool's own server-composed sentence, and the plain text
+  // shown when no component exists. A null card is never replaced by a makeshift
+  // one, and a turn out of model calls still answers from the same sentence.
+  const answer = answerFor({
+    modelText: moneyGuard.text,
+    toolRuns: result.toolRuns,
+    registry: REGISTRY,
+    budgetExhausted: result.budgetExhausted,
+  });
+  const { card, tool: okTool } = answer;
+  const reply = answer.reply;
+  const fallback = answer.sentence;
 
   // Chat logging: one row per turn, under the caller's session. Best effort —
   // a failed log never fails the answer the user is waiting for.
