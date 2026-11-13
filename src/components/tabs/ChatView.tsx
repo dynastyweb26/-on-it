@@ -2974,7 +2974,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const restored = restoredMsgIdsRef.current.has(m.id);
     const reply = thumbReplyFor(m, {
       isLatestAssistantReply: lastAssistant?.id === m.id,
-      textDone: restored || Boolean(m.template) || streamDone.has(m.id),
+      textDone: restored || streamDone.has(m.id),
       reopenedPastChatLast: restored && mi === messages.length - 1,
     });
     if (!reply || !m.messageId) return null;
@@ -5115,7 +5115,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.template && resolveTemplate(m.template) ? (
-            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={templateHandlers(m, mi)} prevRole={messages[mi - 1]?.role} after={thumbsFor(m, mi, false)} />
+            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={templateHandlers(m, mi)} prevRole={messages[mi - 1]?.role} after={thumbsFor(m, mi, false)} live={!restoredMsgIdsRef.current.has(m.id)} onTextDone={() => markStreamDone(m.id)} />
           ) : m.signInLink ? (
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">

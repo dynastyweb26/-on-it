@@ -48,7 +48,7 @@ const EXTRAS = (t: TemplateId, s: string): object => (t === 'feedback.thumbs' &&
 export default function Page({ searchParams }: { searchParams: { request?: string; fail?: string; thread?: string; template?: string; state?: string; channel?: string; device?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
 
-  if (searchParams.thread) return <Thread />;
+  if (searchParams.thread) return <Thread live={searchParams.thread === 'live'} />;
   if (searchParams.request) return <RequestDemo status={Number(searchParams.request) || 500} />;
   if (searchParams.fail) return <FailingThumbs status={Number(searchParams.fail) || 500} />;
   const { template, state, channel, device } = searchParams;
@@ -76,7 +76,7 @@ export default function Page({ searchParams }: { searchParams: { request?: strin
 // A short thread in the chat list's own container (classes copied from ChatView), so the
 // reply spacing and column widths can be measured: /dev/ai-templates?thread=1
 const USER_BUBBLE = 'max-w-[82%] whitespace-pre-wrap rounded-[18px] rounded-br-md bg-inverse-surface px-3.5 py-2.5 text-[15px] leading-snug text-inverse-on-surface';
-function Thread() {
+function Thread({ live }: { live: boolean }) {
   const ranked = resolveTemplate({ id: 'list.ranked', props: TEMPLATE_FIXTURES['list.ranked'] });
   const nav = resolveTemplate({ id: 'nav.link', props: TEMPLATE_FIXTURES['nav.link'] });
   if (!ranked || !nav) return null;
@@ -84,7 +84,7 @@ function Thread() {
     <main className="mx-auto flex w-full max-w-4xl flex-col xl:max-w-[768px] xl:px-6">
       <div data-thread className="min-h-0 flex-1 space-y-3 overflow-x-hidden px-4 py-4 md:px-6 xl:space-y-[14px] xl:px-0 xl:py-5">
         <div className="flex justify-end"><div className={USER_BUBBLE}>who owes me</div></div>
-        <TemplateReply content="Here is who owes you." card={ranked} handlers={{}} prevRole="user" />
+        <TemplateReply content="Here is who owes you." card={ranked} handlers={{}} prevRole="user" live={live} />
         <div className="flex justify-end"><div className={USER_BUBBLE}>show me Ruth&apos;s invoice</div></div>
         <TemplateReply content="Found it." card={nav} handlers={{}} prevRole="user" />
       </div>
