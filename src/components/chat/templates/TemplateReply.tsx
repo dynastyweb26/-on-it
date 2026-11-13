@@ -5,12 +5,13 @@
 // 28px avatar and 8px gutter, 8 from the bubble to the card. Used by the chat
 // thread and by the fixtures page, so the two cannot drift.
 import { AssistantAvatar } from '@/components/chat/EventCard';
+import type { ReactNode } from 'react';
 import ChatTemplate, { type ChatTemplateHandlers } from './ChatTemplate';
 import type { ResolvedTemplate } from './render-model';
 
 export default function TemplateReply({
-  content, card, handlers, prevRole,
-}: { content: string; card: ResolvedTemplate; handlers: ChatTemplateHandlers; prevRole?: 'user' | 'assistant' }) {
+  content, card, handlers, prevRole, after,
+}: { content: string; card: ResolvedTemplate; handlers: ChatTemplateHandlers; prevRole?: 'user' | 'assistant'; after?: ReactNode }) {
   return (
     <div data-template-reply className={`flex justify-start gap-2 pb-3 xl:pb-2.5 ${prevRole === 'user' ? '!mt-4' : '!mt-6'}`}>
       <AssistantAvatar />
@@ -21,6 +22,8 @@ export default function TemplateReply({
           </div>
         )}
         <ChatTemplate card={card} handlers={handlers} />
+        {/* The thumbs sit 4 under the card (8 of gap, pulled up 4). */}
+        {after && <div style={{ marginTop: -4 }}>{after}</div>}
       </div>
     </div>
   );

@@ -119,6 +119,8 @@ import { askQuestion } from '@/lib/ask-client';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
+import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
+import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
 import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
@@ -156,6 +158,8 @@ interface Msg {
   template?: { id: string; props: unknown };
   /** The server's plain-text answer for the card above; shown when it cannot draw. */
   fallbackText?: string;
+  /** The logged chat_messages id /api/ask returned. No id, no thumbs. */
+  messageId?: string;
   /** Where the answer's full list lives (an in-app path the server declared). */
   destination?: { screen: string; path: string };
   /** Posted by the open-time dice, not asked for: never saved with the thread. */
@@ -1556,9 +1560,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
           const replyMsg = out.kind === 'ok' && (card || out.fallback)
             ? aMsg(card ? out.reply : (out.fallback as string), {
                 skipHistory: true,
+                ...(out.messageId ? { messageId: out.messageId } : {}),
                 ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
               })
-            : aMsg(out.reply, { skipHistory: true });
+            : aMsg(out.reply, { skipHistory: true, ...(out.kind === 'ok' && out.messageId ? { messageId: out.messageId } : {}) });
           setMessages((m) => {
             // Keep the Q&A out of the job history parse reads later.
             const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
@@ -2957,6 +2962,25 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // Taps on a template card in the thread. Show all, a row and a link open the
   // destination the server declared (none declared, nothing to open); Try again
   // re-runs the question this answer replied to, in place of the answer.
+  // Thumbs (RULES §6 items 1-3): thumbs.ts decides, from the message and where it sits.
+  // The reply must carry a messageId (nothing to save against otherwise), and a typed
+  // reply waits for its text to finish appearing.
+  const [streamDone, setStreamDone] = useState<Set<string>>(() => new Set());
+  const markStreamDone = (id: string) => setStreamDone((p) => (p.has(id) ? p : new Set(p).add(id)));
+  function thumbsFor(m: Msg, mi: number, wrap: boolean) {
+    const lastAssistant = [...messages].reverse().find((x) => x.role === 'assistant');
+    const restored = restoredMsgIdsRef.current.has(m.id);
+    const reply = thumbReplyFor(m, {
+      isLatestAssistantReply: lastAssistant?.id === m.id,
+      textDone: restored || Boolean(m.template) || streamDone.has(m.id),
+      reopenedPastChatLast: restored && mi === messages.length - 1,
+    });
+    if (!reply || !m.messageId) return null;
+    const thumbs = <ReplyThumbs key={m.messageId} messageId={m.messageId} reply={reply} />;
+    // 4 under the reply; the avatar column (22 + 8) is skipped when this bubble carries the mark.
+    return wrap ? <div className={`!mt-1${messages[mi - 1]?.role !== 'assistant' ? ' pl-[30px]' : ''}`}>{thumbs}</div> : thumbs;
+  }
+
   function templateHandlers(m: Msg, mi: number): ChatTemplateHandlers {
     const path = m.destination?.path;
     const open = path ? () => router.push(path) : undefined;
@@ -5083,7 +5107,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.template && resolveTemplate(m.template) ? (
-            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={templateHandlers(m, mi)} prevRole={messages[mi - 1]?.role} />
+            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={templateHandlers(m, mi)} prevRole={messages[mi - 1]?.role} after={thumbsFor(m, mi, false)} />
           ) : m.signInLink ? (
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">
@@ -5394,10 +5418,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     static — no error, card or quick reply goes through it. */}
                 {restoredMsgIdsRef.current.has(m.id) || m.role === 'user'
                   ? (m.template && m.fallbackText ? m.fallbackText : m.content)
-                  : <StreamText text={m.content} />}
+                  : <StreamText text={m.content} onDone={m.messageId ? () => markStreamDone(m.id) : undefined} />}
               </div>
             </div>
           )}
+          {!(m.template && resolveTemplate(m.template)) && thumbsFor(m, mi, true)}
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && unsentShare && !unsentShareOpen && (
             // S1b: Keep as draft leaves this pinned under the document until the

@@ -33,6 +33,9 @@ export default function FeedbackThumbs({
   const [picked, setPicked] = useState<string[]>(() => [...(initial?.reasons ?? [])]);
   const [note, setNote] = useState(initial?.note ?? '');
   const sending = useRef(false); // synchronous: a second Send tap never posts twice
+  const voting = useRef(false); // synchronous: a second thumb tap waits for the first save
+  const [failedMsg, setFailedMsg] = useState<string | null>(null); // the cause, from a rejected onVote
+  const [bareError, setBareError] = useState<string | null>(null); // a thumb that did not save
 
   const first = useRef(true);
   useEffect(() => {
@@ -41,6 +44,9 @@ export default function FeedbackThumbs({
     setPicked([...(initial?.reasons ?? [])]);
     setNote(initial?.note ?? '');
     sending.current = false;
+    voting.current = false;
+    setFailedMsg(null);
+    setBareError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
@@ -49,11 +55,22 @@ export default function FeedbackThumbs({
 
   if (reply && !thumbDecision({ ...reply, vote, followUpOpen: open }).show) return null;
 
-  const thumb = (which: ThumbVote) => {
+  const thumb = async (which: ThumbVote) => {
+    if (voting.current || sending.current) return;
+    voting.current = true;
+    const before = s;
     const next = afterVote(vote, which);
     setS((p) => ({ ...p, vote: next.vote, open: next.followUpOpen }));
-    // The log keeps the final vote; a failed bare vote has no place in the design, so it is not surfaced.
-    Promise.resolve(onVote?.(next.vote)).catch(() => {});
+    setBareError(null);
+    try {
+      await onVote?.(next.vote);
+    } catch (e) {
+      // The vote un-fills and the cause is named (the host's message).
+      setS(before);
+      setBareError(e instanceof Error && e.message ? e.message : 'Could not save.');
+    } finally {
+      voting.current = false;
+    }
   };
   const close = () => setS((p) => ({ ...p, open: false }));
   const send = async () => {
@@ -62,8 +79,10 @@ export default function FeedbackThumbs({
     try {
       await onVote?.('down', reasonsForChips(picked), note.trim());
       setS((p) => ({ ...p, open: false, failed: false }));
-    } catch {
+      setFailedMsg(null);
+    } catch (e) {
       setS((p) => ({ ...p, failed: true }));
+      setFailedMsg(e instanceof Error && e.message ? e.message : null);
     } finally {
       sending.current = false;
     }
@@ -96,6 +115,13 @@ export default function FeedbackThumbs({
         {mk('up', 'thumb_up', 'Good response')}
         {mk('down', 'thumb_down', 'Bad response')}
       </div>
+
+      {bareError && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, fontWeight: 600, color: 'var(--tpl-red)' }}>
+          <Sym name="error" size={16} />
+          {bareError}
+        </div>
+      )}
 
       {open && (
         <div className="tpl-xl-420" style={{ background: 'var(--tpl-card)', border: '1.5px solid var(--tpl-card-border)', borderRadius: 20, padding: '14px 14px 14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -130,7 +156,7 @@ export default function FeedbackThumbs({
           {failed && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, fontWeight: 600, color: 'var(--tpl-red)' }}>
               <Sym name="error" size={16} />
-              Didn&apos;t send. Your picks are kept.
+              {failedMsg ?? "Didn't send. Your picks are kept."}
             </div>
           )}
           <div style={{ display: 'flex', gap: 10 }}>

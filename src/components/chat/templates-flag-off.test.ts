@@ -21,7 +21,7 @@ test('flag off: no question is ever routed to /api/ask, whatever the router said
 
 test('flag off: a main-shaped /api/ask answer comes back with nothing extra', async () => {
   const fetchMain = (async () => new Response(JSON.stringify({ reply: 'Two are unpaid.' }), { status: 200 })) as unknown as typeof fetch;
-  assert.deepEqual(await askQuestion('who owes me', fetchMain), { kind: 'ok', reply: 'Two are unpaid.' });
+  assert.deepEqual(await askQuestion('who owes me', fetchMain), { kind: 'ok', reply: 'Two are unpaid.', messageId: null });
 });
 
 test('a template message exists only where the /api/ask answer is handled', () => {

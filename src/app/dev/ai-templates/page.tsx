@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ComponentType } from 'react';
 import { AssistantAvatar } from '@/components/chat/EventCard';
+import FailingThumbs from './FailingThumbs';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
 import RankedList from '@/components/chat/templates/RankedList';
@@ -43,10 +44,11 @@ const BUILT: Partial<Record<TemplateId, ComponentType<any>>> = {
 // Sample state a design file seeds that the typed props do not carry (picks, a made choice, row statuses).
 const EXTRAS = (t: TemplateId, s: string): object => (t === 'feedback.thumbs' && (s === 'openFilled' || s === 'error') ? { initial: { reasons: ['Wrong number'], note: 'It used last month, not this one.' } } : t === 'feedback.checkin' && s === 'picked' ? { picked: 'Love it' } : t === 'confirm.batch' && s === 'partial' ? { statuses: ['saved', 'failed', 'saved'] } : {});
 
-export default function Page({ searchParams }: { searchParams: { thread?: string; template?: string; state?: string; channel?: string; device?: string } }) {
+export default function Page({ searchParams }: { searchParams: { fail?: string; thread?: string; template?: string; state?: string; channel?: string; device?: string } }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
 
   if (searchParams.thread) return <Thread />;
+  if (searchParams.fail) return <FailingThumbs status={Number(searchParams.fail) || 500} />;
   const { template, state, channel, device } = searchParams;
   if (!template) return <Index />;
   if (!isTemplateId(template)) notFound();

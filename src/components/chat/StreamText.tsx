@@ -51,12 +51,15 @@ export default function StreamText({
   text,
   streaming = false,
   className = '',
+  onDone,
 }: {
   text: string;
   /** A real stream will drive this later: the reveal follows the text as it grows. */
   streaming?: boolean;
   /** Type/colour only — the bubble owns the shell. */
   className?: string;
+  /** Called once, when the last character has landed. */
+  onDone?: () => void;
 }) {
   const chars = useMemo(() => Array.from(text), [text]);
   const [shown, setShown] = useState(0);
@@ -79,6 +82,10 @@ export default function StreamText({
   // The caret belongs to the reveal, not the message: it is gone the moment the
   // last character lands, and reduced motion never draws one.
   const revealing = shown < chars.length || streaming;
+  useEffect(() => {
+    if (!revealing) onDone?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealing]);
 
   return (
     <span className={`block${className ? ` ${className}` : ''}`} onClick={finish}>
