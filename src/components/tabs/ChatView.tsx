@@ -4976,9 +4976,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   );
 
   return (
-    // xl: LAPTOP-SPEC's column, 720 of content with 24 each side (768 border-box); the
+    // xl (AI_TOOLS only, so the flag-off chat is byte-for-byte main): LAPTOP-SPEC's column, 720 of content with 24 each side (768 border-box); the
     // composer is a child of it, so the two share left and right edges exactly.
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col xl:max-w-[768px] xl:px-6">
+    <div className={`mx-auto flex h-full w-full max-w-4xl flex-col ${AI_TOOLS ? 'xl:max-w-[768px] xl:px-6' : 'xl:max-w-[720px]'}`}>
       {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
@@ -4988,7 +4988,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         ref={listRef}
         onScroll={onListScroll}
         data-coach="chat-messages"
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 md:px-6 xl:space-y-[14px] xl:px-0 xl:py-5"
+        className={`min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 md:px-6${AI_TOOLS ? ' xl:space-y-[14px] xl:px-0 xl:py-5' : ''}`}
       >
         {hydrated && dayLabel(messages) && (
           <div className="onit-day-in py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
