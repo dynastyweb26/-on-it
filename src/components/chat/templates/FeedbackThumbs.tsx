@@ -34,7 +34,6 @@ export default function FeedbackThumbs({
   const [note, setNote] = useState(initial?.note ?? '');
   const sending = useRef(false); // synchronous: a second Send tap never posts twice
   const voting = useRef(false); // synchronous: a second thumb tap waits for the first save
-  const [failedMsg, setFailedMsg] = useState<string | null>(null); // the cause, from a rejected onVote
   const [bareError, setBareError] = useState<string | null>(null); // a thumb that did not save
 
   const first = useRef(true);
@@ -45,7 +44,6 @@ export default function FeedbackThumbs({
     setNote(initial?.note ?? '');
     sending.current = false;
     voting.current = false;
-    setFailedMsg(null);
     setBareError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -79,10 +77,9 @@ export default function FeedbackThumbs({
     try {
       await onVote?.('down', reasonsForChips(picked), note.trim());
       setS((p) => ({ ...p, open: false, failed: false }));
-      setFailedMsg(null);
-    } catch (e) {
+    } catch {
+      // RULES §6 item 3: the follow-up keeps its designed line; the cause is for a bare vote.
       setS((p) => ({ ...p, failed: true }));
-      setFailedMsg(e instanceof Error && e.message ? e.message : null);
     } finally {
       sending.current = false;
     }
@@ -156,7 +153,7 @@ export default function FeedbackThumbs({
           {failed && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, fontWeight: 600, color: 'var(--tpl-red)' }}>
               <Sym name="error" size={16} />
-              {failedMsg ?? "Didn't send. Your picks are kept."}
+              Didn&apos;t send. Your picks are kept.
             </div>
           )}
           <div style={{ display: 'flex', gap: 10 }}>
