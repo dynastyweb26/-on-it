@@ -55,6 +55,8 @@ export const ListInvoicesOutput = z.object({
   rows: RankedListProps.shape.rows,
   total: RankedListProps.shape.total,
   documents: z.array(Document),
+  /** A from/to that was given but is not a date: the list is empty, not wide. */
+  dateProblem: z.string().optional(),
 });
 
 const row = (i: number, over: Partial<InvoiceRow> = {}): InvoiceRow => ({
@@ -82,7 +84,22 @@ export const listInvoicesTool = defineTool({
   defaultTemplate: { id: 'list.ranked', props: RankedListProps },
   destination: { screen: 'Invoices', path: '/invoices' },
   handler: async (ctx, args) => {
-    const { filters, ignored } = forgivingFilters(args);
+    const { filters, ignored, badDates } = forgivingFilters(args);
+    if (badDates.length) {
+      // A date we cannot read must never widen the answer to all time.
+      return {
+        match: 'none' as const,
+        count: 0,
+        ignored,
+        eyebrow: 'Your invoices',
+        title: '',
+        totalCount: 0,
+        rows: [],
+        total: { label: '0 invoices', amount: moneyText(0) },
+        documents: [],
+        dateProblem: badDates[0],
+      };
+    }
     const { data, error } = await ctx.db.select<InvoiceRow>('invoices', {
       columns: '*',
       eq: { user_id: ctx.userId, kind: 'invoice' },
@@ -128,9 +145,11 @@ export const listInvoicesTool = defineTool({
     };
   },
   fallback: (result) =>
-    result.count === 0
-      ? 'No invoices match that.'
-      : `${result.count} ${result.count === 1 ? 'invoice' : 'invoices'}, ${result.total.amount} in total.`,
+    result.dateProblem
+      ? `No rows: I did not understand the date "${result.dateProblem}".`
+      : result.count === 0
+        ? 'No invoices match that.'
+        : `${result.count} ${result.count === 1 ? 'invoice' : 'invoices'}, ${result.total.amount} in total.`,
   fixture: {
     args: {},
     result: {

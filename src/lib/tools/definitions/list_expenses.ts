@@ -57,6 +57,8 @@ export const ListExpensesOutput = z.object({
   rows: RankedListProps.shape.rows,
   total: RankedListProps.shape.total,
   expenses: z.array(Expense),
+  /** A from/to that was given but is not a date: the list is empty, not wide. */
+  dateProblem: z.string().optional(),
 });
 
 const fixtureRow = (over: Partial<ExpenseRow> = {}): ExpenseRow => ({
@@ -83,7 +85,7 @@ export const listExpensesTool = defineTool({
   defaultTemplate: { id: 'list.ranked', props: RankedListProps },
   destination: { screen: 'Expenses', path: '/expenses' },
   handler: async (ctx, args) => {
-    const { filters, ignored } = forgivingFilters({
+    const { filters, ignored, badDates } = forgivingFilters({
       from: args.from,
       to: args.to,
       min_amount: args.min_amount,
@@ -91,6 +93,22 @@ export const listExpensesTool = defineTool({
     });
     const category = forgivingCategory(args.category);
     ignored.push(...category.ignored);
+
+    if (badDates.length) {
+      // A date we cannot read must never widen the answer to all time.
+      return {
+        match: 'none' as const,
+        count: 0,
+        ignored,
+        eyebrow: 'Your expenses',
+        title: '',
+        totalCount: 0,
+        rows: [],
+        total: { label: '0 expenses', amount: moneyText(0) },
+        expenses: [],
+        dateProblem: badDates[0],
+      };
+    }
 
     const { data, error } = await ctx.db.select<ExpenseRow>('expenses', {
       columns: '*',
@@ -155,9 +173,11 @@ export const listExpensesTool = defineTool({
     };
   },
   fallback: (result) =>
-    result.count === 0
-      ? 'No expenses match that.'
-      : `${result.count} ${result.count === 1 ? 'expense' : 'expenses'}, ${result.total.amount} in total.`,
+    result.dateProblem
+      ? `No rows: I did not understand the date "${result.dateProblem}".`
+      : result.count === 0
+        ? 'No expenses match that.'
+        : `${result.count} ${result.count === 1 ? 'expense' : 'expenses'}, ${result.total.amount} in total.`,
   fixture: {
     args: { category: 'gas' },
     result: {

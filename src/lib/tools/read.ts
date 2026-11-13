@@ -200,12 +200,15 @@ export type FilterOutcome = {
   filters: Filters;
   /** Values that were not understood, in the shape the user sent them. */
   ignored: string[];
+  /** A from/to that was given but is not a date: the caller must not widen. */
+  badDates: string[];
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function forgivingFilters(input: Filters): FilterOutcome {
   const ignored: string[] = [];
+  const badDates: string[] = [];
   const out: Filters = {};
 
   if (input.status?.length) {
@@ -222,7 +225,10 @@ export function forgivingFilters(input: Filters): FilterOutcome {
     const value = input[key]?.trim();
     if (!value) continue;
     if (ISO_DATE.test(value) && !Number.isNaN(Date.parse(value))) out[key] = value;
-    else ignored.push(value);
+    else {
+      ignored.push(value);
+      badDates.push(value);
+    }
   }
 
   for (const key of ['min_amount', 'max_amount'] as const) {
@@ -232,7 +238,7 @@ export function forgivingFilters(input: Filters): FilterOutcome {
     else ignored.push(String(value));
   }
 
-  return { filters: out, ignored };
+  return { filters: out, ignored, badDates };
 }
 
 /** A row as the invoices table stores it, narrowed to what these tools read. */
