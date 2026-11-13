@@ -106,7 +106,7 @@ const fixtureInvoices: InvoiceLite[] = [
 export const listPaymentsTool = defineTool({
   name: LIST_PAYMENTS,
   description:
-    'Read-only list of money received, newest first: invoice payments (refunds and disputes appear as signed negative rows) plus other income that is not tied to an invoice. The list total equals the Books Collected figure for the same range. Supports client, method, date and amount filters; at most 25 rows plus the full count.',
+    'Read-only list of money received, newest first: invoice payments (refunds and disputes appear as signed negative rows) plus other income that is not tied to an invoice. The list total equals the Books Collected figure for the same range. Supports client, method, date and amount filters; at most 25 rows plus the full count. This answers "payments this month" and "what came in this week": pass from and to. For a single total of what came in, run_report does that too.',
   input: ListPaymentsInput,
   output: ListPaymentsOutput,
   type: 'read',

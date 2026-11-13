@@ -109,7 +109,7 @@ const fixtureRows: ProductRow[] = [
 export const listSavedItemsTool = defineTool({
   name: LIST_SAVED_ITEMS,
   description:
-    'Read-only A–Z list of the user’s saved products and services with their prices and units, newest use first only for the count. Supports a text filter over the name and detail and a unit filter (each, hour, sq ft, job); returns at most 25 rows plus the full count.',
+    'Read-only A–Z list of the user’s saved products and services with their prices and units, newest use first only for the count. Supports a text filter over the name and detail and a unit filter (each, hour, sq ft, job); returns at most 25 rows plus the full count. This answers what the user charges — "what do I charge hourly", "what is my rate for a service call" — from the saved item’s price and unit.',
   input: ListSavedItemsInput,
   output: ListSavedItemsOutput,
   type: 'read',
