@@ -1876,7 +1876,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"openError\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=copyError&channel=Text&device=laptop",
@@ -1889,10 +1902,11 @@
       "pairs": [
         {
           "name": "draft.message copyError",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"copyError\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1907,7 +1921,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"openError\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=copyError&channel=Text&device=laptop",
@@ -1920,10 +1947,11 @@
       "pairs": [
         {
           "name": "draft.message copyError",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"copyError\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }

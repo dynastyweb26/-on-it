@@ -54,13 +54,13 @@ export default function DraftMessage({
   const sending = m === 'sending';
   const handoff = m === 'opened' || m === 'copied';
   const finished = m === 'sent' || m === 'done';
-  const textDraftLike = isText && (m === 'draft' || m === 'openError' || noC);
+  const textDraftLike = isText && (m === 'draft' || m === 'openError' || m === 'copyError' || noC);
 
   const send = () => {
     if (busy.current) return;
     busy.current = true;
     setMode('sending');
-    onSend?.();
+    onSend?.(body);
   };
   const copy = async () => {
     try {
@@ -105,7 +105,7 @@ export default function DraftMessage({
   if (handoff) { primaryLabel = 'Mark done'; primaryIcon = 'check'; onPrimary = () => { setMode('done'); onMarkDone?.(); }; }
 
   let secondary: { label: string; icon: string; on: () => void } | null = null;
-  if (m === 'draft' || m === 'error' || m === 'openError' || noC) secondary = { label: 'Edit', icon: 'edit', on: () => { setMode('editing'); onEdit?.(); } };
+  if (m === 'draft' || m === 'error' || m === 'openError' || m === 'copyError' || noC) secondary = { label: 'Edit', icon: 'edit', on: () => { setMode('editing'); onEdit?.(body); } };
   if (m === 'opened') secondary = { label: 'Reopen', icon: 'open_in_new', on: openMessages };
   if (m === 'copied') secondary = { label: 'Copy again', icon: 'content_copy', on: () => void copy() };
 
@@ -243,10 +243,10 @@ export default function DraftMessage({
             </div>
           )}
 
-          {(m === 'error' || m === 'openError' || copyFailed) && (
+          {(m === 'error' || m === 'openError' || m === 'copyError' || copyFailed) && (
             <div style={{ background: 'var(--tpl-red-soft)', padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14, lineHeight: 1.4, color: 'var(--tpl-fail-ink)' }}>
               <Sym name="error" size={18} />
-              <span>{copyFailed ? "Couldn't copy. Select the text and copy it." : m === 'openError' ? "Couldn't open Messages on this device. Copy the text and paste it into any messaging app." : `Didn't send. The number for ${firstName} may be wrong. Your draft is saved.`}</span>
+              <span>{copyFailed || m === 'copyError' ? "Couldn't copy. Select the text and copy it." : m === 'openError' ? "Couldn't open Messages on this device. Copy the text and paste it into any messaging app." : `Didn't send. The number for ${firstName} may be wrong. Your draft is saved.`}</span>
             </div>
           )}
 
