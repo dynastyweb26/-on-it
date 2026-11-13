@@ -41,7 +41,13 @@ name. Do not invent other ids.
 - If a hex value has no token in `design/tokens.css`, add a token with that exact value.
   Never substitute the nearest existing token. List every token you add in your report.
 - Every state in the file's `state` enum gets built. No state is added and none is dropped.
-  One owner-approved exception: `copyError` on `draft.message` (section 6, item 8).
+  Owner-approved exceptions (Nov 13 2026): small error and pending states a design file
+  does not draw are allowed without a new design round, on one condition: they reuse a
+  look that is already designed. An error uses the existing error strip. A pending control
+  uses the existing 55% dim from `confirm.batch` saving rows. Nothing new is drawn.
+  Recorded so far: `copyError` on `draft.message` (section 6, item 8), the failed-vote
+  strip under the thumbs (section 6, item 3), and the pending dim on `nav.link` Retry.
+  Anything bigger than that still goes to Claude Design first.
 - Text in the design is the copy. Do not reword it. Wording that depends on data follows the
   pattern in the file's script (for example "Confirm 3 changes?", "2 saved, 1 didn't.").
 - Truncation rules are part of the design: names and secondary lines truncate to one line;
