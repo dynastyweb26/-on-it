@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyExpectedFail } from '../../../scripts/evals/run';
+import { applyExpectedFail, summarizeResults } from '../../../scripts/evals/run';
 
 const caseOf = (over: Record<string, unknown> = {}) =>
   ({ id: 'x', request: 'r', fixture: {}, expect: { tools: [] }, ...over }) as never;
@@ -27,4 +27,26 @@ test('expectedFail without a reason is refused by the gate', () => {
 test('ordinary cases keep their own result', () => {
   assert.equal(applyExpectedFail(caseOf(), result(true)).gatePass, true);
   assert.equal(applyExpectedFail(caseOf(), result(false)).gatePass, false);
+});
+
+const graded = (id: string, gatePass: boolean, tags: string[] = []) => ({ id, gatePass, tags });
+
+test('the pass-rate gate applies to the whole run, not one file', () => {
+  const nineOfTen = Array.from({ length: 10 }, (_, i) => graded(`c${i}`, i < 9));
+  assert.equal(summarizeResults(nineOfTen).ok, true);
+
+  const eightOfTen = Array.from({ length: 10 }, (_, i) => graded(`c${i}`, i < 8));
+  assert.equal(summarizeResults(eightOfTen).ok, false);
+  assert.equal(summarizeResults(eightOfTen).rate, 0.8);
+});
+
+test('one failing money or send case fails the overall run', () => {
+  const mixed = [
+    ...Array.from({ length: 19 }, (_, i) => graded(`c${i}`, true)),
+    graded('money-case', false, ['money']),
+  ];
+  const summary = summarizeResults(mixed);
+  assert.equal(summary.rate, 0.95);
+  assert.equal(summary.ok, false);
+  assert.deepEqual(summary.blocking.map((r) => r.id), ['money-case']);
 });
