@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyExpectedFail, matchingToolSet, summarizeResults } from '../../../scripts/evals/run';
+import { applyExpectedFail, isSignedOut, matchingToolSet, summarizeResults } from '../../../scripts/evals/run';
 
 const caseOf = (over: Record<string, unknown> = {}) =>
   ({ id: 'x', request: 'r', fixture: {}, expect: { tools: [] }, ...over }) as never;
@@ -60,4 +60,12 @@ test('one failing money or send case fails the overall run', () => {
   assert.equal(summary.rate, 0.95);
   assert.equal(summary.ok, false);
   assert.deepEqual(summary.blocking.map((r) => r.id), ['money-case']);
+});
+
+test('a case says "signedOut": true, and the older "signedIn": false still works', () => {
+  assert.equal(isSignedOut({ signedOut: true }), true);
+  assert.equal(isSignedOut({ signedIn: false }), true);
+  assert.equal(isSignedOut({ signedIn: true }), false);
+  assert.equal(isSignedOut({}), false);
+  assert.equal(isSignedOut({ signedOut: false, signedIn: false }), true);
 });
