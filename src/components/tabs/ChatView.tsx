@@ -119,6 +119,7 @@ import { askQuestion } from '@/lib/ask-client';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
+import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
@@ -155,6 +156,8 @@ interface Msg {
   template?: { id: string; props: unknown };
   /** The server's plain-text answer for the card above; shown when it cannot draw. */
   fallbackText?: string;
+  /** Where the answer's full list lives (an in-app path the server declared). */
+  destination?: { screen: string; path: string };
   /** Posted by the open-time dice, not asked for: never saved with the thread. */
   auto?: true;
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
@@ -1553,7 +1556,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           const replyMsg = out.kind === 'ok' && (card || out.fallback)
             ? aMsg(card ? out.reply : (out.fallback as string), {
                 skipHistory: true,
-                ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}) } : {}),
+                ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
               })
             : aMsg(out.reply, { skipHistory: true });
           setMessages((m) => {
@@ -2951,6 +2954,19 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // passed down so the outcome replaces THIS bubble (success) or leaves it as-is
   // (repeat failure). finalize reuses the same convoId/finalize_key, so the
   // server-side 23505 read-back guarantees no duplicate invoice on a retry.
+  // Taps on a template card in the thread. Show all, a row and a link open the
+  // destination the server declared (none declared, nothing to open); Try again
+  // re-runs the question this answer replied to, in place of the answer.
+  function templateHandlers(m: Msg, mi: number): ChatTemplateHandlers {
+    const path = m.destination?.path;
+    const open = path ? () => router.push(path) : undefined;
+    const asked = messages[mi - 1]?.role === 'user' ? messages[mi - 1].content : null;
+    return {
+      onRowTap: open, onShowAll: open, onOpen: open,
+      onRetry: asked ? () => { void send(asked, 'typed', m.id); } : undefined,
+    };
+  }
+
   function retry(msg: Msg) {
     if (phase || !msg.failed) return; // a turn is in flight, or nothing to retry
     // Synchronous guard: state lags a render, so a rage-tap would re-run the op.
@@ -5063,7 +5079,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
               </div>
             </div>
           ) : m.template && resolveTemplate(m.template) ? (
-            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={{}} prevRole={messages[mi - 1]?.role} />
+            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={templateHandlers(m, mi)} prevRole={messages[mi - 1]?.role} />
           ) : m.signInLink ? (
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">

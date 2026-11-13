@@ -14,6 +14,8 @@ export type AskExtras = {
   fallback?: string;
   tool?: unknown;
   pending?: unknown;
+  /** Where the tool's full list lives (in-app path), once the server returns it. */
+  destination?: { screen: string; path: string };
   /** The logged message's id, once the server returns it. */
   messageId?: string;
 };
@@ -70,6 +72,8 @@ function extrasOf(data: Record<string, unknown>): AskExtras {
   if (typeof data.fallback === 'string' && data.fallback.trim()) out.fallback = data.fallback;
   if (data.tool != null) out.tool = data.tool;
   if (data.pending != null) out.pending = data.pending;
+  const d = data.destination;
+  if (isObj(d) && typeof d.screen === 'string' && typeof d.path === 'string' && d.path.startsWith('/') && !d.path.startsWith('//')) out.destination = { screen: d.screen, path: d.path };
   if (typeof data.messageId === 'string' && data.messageId) out.messageId = data.messageId;
   return out;
 }

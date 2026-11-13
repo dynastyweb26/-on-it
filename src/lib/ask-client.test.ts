@@ -95,3 +95,11 @@ test('a null template stays absent, so the caller shows the fallback text', asyn
   const out = await askQuestion('q', fake(200, { reply: 'r', template: null, fallback: 'Plain answer.' }));
   assert.deepEqual(out, { kind: 'ok', reply: 'r', fallback: 'Plain answer.' });
 });
+
+test('a destination is kept only when it is an in-app path', async () => {
+  const ok = await askQuestion('q', fake(200, { reply: 'r', destination: { screen: 'Invoices', path: '/invoices?filter=unpaid' } }));
+  assert.deepEqual(ok, { kind: 'ok', reply: 'r', destination: { screen: 'Invoices', path: '/invoices?filter=unpaid' } });
+  for (const path of ['https://evil.example', '//evil.example', 'invoices']) {
+    assert.deepEqual(await askQuestion('q', fake(200, { reply: 'r', destination: { screen: 'x', path } })), { kind: 'ok', reply: 'r' }, path);
+  }
+});
