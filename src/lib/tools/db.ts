@@ -20,6 +20,9 @@ type LooseQuery = {
 /** PostgREST caps a response; Tools must not inherit that silent cap. */
 const PAGE_SIZE = 1000;
 
+/** Every table a tool may read is keyed by id, so it is the unique tie-breaker. */
+const PRIMARY_KEY = 'id';
+
 export function supabaseToolDb(client: SupabaseClient): ToolDb {
   return {
     async select<T>(table: string, plan: SelectPlan) {
@@ -45,6 +48,9 @@ export function supabaseToolDb(client: SupabaseClient): ToolDb {
             nullsFirst: false,
           });
         }
+        // Paging needs a total order: equal values in plan.order may otherwise
+        // shift between pages. The primary key is unique, so it goes last.
+        if (count) query = query.order(PRIMARY_KEY, { ascending: true, nullsFirst: false });
         if (plan.limit != null) query = query.limit(plan.limit);
         return query;
       };
