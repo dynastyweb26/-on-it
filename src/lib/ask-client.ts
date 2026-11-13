@@ -6,8 +6,20 @@
 // The turn id is how the router call and this call share ONE model-call budget
 // (lib/tools/budget). A request without it still gets the per-request cap.
 
+/** What /api/ask returns beside the reply. Each is present only when the server sent it. */
+export type AskExtras = {
+  /** A template id and its props, exactly as sent: the renderer re-checks them. */
+  template?: { id: string; props: unknown };
+  /** The plain-text answer for when there is no card (or the card's props do not fit). */
+  fallback?: string;
+  tool?: unknown;
+  pending?: unknown;
+  /** The logged message's id, once the server returns it. */
+  messageId?: string;
+};
+
 export type AskOutcome =
-  | { kind: 'ok'; reply: string }
+  | ({ kind: 'ok'; reply: string } & AskExtras)
   | { kind: 'signed-out'; reply: string }
   | { kind: 'rate-limited'; reply: string }
   | { kind: 'off' } // 404: the feature is not on here, so the caller uses parse as today
@@ -42,9 +54,22 @@ export async function askQuestion(
   if (res.status === 401) return { kind: 'signed-out', reply: ASK_COPY.signedOut };
   if (res.status === 429) return { kind: 'rate-limited', reply: ASK_COPY.rateLimited };
   if (!res.ok) return { kind: 'error', reply: ASK_COPY.serverError };
-  const data = (await res.json().catch(() => null)) as { reply?: unknown } | null;
+  const data = (await res.json().catch(() => null)) as ({ reply?: unknown } & Record<string, unknown>) | null;
   if (typeof data?.reply !== 'string' || !data.reply.trim()) {
     return { kind: 'error', reply: ASK_COPY.serverError };
   }
-  return { kind: 'ok', reply: data.reply };
+  return { kind: 'ok', reply: data.reply, ...extrasOf(data) };
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function extrasOf(data: Record<string, unknown>): AskExtras {
+  const out: AskExtras = {};
+  const t = data.template;
+  if (isObj(t) && typeof t.id === 'string' && t.id) out.template = { id: t.id, props: t.props };
+  if (typeof data.fallback === 'string' && data.fallback.trim()) out.fallback = data.fallback;
+  if (data.tool != null) out.tool = data.tool;
+  if (data.pending != null) out.pending = data.pending;
+  if (typeof data.messageId === 'string' && data.messageId) out.messageId = data.messageId;
+  return out;
 }

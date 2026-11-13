@@ -73,3 +73,25 @@ test('copy has no "quote" and no emoji', () => {
     assert.doesNotMatch(s, /\p{Extended_Pictographic}/u);
   }
 });
+
+test('200 keeps template, fallback, tool and pending when the server sends them', async () => {
+  const body = {
+    reply: 'Two are unpaid.',
+    template: { id: 'list.ranked', props: { eyebrow: 'x' } },
+    fallback: 'Two invoices are unpaid.',
+    tool: { totalCount: 2 },
+    pending: null,
+  };
+  assert.deepEqual(await askQuestion('who owes me', fake(200, body)), {
+    kind: 'ok',
+    reply: 'Two are unpaid.',
+    template: { id: 'list.ranked', props: { eyebrow: 'x' } },
+    fallback: 'Two invoices are unpaid.',
+    tool: { totalCount: 2 },
+  });
+});
+
+test('a null template stays absent, so the caller shows the fallback text', async () => {
+  const out = await askQuestion('q', fake(200, { reply: 'r', template: null, fallback: 'Plain answer.' }));
+  assert.deepEqual(out, { kind: 'ok', reply: 'r', fallback: 'Plain answer.' });
+});
