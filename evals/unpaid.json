@@ -57,7 +57,15 @@
           }
         ]
       },
-      "expect": { "tools": ["unpaid_invoices"], "templateId": "list.ranked", "writes": 0 }
+      "expect": {
+        "tools": ["unpaid_invoices"],
+        "templateId": "list.ranked",
+        "alternatives": [
+          { "tools": ["run_report"], "templateId": "stat.tiles" }
+        ],
+        "args": { "run_report": { "metric": "outstanding" } },
+        "writes": 0
+      }
     },
     {
       "id": "oldest-unpaid",
@@ -176,7 +184,7 @@
           }
         ]
       },
-      "expect": { "tools": ["list_expenses"], "templateId": "list.ranked", "writes": 0 }
+      "expect": { "tools": ["run_report"], "args": { "run_report": { "metric": "spent", "category": "gas" } }, "templateId": "stat.tiles", "writes": 0 }
     },
     {
       "id": "out-of-scope-tax-advice",
@@ -273,8 +281,10 @@
         "tools": ["unpaid_invoices"],
         "templateId": "list.ranked",
         "alternatives": [
-          { "tools": ["get_client_summary"], "templateId": "stat.tiles" }
+          { "tools": ["get_client_summary"], "templateId": "stat.tiles" },
+          { "tools": ["run_report"], "templateId": "stat.tiles" }
         ],
+        "args": { "run_report": { "metric": "outstanding" } },
         "writes": 0
       }
     }
