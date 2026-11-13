@@ -20,6 +20,9 @@ const CONFIG = JSON.parse(
   }[];
 };
 
+// A Text-on-laptop variant is named <id>-<state>-laptop-1280. It adds coverage; it is not a state.
+const BASE_CASES = CONFIG.cases.filter((c) => !/-laptop-1280$/.test(c.name));
+
 test('every template state is listed at 390 and at 1280, exactly once', () => {
   const expected = new Set<string>();
   for (const id of TEMPLATE_IDS) {
@@ -31,7 +34,7 @@ test('every template state is listed at 390 and at 1280, exactly once', () => {
   }
 
   const seen = new Set<string>();
-  for (const c of CONFIG.cases) {
+  for (const c of BASE_CASES) {
     const match = /^([a-z.]+)-([a-zA-Z]+)-(390|1280)$/.exec(c.name);
     assert.ok(match, `case name is template-state-width: ${c.name}`);
     const [, id, state, width] = match;
@@ -43,7 +46,7 @@ test('every template state is listed at 390 and at 1280, exactly once', () => {
   }
 
   assert.deepEqual([...seen].sort(), [...expected].sort());
-  assert.equal(CONFIG.cases.length, expected.size);
+  assert.equal(BASE_CASES.length, expected.size);
 });
 
 test('no case name is repeated', () => {
@@ -62,5 +65,13 @@ test('every case pairs the design card with the app card at one width', () => {
     assert.equal(c.pairs?.length, 1, c.name);
     assert.equal(c.pairs?.[0].design, '#dc-root .sc-host > div', c.name);
     assert.match(c.pairs?.[0].app ?? '', /^\[data-template="[a-z.]+"\]\[data-state="[a-zA-Z]+"\]$/, c.name);
+  }
+});
+
+test('a laptop variant has a base case and asks the app for device=laptop at 1280', () => {
+  for (const c of CONFIG.cases.filter((x) => /-laptop-1280$/.test(x.name))) {
+    assert.equal(c.viewport.width, 1280, c.name);
+    assert.ok(c.app.path.includes('device=laptop'), c.name);
+    assert.ok(BASE_CASES.some((b) => b.name === c.name.replace('-laptop-1280', '-1280')), c.name);
   }
 });
