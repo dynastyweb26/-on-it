@@ -209,7 +209,9 @@ test('slowest sets the grouping and ignores the requested period', async () => {
   assert.equal(out.rows[0]?.amount, '$400.00');
   assert.equal(out.match, 'one');
   assert.equal(out.slowestExcluded, 1, 'left out is counted across all time, not the period');
-  assert.match(out.slowestNote, /requested period is ignored/);
+  // Plain words, no tool vocabulary: the dates asked about are named as dates.
+  assert.match(out.slowestNote, /not just the dates you asked about/);
+  assert.doesNotMatch(out.slowestNote, /period|metric/);
 });
 
 test('the slowest total is the money still owed by every ranked client', async () => {

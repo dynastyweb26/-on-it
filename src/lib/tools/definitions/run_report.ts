@@ -209,7 +209,7 @@ function previousRange(range: ReportRange): ReportRange {
   }
   const length = daysBetween(range.start, range.end) + 1;
   const end = addDays(range.start, -1);
-  return { ...range, id: 'previous', label: 'the previous period', start: addDays(end, -(length - 1)), end };
+  return { ...range, id: 'previous', label: 'the time before', start: addDays(end, -(length - 1)), end };
 }
 
 // ── Rows ─────────────────────────────────────────────────────────────────
@@ -783,7 +783,7 @@ export const runReportTool = defineTool({
       const result = slowestPayers(invoices);
       slowest = result.ranked;
       slowestExcluded = result.excluded;
-      slowestNote = 'Ranked across all time; the requested period is ignored for the ranking.';
+      slowestNote = 'Counted across all time, not just the dates you asked about.';
       if (slowestExcluded) {
         slowestNote += ` ${slowestExcluded} ${slowestExcluded === 1 ? 'client' : 'clients'} left out (only one paid invoice).`;
       }
@@ -880,18 +880,20 @@ export const runReportTool = defineTool({
       slowestExcluded,
       slowestNote,
       outstandingAsOf: 'now' as const,
-      outstandingNote: 'Still owed is as of now, not limited to the period.',
+      outstandingNote: 'Still owed is what has not been paid yet, as of right now.',
     };
   },
+  // Plain words only: this is read aloud to the user. No tool vocabulary such
+  // as "metric" or "period", and the dates are named the way a person asks.
   fallback: (result) => {
     if (result.match === 'none') return `Nothing logged for ${result.period.label}.`;
     if (result.metric === 'outstanding') {
-      return `Still owed as of now: ${result.value.text}.`;
+      return `Still owed right now: ${result.value.text}.`;
     }
     if (result.groupBy === 'client' && result.slowestNote) {
       return `${result.total.label}. ${result.slowestNote}`;
     }
-    return `${result.tiles.tiles[0]?.label ?? 'Report'} for ${result.period.label}: ${result.value.text}.`;
+    return `${result.tiles.tiles[0]?.label ?? 'Total'} for ${result.period.label}: ${result.value.text}.`;
   },
   fixture: {
     args: { metric: 'collected', period: 'this_month' },
@@ -925,7 +927,7 @@ export const runReportTool = defineTool({
       slowestExcluded: 0,
       slowestNote: '',
       outstandingAsOf: 'now',
-      outstandingNote: 'Still owed is as of now, not limited to the period.',
+      outstandingNote: 'Still owed is what has not been paid yet, as of right now.',
     },
   },
 });
