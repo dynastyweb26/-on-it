@@ -13,40 +13,79 @@ type LooseQuery = {
   in(column: string, values: readonly (string | number)[]): LooseQuery;
   order(column: string, options: { ascending: boolean; nullsFirst?: boolean }): LooseQuery;
   limit(count: number): LooseQuery;
-  then: Promise<{ data: unknown; error: { message: string } | null }>['then'];
+  range(from: number, to: number): LooseQuery;
+  then: Promise<{ data: unknown; error: { message: string } | null; count?: number | null }>['then'];
 };
+
+/** PostgREST caps a response; Tools must not inherit that silent cap. */
+const PAGE_SIZE = 1000;
+
+/** Every table a tool may read is keyed by id, so it is the unique tie-breaker. */
+const PRIMARY_KEY = 'id';
 
 export function supabaseToolDb(client: SupabaseClient): ToolDb {
   return {
     async select<T>(table: string, plan: SelectPlan) {
-      let query = client.from(table).select(plan.columns) as unknown as LooseQuery;
+      const build = (count: boolean) => {
+        let query = client.from(table).select(
+          plan.columns,
+          count ? { count: 'exact' } : undefined,
+        ) as unknown as LooseQuery;
 
-      for (const [column, value] of Object.entries(plan.eq ?? {})) {
-        query = query.eq(column, value);
-      }
-      for (const column of Object.keys(plan.is ?? {})) {
-        query = query.is(column, null);
-      }
-      for (const [column, values] of Object.entries(plan.in ?? {})) {
-        query = query.in(column, values);
-      }
-      if (plan.order) {
-        query = query.order(plan.order.column, {
-          ascending: plan.order.ascending !== false,
-          // An invoice with no due date belongs after the ones that have one.
-          nullsFirst: false,
-        });
-      }
-      if (plan.limit != null) query = query.limit(plan.limit);
-
-      const { data, error } = await (query as unknown as PromiseLike<{
-        data: unknown;
-        error: { message: string } | null;
-      }>);
-      return {
-        data: (data ?? null) as T[] | null,
-        error: error ? { message: error.message } : null,
+        for (const [column, value] of Object.entries(plan.eq ?? {})) {
+          query = query.eq(column, value);
+        }
+        for (const column of Object.keys(plan.is ?? {})) {
+          query = query.is(column, null);
+        }
+        for (const [column, values] of Object.entries(plan.in ?? {})) {
+          query = query.in(column, values);
+        }
+        if (plan.order) {
+          query = query.order(plan.order.column, {
+            ascending: plan.order.ascending !== false,
+            // An invoice with no due date belongs after the ones that have one.
+            nullsFirst: false,
+          });
+        }
+        // Paging needs a total order: equal values in plan.order may otherwise
+        // shift between pages. The primary key is unique, so it goes last.
+        if (count) query = query.order(PRIMARY_KEY, { ascending: true, nullsFirst: false });
+        if (plan.limit != null) query = query.limit(plan.limit);
+        return query;
       };
+
+      if (plan.limit != null) {
+        const { data, error } = await build(false);
+        return {
+          data: (data ?? null) as T[] | null,
+          error: error ? { message: error.message } : null,
+        };
+      }
+
+      // Page by range until the exact count is reached. A short page with rows
+      // still missing means the server capped us below PAGE_SIZE: fail loudly.
+      const rows: unknown[] = [];
+      let total: number | null = null;
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error, count } = await build(true).range(from, from + PAGE_SIZE - 1);
+        if (error) return { data: null, error: { message: error.message } };
+        if (typeof count === 'number') total = count;
+        const page = (data as unknown[] | null) ?? [];
+        rows.push(...page);
+        if (total !== null && rows.length >= total) break;
+        if (page.length < PAGE_SIZE) break;
+      }
+
+      if (total !== null && rows.length < total) {
+        return {
+          data: null,
+          error: {
+            message: `select ${table} was cut off at ${rows.length} of ${total} rows`,
+          },
+        };
+      }
+      return { data: rows as T[], error: null };
     },
   };
 }

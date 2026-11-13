@@ -24,7 +24,7 @@ import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
 import PageContainer from '@/components/PageContainer';
 import { useBankTracking } from '@/components/bank/BankTrackingProvider';
 import { reviewQueue, unaccountedItems } from '@/lib/bank-tracking';
-import { sumOtherIncome } from '@/lib/other-income';
+import { booksTotals } from '@/lib/books-totals';
 
 const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '$—';
@@ -207,18 +207,18 @@ export default function Dashboard({ active = true }: { active?: boolean }) {
     // "Still owed" is the unpaid remainder of sent/overdue invoices, so a deposit
     // already collected is counted once (in collected) and not again here.
     const rows = invs ?? [];
-    const collected = (pays ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0)
-      + sumOtherIncome(otherIn as unknown as { amount: string | number }[] | null);
-    const outstanding = rows
-      .filter((i) => ['sent', 'overdue'].includes(i.status))
-      .reduce((s, i) => s + Math.max(0, Number(i.total) - Number(i.amount_paid ?? 0)), 0);
+    const { collected, outstanding, spent } = booksTotals({
+      payments: pays ?? [],
+      otherIncome: otherIn,
+      expenses: exps ?? [],
+      invoices: rows,
+    });
     if (invErr || payErr || expErr || otherErr) {
       // A failed refresh leaves the figures on screen (cached or last-good)
       // instead of replacing them with $0.00, which reads as an empty account.
       console.error('books totals read failed', invErr ?? payErr ?? expErr ?? otherErr);
       return;
     }
-    const spent = (exps ?? []).reduce((s, e) => s + Number(e.amount), 0);
     const next = { collected, outstanding, spent, count: rows.length, expenseCount: (exps ?? []).length };
     setStats(next);
     const spentWithBank = spent + bankSpentRef.current;

@@ -15,6 +15,7 @@ import PdfChoiceSheet from '@/components/PdfChoiceSheet';
 import PaywallModal from '@/components/PaywallModal';
 import { noteUpgradeReturn, recentlyUpgraded, subscribeAccess, waitForAccess } from '@/lib/upgrade-return';
 import { createClient } from '@/lib/supabase/client';
+import { inBooksPeriod } from '@/lib/books-period';
 import {
   GRANULARITY_OPTIONS, availablePeriods, allPeriod, summarize,
   summarizeIncome, localDay,
@@ -235,9 +236,8 @@ export default function TaxSummary() {
   );
 
   const inPeriod = useCallback((e: ExpenseLite) => {
-    if (!selected || selected.granularity === 'all') return true;
-    const on = e.spent_on ?? '';
-    return on >= selected.start && on <= selected.end;
+    if (!selected) return true;
+    return inBooksPeriod(e.spent_on ?? '', selected);
   }, [selected]);
 
   const summary = useMemo(

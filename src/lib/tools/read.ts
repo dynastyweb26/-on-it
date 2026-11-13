@@ -9,6 +9,7 @@
 // explain away. The handler still scopes every select by the caller's session.
 import { money } from '@/lib/financials';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { CATEGORY_LABEL, EXPENSE_CATEGORIES, isExpenseCategory, type ExpenseCategory } from '@/lib/expenses';
 import { z } from 'zod';
 
 export type Match = 'none' | 'one' | 'many';
@@ -44,6 +45,49 @@ export const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'void'] as 
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
 export const READ_CAP = 25;
+
+/** The words a person uses for an expense category, including the common ones
+ *  that are not the stored key (gas → fuel, meals → food). */
+const CATEGORY_ALIASES: Record<string, ExpenseCategory> = {
+  gas: 'fuel',
+  gasoline: 'fuel',
+  petrol: 'fuel',
+  diesel: 'fuel',
+  meal: 'food',
+  meals: 'food',
+  restaurant: 'food',
+  restaurants: 'food',
+  material: 'supplies',
+  materials: 'supplies',
+  supply: 'supplies',
+  tool: 'tools',
+  software: 'subscriptions',
+  subscription: 'subscriptions',
+  car: 'travel',
+  mileage: 'travel',
+  repair: 'maintenance',
+  repairs: 'maintenance',
+  cell: 'phone',
+};
+
+/**
+ * One category word → the stored key, or nothing. Forgiving by rule: an
+ * unknown word is ignored and named, never an error the model must explain.
+ */
+export function forgivingCategory(value: string | null | undefined): {
+  category?: ExpenseCategory;
+  ignored: string[];
+} {
+  const raw = value?.trim();
+  if (!raw) return { ignored: [] };
+  const key = normName(raw);
+  if (isExpenseCategory(key)) return { category: key, ignored: [] };
+  const byLabel = EXPENSE_CATEGORIES.find((c) => normName(CATEGORY_LABEL[c]) === key);
+  if (byLabel) return { category: byLabel, ignored: [] };
+  const alias = CATEGORY_ALIASES[key];
+  if (alias) return { category: alias, ignored: [] };
+  return { ignored: [raw] };
+}
 
 export type Filters = {
   status?: string[];
@@ -94,6 +138,35 @@ export function forgivingFilters(input: Filters): FilterOutcome {
 }
 
 /** A row as the invoices table stores it, narrowed to what these tools read. */
+export const ExpenseRow = z.object({
+  id: z.string(),
+  description: z.string().nullable().optional(),
+  vendor: z.string().nullable().optional(),
+  amount: z.union([z.number(), z.string()]),
+  category: z.string().nullable().optional(),
+  tax_deductible: z.boolean().nullable().optional(),
+  invoice_id: z.string().nullable().optional(),
+  spent_on: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+  deleted_at: z.string().nullable().optional(),
+});
+export type ExpenseRow = z.infer<typeof ExpenseRow>;
+
+export function asExpenseRow(raw: unknown): ExpenseRow {
+  const r = raw as Record<string, unknown>;
+  return ExpenseRow.parse({
+    ...r,
+    amount: num(r.amount),
+    spent_on: toIso(r.spent_on),
+    created_at: toIso(r.created_at),
+    deleted_at: toIso(r.deleted_at),
+  });
+}
+
+export function expenseCategoryLabel(value: string | null | undefined): string {
+  return isExpenseCategory(value) ? CATEGORY_LABEL[value] : CATEGORY_LABEL.other;
+}
+
 export const InvoiceRow = z.object({
   id: z.string(),
   kind: z.string().nullable().optional(),
@@ -177,6 +250,31 @@ export function rowMatches(row: InvoiceRow, filters: Filters): boolean {
   }
   if (filters.min_amount !== undefined && num(row.total) < filters.min_amount) return false;
   if (filters.max_amount !== undefined && num(row.total) > filters.max_amount) return false;
+  return true;
+}
+
+/** The expense day (spent_on is already a local calendar date). */
+export function expenseDay(row: ExpenseRow): string {
+  return (row.spent_on ?? row.created_at ?? '').slice(0, 10);
+}
+
+export function expenseMatches(
+  row: ExpenseRow,
+  filters: Filters & { category?: ExpenseCategory; text?: string },
+): boolean {
+  if (row.deleted_at) return false;
+  if (filters.category && (isExpenseCategory(row.category) ? row.category : 'other') !== filters.category) return false;
+  const day = expenseDay(row);
+  if (filters.from && (!day || day < filters.from)) return false;
+  if (filters.to && (!day || day > filters.to)) return false;
+  if (filters.min_amount !== undefined && num(row.amount) < filters.min_amount) return false;
+  if (filters.max_amount !== undefined && num(row.amount) > filters.max_amount) return false;
+  if (filters.text) {
+    const haystack = [row.vendor, row.description, expenseCategoryLabel(row.category)]
+      .filter(Boolean)
+      .join(' ');
+    if (!nameMatches(filters.text, haystack)) return false;
+  }
   return true;
 }
 

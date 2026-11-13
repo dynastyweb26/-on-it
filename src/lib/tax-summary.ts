@@ -11,6 +11,7 @@
 // summarize() counts every expense in the set. On It makes no judgment about
 // which expenses count for anything beyond the user's own records.
 import { CATEGORY_LABEL, isExpenseCategory, type ExpenseCategory } from '@/lib/expenses';
+import { booksDay, inBooksPeriod } from '@/lib/books-period';
 import { ledgerEntryLabel } from '@/lib/payment-methods';
 
 export type Granularity = 'week' | 'month' | 'quarter' | 'year';
@@ -160,9 +161,8 @@ export interface IncomeSummary {
 /** Local yyyy-mm-dd of an ISO timestamp (invoices store timestamptz), so it
  *  compares against the local period bounds the same way spent_on does. */
 export function localDay(ts?: string | null): string {
-  if (!ts) return '';
-  const d = new Date(ts);
-  return isNaN(d.getTime()) ? '' : ymd(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  // One rule with Books: paid_at → the device's local calendar day.
+  return booksDay('payment', ts);
 }
 
 /** Cash-basis income for a period. broughtIn and byClient come from the payments
@@ -175,8 +175,7 @@ export function summarizeIncome(
   outstanding: InvoiceLite[],
   period: Period,
 ): IncomeSummary {
-  const inPeriod = (day: string) =>
-    day !== '' && (period.granularity === 'all' || (day >= period.start && day <= period.end));
+  const inPeriod = (day: string) => day !== '' && inBooksPeriod(day, period);
 
   let broughtIn = 0;
   const byClient = new Map<string, ClientTotal>();
