@@ -47,6 +47,7 @@ export const RankedTotal = z.object({
 /** What the app receives: the card's data, the model's numbers, and the fallback. */
 export const UnpaidOutput = z.object({
   eyebrow: z.string().min(1),
+  title: z.string(),
   rows: z.array(RankedRow),
   totalCount: z.number().int().nonnegative(),
   total: RankedTotal,
@@ -59,6 +60,7 @@ export const UnpaidOutput = z.object({
 /** Props the `list.ranked` component is allowed to be handed. */
 export const UnpaidCardProps = z.object({
   eyebrow: z.string().min(1),
+  title: z.string(),
   rows: z.array(RankedRow),
   totalCount: z.number().int().nonnegative(),
   total: RankedTotal,
@@ -117,6 +119,7 @@ export function unpaidCard(summary: UnpaidSummary, todayISO: string) {
   const count = summary.totalCount;
   return {
     eyebrow: 'Who owes you',
+    title: 'Oldest first.',
     rows,
     totalCount: count,
     total: {
@@ -166,6 +169,7 @@ export const unpaidTool = defineTool({
     args: {},
     result: {
       eyebrow: 'Who owes you',
+      title: 'Oldest first.',
       rows: [{
         id: '11111111-1111-1111-1111-111111111111',
         name: 'Maria Santos',

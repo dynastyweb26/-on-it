@@ -36,6 +36,7 @@ import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
 import { REGISTRY, cardFor } from '@/lib/tools/registry';
+import { askResponseBody } from '@/lib/ask-response';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
@@ -180,10 +181,11 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json(
-    {
+    askResponseBody({
       reply,
       messageId,
       template: card,
+      destination: okTool?.destination ?? null,
       fallback,
       tool: summary
         ? {
@@ -194,7 +196,7 @@ export async function POST(req: NextRequest) {
         }
         : null,
       pending: result.pending,
-    },
+    }),
     NO_STORE
   );
 }

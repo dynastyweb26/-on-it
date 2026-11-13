@@ -13,6 +13,10 @@ const MIGRATION = readFileSync(
   new URL('../../supabase/migrations/20261111180000_ai_chat_logging.sql', import.meta.url),
   'utf8',
 );
+const FEATURE_REQUESTS_MIGRATION = readFileSync(
+  new URL('../../supabase/migrations/20261113190000_help_gaps_feature_requests.sql', import.meta.url),
+  'utf8',
+);
 
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
@@ -47,8 +51,9 @@ before(async () => {
     grant usage on schema public to anon, authenticated, service_role;
     insert into auth.users (id) values ('${A}'), ('${B}');
   `);
-  // The whole point: the file has to apply as written.
+  // The whole point: the files have to apply as written.
   await db.exec(MIGRATION);
+  await db.exec(FEATURE_REQUESTS_MIGRATION);
 });
 
 after(async () => {
@@ -234,6 +239,45 @@ test('help gaps are logged per user and read back only by them', async () => {
   assert.equal(mine.rows.length, 1);
   const theirs = await as<{ request_text: string }>(B, 'select request_text from public.help_gaps');
   assert.equal(theirs.rows.length, 0);
+});
+
+test('a help gap cannot point at another user\'s message', async () => {
+  const message = (await as<{ id: string }>(A, 'select id from public.chat_messages limit 1')).rows[0];
+  await assert.rejects(
+    as(
+      B,
+      `insert into public.help_gaps (user_id, request_text, source, message_id)
+       values ($1, 'their turn', 'chat_request', $2)`,
+      [B, message.id],
+    ),
+    /row-level security|violates/i,
+    'the insert policy checks that the message belongs to the caller',
+  );
+});
+
+test('a second feature request for the same message cannot add a row', async () => {
+  const message = (await as<{ id: string }>(A, 'select id from public.chat_messages limit 1')).rows[0];
+  await as(
+    A,
+    `insert into public.help_gaps (user_id, request_text, source, message_id)
+     values ($1, 'please add this', 'chat_request', $2)`,
+    [A, message.id],
+  );
+  await assert.rejects(
+    as(
+      A,
+      `insert into public.help_gaps (user_id, request_text, source, message_id)
+       values ($1, 'please add this', 'chat_request', $2)`,
+      [A, message.id],
+    ),
+    /duplicate key|unique/i,
+  );
+  const rows = await as<{ id: string }>(
+    A,
+    'select id from public.help_gaps where message_id = $1',
+    [message.id],
+  );
+  assert.equal(rows.rows.length, 1);
 });
 
 test('no client can update or delete the turn log', async () => {

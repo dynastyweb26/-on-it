@@ -57,6 +57,7 @@ test('the handler answers from the caller rows only', async () => {
   assert.equal(result.totalBalanceText, '$120.00');
   assert.equal(result.sentence, '1 invoice is still open, $120.00 outstanding.');
   assert.equal(result.eyebrow, 'Who owes you');
+  assert.equal(result.title, 'Oldest first.');
   assert.equal(result.rows[0].amount, '$120.00', 'a finished server string, not a number');
   assert.equal(result.total.label, 'Owed to you · 1 client');
   assert.equal(result.total.amount, '$120.00');
@@ -107,6 +108,7 @@ test('the card ranks rows with a late chip and a server-composed total', () => {
   ]);
   const card = unpaidCard(summary, '2026-11-12');
 
+  assert.equal(card.title, 'Oldest first.');
   assert.deepEqual(card.rows.map((row) => row.id), ['inv-1', 'inv-2']);
   assert.equal(card.rows[0].secondary, 'INV-0042 · Due Oct 1');
   assert.deepEqual(card.rows[0].chip, { tone: 'late', label: '42d late' });
