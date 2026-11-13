@@ -36,9 +36,11 @@ const compare = (a: unknown, b: unknown): number => {
   return a < b ? -1 : a > b ? 1 : 0;
 };
 
-export function fixtureDb(rows: FixtureRows): FixtureDb {
+export function fixtureDb(rows: FixtureRows = {}): FixtureDb {
+  // A case that declares no fixture data is an empty account, not a crash:
+  // Object.entries(undefined) used to take the whole eval run down.
   const state: FixtureRows = Object.fromEntries(
-    Object.entries(rows).map(([table, tableRows]) => [table, tableRows.map((row) => ({ ...row }))]),
+    Object.entries(rows ?? {}).map(([table, tableRows]) => [table, tableRows.map((row) => ({ ...row }))]),
   );
   let attempts = 0;
 
