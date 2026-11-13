@@ -28,6 +28,7 @@ export default function DraftMessage({
   const [mode, setMode] = useState<Mode>(state);
   const [channel, setChannel] = useState(channelProp);
   const [edited, setEdited] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   const busy = useRef(false); // synchronous: a repeat tap on Send or Open never fires twice
   const cleanup = useRef<(() => void) | null>(null);
 
@@ -35,6 +36,7 @@ export default function DraftMessage({
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     setMode(state);
+    setCopyFailed(false);
     busy.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -64,8 +66,10 @@ export default function DraftMessage({
     try {
       await navigator.clipboard.writeText(body);
     } catch {
-      return; // not copied, so do not say it was
+      setCopyFailed(true); // not copied, so do not say it was
+      return;
     }
+    setCopyFailed(false);
     onCopy?.();
     setMode('copied');
   };
@@ -218,7 +222,7 @@ export default function DraftMessage({
                     style={{ width: '100%', boxSizing: 'border-box', border: '2px solid var(--tpl-gold)', boxShadow: '0 0 0 4px var(--tpl-gold-soft)', borderRadius: 16, padding: '12px 14px', fontFamily: 'var(--font-inter), Inter, sans-serif', fontSize: 15, lineHeight: 1.45, color: 'var(--tpl-ink)', background: 'var(--tpl-white)', resize: 'vertical', outline: 'none' }}
                   />
                 ) : (
-                  <div style={{ border: '1.5px solid var(--tpl-field-border)', borderRadius: 16, padding: '12px 14px', background: 'var(--tpl-white)', fontSize: 15, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: finished || handoff ? 'var(--tpl-muted-2)' : 'var(--tpl-ink)' }}>{body}</div>
+                  <div style={{ border: '1.5px solid var(--tpl-field-border)', borderRadius: 16, padding: '12px 14px', background: 'var(--tpl-white)', fontSize: 15, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text', color: finished || handoff ? 'var(--tpl-muted-2)' : 'var(--tpl-ink)' }}>{body}</div>
                 )}
               </div>
             </>
@@ -239,10 +243,10 @@ export default function DraftMessage({
             </div>
           )}
 
-          {(m === 'error' || m === 'openError') && (
+          {(m === 'error' || m === 'openError' || copyFailed) && (
             <div style={{ background: 'var(--tpl-red-soft)', padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14, lineHeight: 1.4, color: 'var(--tpl-fail-ink)' }}>
               <Sym name="error" size={18} />
-              <span>{m === 'openError' ? "Couldn't open Messages on this device. Copy the text and paste it into any messaging app." : `Didn't send. The number for ${firstName} may be wrong. Your draft is saved.`}</span>
+              <span>{copyFailed ? "Couldn't copy. Select the text and copy it." : m === 'openError' ? "Couldn't open Messages on this device. Copy the text and paste it into any messaging app." : `Didn't send. The number for ${firstName} may be wrong. Your draft is saved.`}</span>
             </div>
           )}
 
