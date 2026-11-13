@@ -183,7 +183,9 @@ export async function POST(req: NextRequest) {
     {
       reply,
       messageId,
-      template: card,
+      template: card && okTool
+        ? { ...card, destination: okTool.destination ?? null }
+        : null,
       fallback,
       tool: summary
         ? {

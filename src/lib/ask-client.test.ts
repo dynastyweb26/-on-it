@@ -5,18 +5,44 @@ import { ASK_COPY, askQuestion } from './ask-client';
 const fake = (status: number, body: unknown = {}) =>
   (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 
-test('200 returns the reply and the logged message id', async () => {
+test('200 returns the reply, the logged message id and the card destination', async () => {
   assert.deepEqual(
     await askQuestion('who owes me', fake(200, {
       reply: 'Two are unpaid.',
       messageId: '11111111-1111-4111-8111-111111111111',
+      template: {
+        id: 'list.ranked',
+        props: { eyebrow: 'Who owes you' },
+        destination: { screen: 'Invoices · unpaid', path: '/invoices?filter=unpaid' },
+      },
     })),
     {
       kind: 'ok',
       reply: 'Two are unpaid.',
       messageId: '11111111-1111-4111-8111-111111111111',
+      template: {
+        id: 'list.ranked',
+        props: { eyebrow: 'Who owes you' },
+        destination: { screen: 'Invoices · unpaid', path: '/invoices?filter=unpaid' },
+      },
     },
   );
+});
+
+test('a malformed destination never becomes a path', async () => {
+  const out = await askQuestion('q', fake(200, {
+    reply: 'An answer.',
+    template: {
+      id: 'list.ranked',
+      props: {},
+      destination: { screen: 'Invoices', path: 'https://evil.example' },
+    },
+  }));
+  assert.equal(out.kind, 'ok');
+  if (out.kind === 'ok') {
+    assert.equal(out.template?.id, 'list.ranked');
+    assert.equal(out.template?.destination, null);
+  }
 });
 
 test('a reply without a message id is still an answer', async () => {
@@ -24,11 +50,13 @@ test('a reply without a message id is still an answer', async () => {
     kind: 'ok',
     reply: 'An answer.',
     messageId: null,
+    template: null,
   });
   assert.deepEqual(await askQuestion('q', fake(200, { reply: 'An answer.', messageId: 42 })), {
     kind: 'ok',
     reply: 'An answer.',
     messageId: null,
+    template: null,
   });
 });
 
