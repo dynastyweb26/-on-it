@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { defineTool } from '../contract';
 import { RankedListProps, StatTilesProps } from '@/lib/templates/props';
+import { booksTotals } from '@/lib/books-totals';
 import { ClientRow, asInvoiceRow, matchOf, moneyText, nameMatches, num } from '../read';
 
 export const GET_CLIENT_SUMMARY = 'get_client_summary';
@@ -89,12 +90,19 @@ export const getClientSummaryTool = defineTool({
     if (clients.error) throw new Error(clients.error.message);
 
     const matched = (clients.data ?? []).filter((c) => nameMatches(args.name, c.name));
-    const docs = await ctx.db.select('invoices', {
-      columns: '*',
-      eq: { user_id: ctx.userId },
-      is: { deleted_at: null },
-    });
+    const [docs, payments] = await Promise.all([
+      ctx.db.select('invoices', {
+        columns: '*',
+        eq: { user_id: ctx.userId },
+        is: { deleted_at: null },
+      }),
+      ctx.db.select<{ invoice_id: string; amount: number | string }>('invoice_payments', {
+        columns: 'invoice_id, amount',
+        eq: { user_id: ctx.userId },
+      }),
+    ]);
     if (docs.error) throw new Error(docs.error.message);
+    if (payments.error) throw new Error(payments.error.message);
 
     // What each matched client still owes, from the caller's own documents.
     // Nothing here is a literal: every figure is summed from rows.
@@ -127,7 +135,6 @@ export const getClientSummaryTool = defineTool({
 
     const who = matched[0].name.trim().toLowerCase();
     let owedTotal = 0;
-    let paid = 0;
     let open = 0;
     let estimates = 0;
     for (const raw of docs.data ?? []) {
@@ -137,14 +144,27 @@ export const getClientSummaryTool = defineTool({
         estimates += 1;
         continue;
       }
-      if (doc.status === 'paid') {
-        paid += num(doc.amount_paid) || num(doc.total);
-        continue;
-      }
+      if (doc.status === 'paid') continue;
       if (doc.status === 'void' || doc.status === 'draft') continue;
       owedTotal += Math.max(0, num(doc.total) - num(doc.amount_paid));
       open += 1;
     }
+
+    // Paid is money received, from the payment ledger — the same rows Books
+    // Collected counts, through the same calculation. A part payment on an open
+    // invoice is money in the moment it arrives, a refund nets out as its
+    // negative row, and an invoice's status never invents an amount. Only this
+    // client's live invoices count, exactly as list_payments scopes its rows.
+    const invoiceClient = new Map<string, string>();
+    for (const raw of docs.data ?? []) {
+      const doc = asInvoiceRow(raw);
+      if (doc.kind === 'quote') continue;
+      invoiceClient.set(doc.id, doc.client_name.trim().toLowerCase());
+    }
+    const received = (payments.data ?? []).filter(
+      (row) => invoiceClient.get(row.invoice_id) === who,
+    );
+    const paid = booksTotals({ payments: received, expenses: [], invoices: [] }).collected;
 
     return {
       ...base,
