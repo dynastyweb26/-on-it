@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
   // Chat logging: one row per turn, under the caller's session. Best effort —
   // a failed log never fails the answer the user is waiting for.
   const loggedRun = result.toolRuns.find((run) => run.status === 'ok');
-  await logTurn(supabaseChatLog(supabase), {
+  const messageId = await logTurn(supabaseChatLog(supabase), {
     userId: user.id,
     sessionId: sessionFrom(req.headers),
     turn: turnIndexFrom(req.headers),
@@ -182,6 +182,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(
     {
       reply,
+      messageId,
       template: card,
       fallback,
       tool: summary
