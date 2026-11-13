@@ -1243,6 +1243,68 @@
       "maxPixelDiffPct": null
     },
     {
+      "name": "draft.message-copyError-390",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=copyError&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message copyError",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"copyError\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-copyError-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": []
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=copyError&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message copyError",
+          "design": "x-dc > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"copyError\"]",
+          "check": [
+            "w"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
       "name": "draft.message-done-390",
       "viewport": {
         "width": 390,
@@ -1873,7 +1935,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=confirm.batch&state=partial",
+        "path": "/dev/ai-templates?template=confirm.batch&state=partial&failed=1",
         "steps": [
           {
             "wait": 300
@@ -1904,7 +1966,7 @@
         "steps": []
       },
       "app": {
-        "path": "/dev/ai-templates?template=confirm.batch&state=partial",
+        "path": "/dev/ai-templates?template=confirm.batch&state=partial&failed=1",
         "steps": [
           {
             "wait": 300
