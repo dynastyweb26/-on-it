@@ -953,18 +953,20 @@ export const runReportTool = defineTool({
     }
     : result,
   fallback: (result) => {
+    // Plain words only: this line is read aloud to the user. The word the
+    // owner typed is kept, so they can hear which part was not understood.
     if (result.problem?.kind === 'unknown_period') {
       return result.problem.word
-        ? `No figures: I did not understand the period "${result.problem.word}".`
-        : 'No figures: I did not understand that period.';
+        ? `No figures: I don't know which dates you mean by "${result.problem.word}".`
+        : "No figures: I don't know which dates you mean.";
     }
     if (result.problem?.kind === 'unknown_metric') {
       return result.problem.word
-        ? `No figures: I did not understand the metric "${result.problem.word}".`
-        : 'No figures: I did not understand that metric.';
+        ? `No figures: I don't know what "${result.problem.word}" means to add up.`
+        : "No figures: I don't know what to add up.";
     }
     if (result.problem?.kind === 'custom_needs_dates') {
-      return 'No figures: a custom period needs a real from and to date.';
+      return "No figures: give me a real first day and last day and I'll add it up.";
     }
     if (!result.value) return `Nothing logged for ${result.period.label}.`;
     if (result.match === 'none') return `Nothing logged for ${result.period.label}.`;
