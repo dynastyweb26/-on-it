@@ -95,6 +95,7 @@ test('a card is handed over only when the template accepts the result', () => {
   assert.equal(card.id, 'list.ranked');
   assert.deepEqual(card.props, {
     eyebrow: 'Who owes you',
+    title: 'Oldest first.',
     rows: [{
       id: '11111111-1111-1111-1111-111111111111',
       name: 'Maria Santos',
@@ -111,3 +112,4 @@ test('a card is handed over only when the template accepts the result', () => {
   assert.equal(cardFor(REGISTRY.get(UNPAID_TOOL_NAME), { rows: 'nope' }), null);
   assert.equal(cardFor(tool, null), null);
 });
+
