@@ -38,6 +38,8 @@ type EvalCase = {
   expect: {
     tools: string[];
     templateId?: string | null;
+    /** Other tool sequences that also satisfy this case, each with its template. */
+    alternatives?: Array<{ tools: string[]; templateId?: string | null }>;
     writes?: number;
     refused?: boolean;
     args?: Record<string, Record<string, unknown>>;
@@ -112,6 +114,16 @@ export function applyExpectedFail(testCase: EvalCase, result: Result): Graded {
   return { ...result, gatePass: true, reasons: result.reasons };
 }
 
+/** The first expected tool set the actual sequence matches, if any. */
+export function matchingToolSet(
+  expect: Pick<EvalCase['expect'], 'tools' | 'templateId' | 'alternatives'>,
+  called: readonly string[],
+): { tools: string[]; templateId?: string | null } | undefined {
+  return [expect, ...(expect.alternatives ?? [])].find(
+    (candidate) => JSON.stringify(called) === JSON.stringify(candidate.tools),
+  );
+}
+
 function realCall(apiKey: string): ModelCall {
   const client = new Anthropic({ apiKey });
   return async ({ system, tools, messages }) =>
@@ -153,8 +165,12 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
   });
 
   const called = result.toolRuns.filter((run) => run.status === 'ok').map((run) => run.name);
-  if (JSON.stringify(called) !== JSON.stringify(expect.tools)) {
-    reasons.push(`tools ${JSON.stringify(called)} != expected ${JSON.stringify(expect.tools)}`);
+  const matchedExpect = matchingToolSet(expect, called);
+  if (!matchedExpect) {
+    const expected = [expect, ...(expect.alternatives ?? [])].map((candidate) =>
+      JSON.stringify(candidate.tools),
+    );
+    reasons.push(`tools ${JSON.stringify(called)} != expected ${expected.join(' or ')}`);
   }
 
   for (const run of result.toolRuns) {
@@ -168,8 +184,11 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
     .filter((run) => run.status === 'ok')
     .map((run) => REGISTRY.find(run.name)?.defaultTemplate.id ?? null)
     .find((id) => id != null) ?? null;
-  if ((expect.templateId ?? null) !== templateId) {
-    reasons.push(`template ${templateId} != expected ${expect.templateId ?? null}`);
+  if (matchedExpect) {
+    const expectedTemplateId = matchedExpect.templateId ?? null;
+    if (expectedTemplateId !== templateId) {
+      reasons.push(`template ${templateId} != expected ${expectedTemplateId}`);
+    }
   }
 
   const writes = db.attempts;
