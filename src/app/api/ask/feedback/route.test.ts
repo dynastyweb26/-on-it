@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
 import { OWNER } from '@/lib/tools/pglite-test-db';
-import { handleFeedback, POST } from './route';
+import { handleFeedback } from '@/lib/ask-feedback';
+import { POST } from './route';
 
 const MESSAGE_ID = '11111111-1111-4111-8111-111111111111';
 
