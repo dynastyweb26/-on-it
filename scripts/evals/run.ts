@@ -128,6 +128,21 @@ export function matchingToolSet(
   );
 }
 
+/**
+ * The card is graded only when the case names one. An absent templateId means
+ * "do not grade the card" — most cases only care which tool ran — and only an
+ * explicit `templateId: null` asks for no card at all.
+ */
+export function templateMismatch(
+  expected: { templateId?: string | null },
+  actual: string | null,
+): string | null {
+  if (!('templateId' in expected)) return null;
+  return expected.templateId === actual
+    ? null
+    : `template ${actual} != expected ${expected.templateId ?? null}`;
+}
+
 function realCall(apiKey: string): ModelCall {
   const client = new Anthropic({ apiKey });
   return async ({ system, tools, messages }) =>
@@ -207,10 +222,8 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
     .map((run) => REGISTRY.find(run.name)?.defaultTemplate.id ?? null)
     .find((id) => id != null) ?? null;
   if (matchedExpect) {
-    const expectedTemplateId = matchedExpect.templateId ?? null;
-    if (expectedTemplateId !== templateId) {
-      reasons.push(`template ${templateId} != expected ${expectedTemplateId}`);
-    }
+    const templateReason = templateMismatch(matchedExpect, templateId);
+    if (templateReason) reasons.push(templateReason);
   }
 
   const writes = db.attempts;

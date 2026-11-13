@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyExpectedFail, isSignedOut, matchingToolSet, summarizeResults } from '../../../scripts/evals/run';
+import { applyExpectedFail, isSignedOut, matchingToolSet, summarizeResults, templateMismatch } from '../../../scripts/evals/run';
 
 const caseOf = (over: Record<string, unknown> = {}) =>
   ({ id: 'x', request: 'r', fixture: {}, expect: { tools: [] }, ...over }) as never;
@@ -68,4 +68,14 @@ test('a case says "signedOut": true, and the older "signedIn": false still works
   assert.equal(isSignedOut({ signedIn: true }), false);
   assert.equal(isSignedOut({}), false);
   assert.equal(isSignedOut({ signedOut: false, signedIn: false }), true);
+});
+
+test('a case that names no templateId does not grade the card', () => {
+  assert.equal(templateMismatch({}, 'stat.tiles'), null);
+  assert.equal(templateMismatch({}, null), null);
+  assert.equal(templateMismatch({ templateId: 'list.ranked' }, 'list.ranked'), null);
+  assert.match(String(templateMismatch({ templateId: 'list.ranked' }, 'stat.tiles')), /template stat.tiles != expected list.ranked/);
+  // An explicit null is the only way to demand no card.
+  assert.equal(templateMismatch({ templateId: null }, null), null);
+  assert.match(String(templateMismatch({ templateId: null }, 'nav.link')), /expected null/);
 });
