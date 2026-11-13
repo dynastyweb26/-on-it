@@ -119,6 +119,7 @@ import { askQuestion } from '@/lib/ask-client';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
+import { openDestination } from '@/components/chat/templates/destination';
 import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
 import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
 import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
@@ -2982,8 +2983,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
   }
 
   function templateHandlers(m: Msg, mi: number): ChatTemplateHandlers {
-    const path = m.destination?.path;
-    const open = path ? () => router.push(path) : undefined;
+    const open = openDestination(m.destination?.path, (p) => router.push(p));
     const asked = messages[mi - 1]?.role === 'user' ? messages[mi - 1].content : null;
     return {
       onRowTap: open, onShowAll: open, onOpen: open,
