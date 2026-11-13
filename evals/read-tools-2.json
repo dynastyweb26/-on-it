@@ -232,7 +232,7 @@
       },
       "expect": {
         "tools": ["run_report"],
-        "args": { "run_report": { "metric": "spent", "category": "fuel" } },
+        "args": { "run_report": { "metric": "spent", "category": { "oneOf": ["fuel", "gas"] } } },
         "templateId": "stat.tiles",
         "writes": 0
       }
