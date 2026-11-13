@@ -11,6 +11,7 @@ import {
   TEMPLATE_STATES,
   parseTemplateProps,
 } from './props';
+import type { BreakdownCallbacks, TrendChartCallbacks } from './callbacks';
 import {
   BREAKDOWN_FIXTURE,
   CANT_DO_FIXTURE,
@@ -46,6 +47,15 @@ test('every state in every design file parses, and nothing else does', () => {
     const bogus = parseTemplateProps(id, { ...TEMPLATE_FIXTURES[id], state: 'exploded' });
     assert.equal(bogus.success, false, `${id} accepted an invented state`);
   }
+});
+
+test('the chart error cards report a retry', () => {
+  const retry = () => {};
+  const trend: TrendChartCallbacks = { onRetry: retry };
+  const breakdown: BreakdownCallbacks = { onRetry: retry };
+
+  assert.equal(trend.onRetry, retry);
+  assert.equal(breakdown.onRetry, retry);
 });
 
 test('the board sample values are copied, not invented', () => {

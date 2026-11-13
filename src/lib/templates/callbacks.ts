@@ -23,8 +23,15 @@ export type NavLinkCallbacks = {
   onOpen?: (item: NavLinkProps['items'][number], index: number) => void;
 };
 
+export type TrendChartCallbacks = {
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
+};
+
 export type BreakdownCallbacks = {
   onRowTap?: (row: BreakdownProps['rows'][number], index: number) => void;
+  /** The error card's "Try again" button. */
+  onRetry?: () => void;
 };
 
 export type CantDoCallbacks = {
