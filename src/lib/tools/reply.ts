@@ -1,21 +1,19 @@
 // What /api/ask says back. Pure, so the "never a guess" rules are unit-tested.
 //
-//  - The model never states money: any sentence with a "$" amount is dropped and
-//    the server-composed sentence from the tool result leads.
-//  - If the model did not call the tool, there is no data behind the answer, so
-//    the reply is fixed. Model prose is never shown for it. This is enforced
-//    here, not in the prompt.
-import type { UnpaidSummary } from '@/lib/tools/unpaid';
+//  - The model never states money: any sentence with a "$" amount is dropped.
+//  - A tool that ran leads. Its own server-composed sentence is the first thing
+//    the user reads, whatever the tool is; the model's money-free prose follows.
+//  - No tool ran: there is no data behind the answer, so the reply is fixed and
+//    the turn carries the cant.do card. Model prose is never shown for it.
 import { CantDoProps } from '@/lib/templates/props';
 
 export const FALLBACK = "I couldn't look that up just now. Ask me again in a moment.";
 export const NO_LOOKUP_REPLY = "I can't look that up yet.";
 
 /**
- * Slice 2: the reply for an account question no tool can answer yet (spend,
- * profit, taxes). It leads with the same line as a missed lookup so the two
- * paths sound identical, then names the one thing that DOES work — the tool the
- * user can ask for right now. The word is "estimate" everywhere in this app.
+ * The reply for an account question no tool can answer yet (spend, profit,
+ * taxes). Kept for callers that still show the line as plain text; the live
+ * path now composes the same line plus the cant.do card in /api/ask.
  */
 export const UNSUPPORTED_REPLY = `${NO_LOOKUP_REPLY} I can tell you who hasn't paid you.`;
 
@@ -48,15 +46,20 @@ export function withoutMoney(text: string): string {
 
 export function replyFor(input: {
   modelText: string;
-  summary: UnpaidSummary | null;
+  /** The ok tool's own server-composed sentence, or null when none was made. */
+  sentence: string | null;
+  /** True when the turn invoked at least one tool, whatever its result. */
   toolCalled: boolean;
+  /** The tool's sentence is already the whole answer (an empty unpaid list). */
+  sentenceIsWholeAnswer?: boolean;
 }): string {
   if (!input.toolCalled) return NO_LOOKUP_REPLY;
-  // The tool ran but returned nothing usable: say so, never let prose fill in.
-  if (!input.summary) return FALLBACK;
+  // A tool was called but produced no usable result: say so, never let prose
+  // fill in with a guess.
+  if (!input.sentence) return FALLBACK;
   // Nothing outstanding: the server sentence is the whole answer. Model prose
   // here only restated it ("You're all caught up. No unpaid invoices...").
-  if (input.summary.totalCount === 0) return input.summary.sentence;
+  if (input.sentenceIsWholeAnswer) return input.sentence;
   const prose = withoutMoney(input.modelText);
-  return prose ? `${input.summary.sentence} ${prose}` : input.summary.sentence;
+  return prose ? `${input.sentence} ${prose}` : input.sentence;
 }

@@ -2,40 +2,57 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CANT_DO_ALTERNATIVES, FALLBACK, NO_LOOKUP_REPLY, cantDoCard, replyFor, withoutMoney } from './reply';
 import { parseTemplateProps } from '@/lib/templates/props';
-import type { UnpaidSummary } from './unpaid';
 
-const summary = { sentence: 'Two invoices are unpaid, $300.00 in all.' } as UnpaidSummary;
+const sentence = 'Two invoices are unpaid, $300.00 in all.';
 
 test('tool never called: fixed reply, model prose never shown', () => {
   assert.equal(
-    replyFor({ modelText: 'Nobody owes you anything, you are all clear.', summary: null, toolCalled: false }),
+    replyFor({
+      modelText: 'Nobody owes you anything, you are all clear.',
+      sentence: null,
+      toolCalled: false,
+    }),
     NO_LOOKUP_REPLY,
   );
 });
 
 test('tool called but the read failed: fallback, no prose guess', () => {
-  assert.equal(replyFor({ modelText: 'Probably nobody.', summary: null, toolCalled: true }), FALLBACK);
+  assert.equal(replyFor({ modelText: 'Probably nobody.', sentence: null, toolCalled: true }), FALLBACK);
 });
 
 test('tool result: server sentence leads, model money is dropped', () => {
   assert.equal(
-    replyFor({ modelText: 'That is $999 total. Want me to remind them?', summary, toolCalled: true }),
-    `${summary.sentence} Want me to remind them?`,
+    replyFor({
+      modelText: 'That is $999 total. Want me to remind them?',
+      sentence,
+      toolCalled: true,
+    }),
+    `${sentence} Want me to remind them?`,
   );
 });
 
 test('tool result with no usable prose: just the server sentence', () => {
-  assert.equal(replyFor({ modelText: 'It is $5 in all.', summary, toolCalled: true }), summary.sentence);
+  assert.equal(replyFor({ modelText: 'It is $5 in all.', sentence, toolCalled: true }), sentence);
 });
 
 test('nothing outstanding: one sentence, model prose never appended', () => {
-  const empty = {
-    sentence: 'Nothing is outstanding: every invoice you have sent is paid.',
-    totalCount: 0,
-  } as UnpaidSummary;
+  const empty = 'Nothing is outstanding: every invoice you have sent is paid.';
   assert.equal(
-    replyFor({ modelText: "You're all caught up. No unpaid invoices right now.", summary: empty, toolCalled: true }),
-    empty.sentence,
+    replyFor({
+      modelText: "You're all caught up. No unpaid invoices right now.",
+      sentence: empty,
+      toolCalled: true,
+      sentenceIsWholeAnswer: true,
+    }),
+    empty,
+  );
+});
+
+test('any other tool result: its sentence leads even when the model said nothing', () => {
+  const client = 'Ruth Lawrence owes $20.00 across 1 open document.';
+  assert.equal(
+    replyFor({ modelText: 'She has paid most of it.', sentence: client, toolCalled: true }),
+    `${client} She has paid most of it.`,
   );
 });
 
