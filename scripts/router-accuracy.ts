@@ -1,17 +1,19 @@
 // ═══ Chat router · real-model accuracy run (NOT in CI) ═══
 //
-// Runs the labelled fixture through the same forced tool call the app uses and
-// prints accuracy per route. Build precision comes first: a build labelled as
-// ask/unsupported is the expensive error, so that column is the pass line.
+// Runs the labelled fixture through the same forced tool call the app uses,
+// maps it through decideRoute exactly as /api/route does, and prints accuracy
+// per route. Build precision comes first: a build labelled as ask is the
+// expensive error, so that column is the pass line. `unsupported` is not a
+// route here — that classification now goes to /api/ask like any question.
 //
 //   ANTHROPIC_API_KEY=sk-... node --import ./scripts/test-register.mjs scripts/router-accuracy.ts
 //
 // Sends 30 short messages to Haiku-class. Costs a few cents.
 import { ROUTER_PHRASES } from '../src/lib/router/__fixtures__/phrases';
 import { anthropicRouteCall, classify, ROUTER_MODEL } from '../src/lib/router/classify';
-import { hasFigure, type RouterRoute } from '../src/lib/router/decide';
+import { decideRoute, hasFigure, type RouterRoute } from '../src/lib/router/decide';
 
-const ROUTES: RouterRoute[] = ['ask', 'build', 'unsupported'];
+const ROUTES: RouterRoute[] = ['ask', 'build'];
 
 async function main() {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -25,9 +27,11 @@ async function main() {
 
   console.log(`router accuracy · ${ROUTER_MODEL} · ${ROUTER_PHRASES.length} phrases\n`);
   for (const phrase of ROUTER_PHRASES) {
-    // A figure is decided without a call, exactly as /api/route does it, so the
-    // score below is what the app would do rather than the raw model's opinion.
-    const got = hasFigure(phrase.text) ? 'build' : await classify(phrase.text, call);
+    // A figure is decided without a call, exactly as /api/route does it, then
+    // the classification goes through the same decision, so the score below is
+    // what the app would do rather than the raw model's opinion.
+    const classified = hasFigure(phrase.text) ? null : await classify(phrase.text, call);
+    const got = decideRoute({ flagOn: true, bypass: null, classified, text: phrase.text }).route;
     rows.push({ text: phrase.text, want: phrase.route, got });
     const mark = got === phrase.route ? 'ok  ' : 'MISS';
     console.log(`${mark} want=${phrase.route.padEnd(11)} got=${String(got).padEnd(11)} ${phrase.text}`);
@@ -53,11 +57,6 @@ async function main() {
     process.exitCode = 1;
   }
 
-  const wrongUnsupported = rows.filter((r) => r.got === 'unsupported' && r.want !== 'unsupported');
-  if (wrongUnsupported.length) {
-    console.log('\nwrongly refused (a question the app could answer, or a build):');
-    for (const r of wrongUnsupported) console.log(`  - ${r.text}  want=${r.want}`);
-  }
 }
 
 main().catch((e) => {

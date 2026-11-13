@@ -7,7 +7,7 @@ import type { BypassReason, RouterRoute } from './decide';
 
 export interface RouteAnswer {
   route: RouterRoute;
-  /** Composed server-side from the shared copy helpers; only 'unsupported' has one. */
+  /** Always null today: /api/ask composes every reply, the router writes none. */
   reply: string | null;
   bypass: BypassReason | null;
 }
