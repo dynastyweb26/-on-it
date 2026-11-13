@@ -29,7 +29,7 @@ import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import { TURN_BUDGET_REPLY, createTurnBudget } from '@/lib/tools/budget';
 import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
 import { supabaseToolDb } from '@/lib/tools/db';
-import { FALLBACK, replyFor } from '@/lib/tools/reply';
+import { FALLBACK, cantDoCard, replyFor } from '@/lib/tools/reply';
 import { guardModelMoney } from '@/lib/tools/money';
 import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
@@ -147,7 +147,14 @@ export async function POST(req: NextRequest) {
   // never replaced by a makeshift one.
   const okRun = result.toolRuns.find((run) => run.status === 'ok');
   const okTool = okRun ? REGISTRY.find(okRun.name) : undefined;
-  const card = okRun && okTool ? cardFor(okTool, okRun.output) : null;
+  // A tool that ran draws its own card. A question no tool answered draws the
+  // cant.do card: under the flag the router sends every question here, so this
+  // is where an out-of-scope one is explained instead of refused upstream.
+  const card = okRun && okTool
+    ? cardFor(okTool, okRun.output)
+    : result.toolRuns.length === 0
+      ? cantDoCard()
+      : null;
   const fallback = okRun && okTool ? okTool.fallback(okRun.output as never) : null;
 
   // Money guard: a dollar figure the model states must already exist in this

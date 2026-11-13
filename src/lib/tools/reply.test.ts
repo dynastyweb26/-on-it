@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FALLBACK, NO_LOOKUP_REPLY, replyFor, withoutMoney } from './reply';
+import { CANT_DO_ALTERNATIVES, FALLBACK, NO_LOOKUP_REPLY, cantDoCard, replyFor, withoutMoney } from './reply';
+import { parseTemplateProps } from '@/lib/templates/props';
 import type { UnpaidSummary } from './unpaid';
 
 const summary = { sentence: 'Two invoices are unpaid, $300.00 in all.' } as UnpaidSummary;
@@ -40,6 +41,17 @@ test('nothing outstanding: one sentence, model prose never appended', () => {
 
 test('withoutMoney keeps sentences with no dollar amount', () => {
   assert.equal(withoutMoney('Two are late. They owe $40 total. Ask them?'), 'Two are late. Ask them?');
+});
+
+test('an out-of-scope question gets the cant.do card, composed from the same copy', () => {
+  const card = cantDoCard();
+  assert.equal(card?.id, 'cant.do');
+  const props = card?.props as { line: string; alternatives: string[]; noAlts: boolean };
+  assert.equal(props.line, NO_LOOKUP_REPLY);
+  assert.equal(props.noAlts, false);
+  assert.deepEqual(props.alternatives, [...CANT_DO_ALTERNATIVES]);
+  // The card the route sends must survive its own props schema.
+  assert.equal(parseTemplateProps('cant.do', card?.props).success, true);
 });
 
 test('the fixed replies carry no "quote" copy and no emoji', () => {
