@@ -41,6 +41,7 @@ name. Do not invent other ids.
 - If a hex value has no token in `design/tokens.css`, add a token with that exact value.
   Never substitute the nearest existing token. List every token you add in your report.
 - Every state in the file's `state` enum gets built. No state is added and none is dropped.
+  One owner-approved exception: `copyError` on `draft.message` (section 6, item 8).
 - Text in the design is the copy. Do not reword it. Wording that depends on data follows the
   pattern in the file's script (for example "Confirm 3 changes?", "2 saved, 1 didn't.").
 - Truncation rules are part of the design: names and secondary lines truncate to one line;
@@ -113,6 +114,11 @@ name. Do not invent other ids.
    - Text on laptop: primary is "Copy text". After copying the card shows "Text copied" with
      Copy again and Mark done.
    - The only Text error is that Messages could not be opened, with Copy text as the action.
+   - Exception, owner approved Nov 12 2026, not in the design file: `copyError`. Text on
+     laptop only, when Copy text fails. The card shows the existing error strip with
+     "Couldn't copy. Select the text and copy it." and the body stays selectable. On a
+     phone it maps to `openError`; on Email it maps to `error`. No other state may be
+     added this way.
    - The check animation plays only on Email Sent and on Text Mark done.
    - `device` is `laptop` at viewport 1280 and up, `phone` below, the same breakpoint the
      rest of the app uses for laptop.
