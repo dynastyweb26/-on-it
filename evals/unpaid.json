@@ -169,6 +169,13 @@
           }
         ]
       },
+      "expect": { "tools": ["list_expenses"], "templateId": "list.ranked", "writes": 0 }
+    },
+    {
+      "id": "out-of-scope-tax-advice",
+      "tags": ["scope"],
+      "request": "should I deduct my car as a business expense for taxes?",
+      "fixture": { "invoices": [] },
       "expect": { "tools": [], "templateId": null, "writes": 0 }
     },
     {
