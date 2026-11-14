@@ -9,7 +9,7 @@ import { applyConfirmResult, batchFromProps, partialLine, problemsOf, rowsFromAc
 import { batchHeadline, beginConfirm, cancelConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
 import type { ConfirmBatchProps } from '@/lib/templates/props';
 import type { ConfirmBatchCallbacks } from '@/lib/templates/callbacks';
-import { CONFIRM_COPY } from '@/lib/confirm-client';
+import { CONFIRM_COPY, EXPIRED_HEAD } from '@/lib/confirm-client';
 import './templates.css';
 
 const LINE = '1px solid var(--tpl-line)';
@@ -17,8 +17,8 @@ const MONT = 'var(--font-montserrat), Montserrat, sans-serif';
 const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
 
 export default function ConfirmBatch({
-  state = 'pending', statuses, actions, onPrimary, onRemove, onUndo,
-}: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[] }) {
+  state = 'pending', statuses, actions, expired = false, onPrimary, onRemove, onUndo,
+}: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[]; expired?: boolean }) {
   const [batch, setBatch] = useState(() => batchFromProps(state, statuses, actions));
   const [problems, setProblems] = useState<Record<string, string>>({}); // the server's sentence per refused row
   const [error, setError] = useState<string | null>(null); // why the last confirm did not settle
@@ -42,6 +42,8 @@ export default function ConfirmBatch({
   const isEmpty = ph === 'pending' && n === 0;
   const [head, sub] = loading
     ? ['Getting these ready…', 'One moment.']
+    : expired
+      ? EXPIRED_HEAD
     : isEmpty
       ? ['Nothing left to confirm.', 'Tell me what to do next.']
       : (() => { const h = batchHeadline(batch); return [h.head, h.sub]; })();
@@ -49,7 +51,7 @@ export default function ConfirmBatch({
   const partial = ph === 'partial';
   const done = ph === 'done';
   const failed = batch.rows.find((r) => batch.outcomes[r.id] === 'failed');
-  const showFooter = (ph === 'pending' && n > 0) || confirming || partial;
+  const showFooter = !expired && ((ph === 'pending' && n > 0) || confirming || partial);
 
   const primary = async () => {
     if (!onPrimary || busy.current || (ph !== 'pending' && ph !== 'partial')) return;
@@ -137,7 +139,7 @@ export default function ConfirmBatch({
               )}
             </div>
             <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', flex: 'none', color: TONE[a.tone] }}>{r.amount}</div>
-            {ph === 'pending' ? (
+            {ph === 'pending' && !expired ? (
               <div {...rm} aria-label="Remove" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', cursor: 'pointer' }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--tpl-skel)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Sym name="close" size={17} color="var(--tpl-muted-2)" />
@@ -160,7 +162,7 @@ export default function ConfirmBatch({
       {done && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 52, borderTop: LINE, fontSize: 14, color: 'var(--tpl-muted-2)' }}>
           <span>Saved to your books.</span>
-          <span {...tap(undo)} style={{ color: 'var(--tpl-gold-ink)', fontWeight: 600, cursor: 'pointer' }}>Undo all</span>
+          {onUndo && <span {...tap(undo)} style={{ color: 'var(--tpl-gold-ink)', fontWeight: 600, cursor: 'pointer' }}>Undo all</span>}
         </div>
       )}
 

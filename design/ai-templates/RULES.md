@@ -46,7 +46,11 @@ name. Do not invent other ids.
   look that is already designed. An error uses the existing error strip. A pending control
   uses the existing 55% dim from `confirm.batch` saving rows. Nothing new is drawn.
   Recorded so far: `copyError` on `draft.message` (section 6, item 8), the failed-vote
-  strip under the thumbs (section 6, item 3), and the pending dim on `nav.link` Retry.
+  strip under the thumbs (section 6, item 3), the pending dim on `nav.link` Retry, and on
+  `confirm.batch` (Nov 14 2026): a failed confirm shows the existing error strip with the
+  server's reply text, and a reopened chat's unconfirmed card shows no controls and the
+  server's expired sentence as its two header lines ("Confirmation expired." / "Ask me
+  again and I will redo it.").
   Anything bigger than that still goes to Claude Design first.
 - Owner-approved exception (Nov 14 2026): `confirm.batch` may show ONE row, in the same
   card with the same look. The "2 to 4 actions" in section 2 is 1 to 4 from here on.

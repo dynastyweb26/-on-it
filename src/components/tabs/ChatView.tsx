@@ -125,6 +125,7 @@ import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
 import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
 import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
+import { confirmViewFor } from '@/components/chat/templates/confirm-batch-view';
 import { confirmProposal, keyFor, shareInflight, type ConfirmOutcome } from '@/lib/confirm-client';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
@@ -3003,6 +3004,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // cant.do: an alternative starts the message (never sends); Request posts the
       // reply's messageId to /api/ask/request-feature (hidden without one).
       onAlt: fillComposer,
+      confirmView: confirmViewFor(m),
       // confirm.batch: the real request. The card owns the pending state and the synchronous guard.
       onPrimary: token
         ? async () => {

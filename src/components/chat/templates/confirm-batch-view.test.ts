@@ -76,3 +76,12 @@ test('problems are keyed by row and only for refused rows', () => {
   assert.deepEqual(problemsOf(actions, out), { '1': 'Nope.' });
   assert.deepEqual(problemsOf(actions, { kind: 'error', message: 'x' }), {});
 });
+
+import { confirmViewFor } from './confirm-batch-view';
+
+test('a card with no token in memory is never live: done if settled, expired if not', () => {
+  assert.equal(confirmViewFor({ confirmToken: 'tok-aaaaaaaa' }), 'live');
+  assert.equal(confirmViewFor({}), 'expired');
+  assert.equal(confirmViewFor({ confirmed: 'done' }), 'done');
+  assert.equal(confirmViewFor({ confirmToken: 'tok-aaaaaaaa', confirmed: 'done' }), 'done');
+});
