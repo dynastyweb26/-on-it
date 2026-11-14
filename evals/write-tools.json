@@ -24,6 +24,16 @@
       "expect": { "tools": [], "templateId": null, "writes": 0, "replyIncludesAll": ["Maria Santos", "Maria Silva"] }
     },
     {
+      "id": "edit-client-rename-elsewhere",
+      "request": "rename Maria Santos to Maria Silva",
+      "fixture": {
+        "clients": [
+          { "id": "cli-maria", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Maria Santos", "phone": null, "email": "maria@example.com", "address": null, "deleted_at": null }
+        ]
+      },
+      "expect": { "tools": [], "templateId": null, "writes": 0, "replyIncludes": "open them in Clients" }
+    },
+    {
       "id": "save-item-pressure-wash",
       "request": "save pressure washing at 250 a job",
       "fixture": { "products": [] },
