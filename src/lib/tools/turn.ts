@@ -11,7 +11,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { ProposalRow, Registry, ToolDb } from './contract';
 import { confirmSentence } from './confirm';
 import { REGISTRY, parseCall, TOOLS } from './registry';
-import { toolSystem } from './prompt';
+import { HISTORY_CONTEXT_RULE, toolSystem } from './prompt';
 import { localYmd, resolveTimeZone } from '@/lib/recap/dates';
 import { TURN_BUDGET_REPLY, TURN_MODEL_CALL_CAP, type TurnBudget } from './budget';
 
@@ -138,7 +138,10 @@ export async function runToolTurn(input: {
   let calls = 0;
   let budgetExhausted = false;
   const usage = { inputTokens: 0, outputTokens: 0 };
-  const system = input.system ?? (await systemForTurn(db, userId));
+  const base = input.system ?? (await systemForTurn(db, userId));
+  // Only a turn with earlier messages says what they are. A turn without history
+  // keeps the exact prompt it had, so its recorded evals still speak for it.
+  const system = input.history?.length ? `${base}\n\n${HISTORY_CONTEXT_RULE}` : base;
 
   while (true) {
     // Hard wall first: even a reserver that never says no cannot loop forever.
