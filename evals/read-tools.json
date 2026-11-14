@@ -141,6 +141,14 @@
     {
       "id": "estimates-what-i-quoted",
       "request": "what did I quote Mike for the door",
+      "fixture": {
+        "clients": [
+          { "id": "cli-mike", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Mike Alvarez", "email": "mike@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" }
+        ],
+        "invoices": [
+          { "id": "est-3", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "quote", "invoice_number": 3, "client_name": "Mike Alvarez", "status": "sent", "total": 2400, "amount_paid": 0, "due_date": "2026-11-20", "created_at": "2026-10-01T12:00:00Z", "deleted_at": null, "line_items": [] }
+        ]
+      },
       "expect": {
         "tools": [
           "list_estimates"
@@ -179,7 +187,11 @@
       "request": "estimates for Nobody At All",
       "expect": {
         "tools": [
-          "list_estimates"
+          "find_client"
+        ],
+        "replyIncludes": [
+          "Nobody At All",
+          "no client"
         ],
         "writes": 0
       }
@@ -315,9 +327,19 @@
     {
       "id": "client-summary-ambiguous",
       "request": "what does Ruth owe me?",
+      "fixture": {
+        "clients": [
+          { "id": "cli-ruth-1", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Ruth Chen", "email": "ruth.chen@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" },
+          { "id": "cli-ruth-2", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Ruth Lawrence", "email": "ruth@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" }
+        ]
+      },
       "expect": {
         "tools": [
-          "get_client_summary"
+          "find_client"
+        ],
+        "replyIncludes": [
+          "Ruth",
+          "clients match"
         ],
         "writes": 0
       }
@@ -327,7 +349,11 @@
       "request": "what does Zebediah owe me?",
       "expect": {
         "tools": [
-          "get_client_summary"
+          "find_client"
+        ],
+        "replyIncludes": [
+          "Zebediah",
+          "no client"
         ],
         "writes": 0
       }

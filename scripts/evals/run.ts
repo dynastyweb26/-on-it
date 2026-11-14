@@ -49,6 +49,13 @@ type EvalCase = {
     writes?: number;
     refused?: boolean;
     args?: Record<string, Record<string, unknown>>;
+    /**
+     * Wording the reply must name, any one of the listed phrases: a lookup that
+     * resolves nobody or more than one is complete when the reply says so, and
+     * that is part of the answer. Case-insensitive substring. Omit to grade no
+     * wording at all, which is the rule for every other case.
+     */
+    replyIncludes?: string | string[];
   };
 };
 
@@ -145,6 +152,24 @@ export function matchingToolSet(
     if (tools.length === 0) return called.length === 0;
     return called[called.length - 1] === tools[tools.length - 1];
   });
+}
+
+/**
+ * The reply is graded only when the case names wording. Any one listed phrase
+ * satisfies it, because the model composes the sentence: "No client matches"
+ * and "Zebediah isn't on file" are both a complete answer for a name nobody has.
+ */
+export function replyMismatch(
+  expect: Pick<EvalCase['expect'], 'replyIncludes'>,
+  reply: string,
+): string | null {
+  if (expect.replyIncludes === undefined) return null;
+  const wanted = Array.isArray(expect.replyIncludes) ? expect.replyIncludes : [expect.replyIncludes];
+  if (wanted.length === 0) return null;
+  const text = reply.toLowerCase();
+  return wanted.some((phrase) => text.includes(phrase.toLowerCase()))
+    ? null
+    : `reply names none of: ${wanted.join(', ')}`;
 }
 
 /**
@@ -251,6 +276,9 @@ export async function runCase(testCase: EvalCase, call: ModelCall | null): Promi
     const templateReason = templateMismatch(matchedExpect, templateId);
     if (templateReason) reasons.push(templateReason);
   }
+
+  const replyReason = replyMismatch(expect, result.replyText);
+  if (replyReason) reasons.push(replyReason);
 
   const writes = db.attempts;
   const expectedWrites = expect.writes ?? 0;
