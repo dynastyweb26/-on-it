@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyExpectedFail, isSignedOut, matchingToolSet, summarizeResults, templateMismatch } from '../../../scripts/evals/run';
+import { applyExpectedFail, isSignedOut, matchingToolSet, runCase, summarizeResults, templateMismatch } from '../../../scripts/evals/run';
 
 const caseOf = (over: Record<string, unknown> = {}) =>
   ({ id: 'x', request: 'r', fixture: {}, expect: { tools: [] }, ...over }) as never;
@@ -78,4 +78,18 @@ test('a case that names no templateId does not grade the card', () => {
   // An explicit null is the only way to demand no card.
   assert.equal(templateMismatch({ templateId: null }, null), null);
   assert.match(String(templateMismatch({ templateId: null }, 'nav.link')), /expected null/);
+});
+
+test('a signed-out case passes when no tool ran and nothing was written', async () => {
+  const signedOut = (over: Record<string, unknown> = {}) => caseOf({ signedOut: true, ...over });
+  assert.equal((await runCase(signedOut(), null)).pass, true);
+  assert.equal((await runCase(signedOut({ signedIn: false }), null)).pass, true);
+  // A case that still spells out the refusal keeps working.
+  assert.equal((await runCase(signedOut({ expect: { refused: true } }), null)).pass, true);
+  // But a signed-out case may not expect a tool, a write or a card.
+  const tool = await runCase(signedOut({ expect: { tools: ['unpaid_invoices'], writes: 0 } }), null);
+  assert.equal(tool.pass, false);
+  assert.match(tool.reasons.join(' '), /cannot expect a tool/);
+  assert.equal((await runCase(signedOut({ expect: { tools: [], writes: 1 } }), null)).pass, false);
+  assert.equal((await runCase(signedOut({ expect: { tools: [], templateId: 'stat.tiles' } }), null)).pass, false);
 });

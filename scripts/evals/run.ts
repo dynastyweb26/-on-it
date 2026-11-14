@@ -174,16 +174,20 @@ function argsMatch(expected: Record<string, unknown> | undefined, actual: unknow
   );
 }
 
-async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Result> {
+export async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Result> {
   const reasons: string[] = [];
   const tags = testCase.tags ?? [];
   const expect = testCase.expect;
 
-  // A signed-out user never reaches a tool and never reaches the model.
+  // A signed-out user never reaches a tool and never reaches the model, so the
+  // graded turn is an empty one: the cases say that with "tools": [] and
+  // "writes": 0. "refused": true still works for a case that spells it out.
   if (isSignedOut(testCase)) {
-    if (!expect.refused) reasons.push('expected a refusal for a signed-out request');
-    if (!expect.refused) return { id: testCase.id, tags, pass: false, reasons };
-    return { id: testCase.id, tags, pass: true, reasons: [] };
+    if (expect.refused) return { id: testCase.id, tags, pass: true, reasons: [] };
+    if ((expect.tools ?? []).length > 0) reasons.push('a signed-out case cannot expect a tool');
+    if ((expect.writes ?? 0) !== 0) reasons.push('a signed-out turn cannot write');
+    if (expect.templateId) reasons.push('a signed-out case cannot expect a card');
+    return { id: testCase.id, tags, pass: reasons.length === 0, reasons };
   }
 
   if (!call) {
