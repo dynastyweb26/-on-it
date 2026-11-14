@@ -127,3 +127,14 @@ test('a destination is kept only when it is an in-app path', async () => {
     messageId: null, reply: 'r' }, path);
   }
 });
+
+test('a proposal turn hands back its confirm token, once, apart from the card', async () => {
+  const out = await askQuestion('log a $40 payment from Ana', fake(200, {
+    reply: 'Ready to confirm: a payment.',
+    template: { id: 'confirm.batch', props: {} },
+    pending: [{ actionId: 'a1', token: 'tok-aaaaaaaa', tool: 'record_payment' }],
+  }));
+  assert.equal(out.kind === 'ok' && out.confirmToken, 'tok-aaaaaaaa');
+  const none = await askQuestion('q', fake(200, { reply: 'r', pending: [] }));
+  assert.equal(none.kind === 'ok' && 'confirmToken' in none, false);
+});

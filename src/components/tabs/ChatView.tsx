@@ -160,6 +160,8 @@ interface Msg {
   template?: { id: string; props: unknown };
   /** The server's plain-text answer for the card above; shown when it cannot draw. */
   fallbackText?: string;
+  /** confirm.batch: the one-time token /api/ask returned. Memory only: never drawn, never written to storage. */
+  confirmToken?: string;
   /** The logged chat_messages id /api/ask returned. No id, no thumbs. */
   messageId?: string;
   /** Where the answer's full list lives (an in-app path the server declared). */
@@ -536,7 +538,8 @@ function withMessageIds(messages: Msg[]): Msg[] {
 const PERSIST_THUMBS = 8;
 function forStorage(messages: Msg[], keep = PERSIST_THUMBS): Msg[] {
   let kept = 0;
-  const out = messages.filter((m) => !m.auto);
+  // A confirm token lives in memory only: a restored card must never be able to confirm.
+  const out = messages.filter((m) => !m.auto).map(({ confirmToken: _t, ...m }) => m as Msg);
   for (let i = out.length - 1; i >= 0; i--) {
     const m = out[i];
     if (!m.receipt) continue;
@@ -1563,7 +1566,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ? aMsg(card ? out.reply : (out.fallback as string), {
                 skipHistory: true,
                 ...(out.messageId ? { messageId: out.messageId } : {}),
-                ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
+                ...(card ? { template: card, ...(out.confirmToken ? { confirmToken: out.confirmToken } : {}), ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
               })
             : aMsg(out.reply, { skipHistory: true, ...(out.kind === 'ok' && out.messageId ? { messageId: out.messageId } : {}) });
           setMessages((m) => {

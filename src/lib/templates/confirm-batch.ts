@@ -40,10 +40,10 @@ export type BatchState = {
   draftRowIds: readonly string[];
 };
 
-export const MIN_ROWS = 2;
+export const MIN_ROWS = 1; // one row approved Nov 14 2026 (RULES §3)
 export const MAX_ROWS = 4;
 
-/** A batch is 2 to 4 rows (RULES §2), with unique ids. */
+/** A batch is 1 to 4 rows (RULES §2, §3), with unique ids. */
 export function startBatch(rows: readonly BatchRow[]): BatchState {
   if (rows.length < MIN_ROWS || rows.length > MAX_ROWS) {
     throw new Error(`confirm.batch holds ${MIN_ROWS}-${MAX_ROWS} rows, got ${rows.length}`);

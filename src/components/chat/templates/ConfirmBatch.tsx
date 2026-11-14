@@ -49,7 +49,7 @@ export default function ConfirmBatch({
   const showFooter = (ph === 'pending' && n > 0) || confirming || partial;
 
   const primary = () => {
-    if (busy.current || (ph !== 'pending' && ph !== 'partial')) return;
+    if (!onPrimary || busy.current || (ph !== 'pending' && ph !== 'partial')) return;
     busy.current = true;
     setBatch(beginConfirm(batch));
     onPrimary?.();
