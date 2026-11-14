@@ -106,23 +106,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Per-row status is what the confirm card paints: one row, one word.
+    // Per-row status is what the confirm card paints. A refused row keeps the
+    // rows before it saved and carries its own sentence; the batch is partial.
     const rows = result.actions.map((action) => ({
       actionId: action.actionId,
       tool: action.tool,
       status: action.status,
+      problem: action.status === 'failed' ? action.problem : null,
     }));
 
     return NextResponse.json(
       {
         ok: true,
         replayed: result.replayed,
+        state: result.state,
         rows,
         actions: result.actions.map((action) => ({
           actionId: action.actionId,
           tool: action.tool,
           status: action.status,
-          result: action.result,
+          ...(action.status === 'saved' ? { result: action.result } : { problem: action.problem }),
         })),
       },
       NO_STORE,

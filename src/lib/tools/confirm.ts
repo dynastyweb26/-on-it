@@ -31,13 +31,21 @@ export type PendingAction = {
   executedAt: string | null;
 };
 
-export type ExecutedAction = {
-  actionId: string;
-  tool: string;
-  /** Per-row state the confirm card paints. One word: it was saved. */
-  status: 'saved';
-  result: unknown;
-};
+export type ExecutedAction =
+  | {
+    actionId: string;
+    tool: string;
+    /** Per-row state the confirm card paints. */
+    status: 'saved';
+    result: unknown;
+  }
+  | {
+    actionId: string;
+    tool: string;
+    /** This row refused; the sentence says why, composed by the server. */
+    status: 'failed';
+    problem: string;
+  };
 
 /**
  * The sentence a proposal is read with. Server-composed from the row prepare
@@ -59,6 +67,11 @@ export interface PendingStore {
   markExecuted(userId: string, actionId: string): Promise<void>;
   findCommit(userId: string, idempotencyKey: string): Promise<RecordedCommit | null>;
   insertCommit(userId: string, idempotencyKey: string, commit: RecordedCommit): Promise<void>;
+}
+
+/** A batch is done when every row saved, partial once any row refused. */
+function stateOf(actions: readonly ExecutedAction[]): 'done' | 'partial' {
+  return actions.every((action) => action.status === 'saved') ? 'done' : 'partial';
 }
 
 const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
@@ -108,7 +121,13 @@ export type ConfirmFailure =
   | 'state_changed';
 
 export type ConfirmResult =
-  | { ok: true; actions: ExecutedAction[]; replayed: boolean }
+  | {
+    ok: true;
+    actions: ExecutedAction[];
+    replayed: boolean;
+    /** Every row saved, or some saved and at least one refused. */
+    state: 'done' | 'partial';
+  }
   | { ok: false; reason: ConfirmFailure; problem?: string };
 
 /**
@@ -133,7 +152,7 @@ export async function confirmActions(input: {
   // Replay first: the key is the promise that this request already happened.
   if (key) {
     const recorded = await input.store.findCommit(input.userId, key);
-    if (recorded) return { ok: true, actions: recorded.actions, replayed: true };
+    if (recorded) return { ok: true, actions: recorded.actions, replayed: true, state: stateOf(recorded.actions) };
   }
 
   const tokens = [...new Set(input.tokens.map((t) => t.trim()).filter(Boolean))];
@@ -159,18 +178,31 @@ export async function confirmActions(input: {
   }
 
   const actions: ExecutedAction[] = [];
+  /** The first refusal, so a request that saved nothing can fail as a whole. */
+  let refusal: { reason: ConfirmFailure; problem: string } | null = null;
+
   for (const { action, tool } of resolved) {
     if (!tool.execute) return { ok: false, reason: 'not_executable' };
-    // execute re-validates what prepare saw. A refusal writes nothing and says
-    // why, so the user can ask again instead of being told it half-worked.
+    // execute re-validates what prepare saw. One refused row does not undo the
+    // rows already saved: each is reported on its own and the card goes partial.
     const outcome = await tool.execute(input.wctx, action.resolved);
     if (!outcome.ok) {
-      return { ok: false, reason: 'state_changed', problem: outcome.problem };
+      actions.push({ actionId: action.id, tool: tool.name, status: 'failed', problem: outcome.problem });
+      refusal ??= { reason: 'state_changed', problem: outcome.problem };
+      continue;
     }
     const result = tool.output.parse(outcome.result);
     await input.store.markExecuted(input.userId, action.id);
     actions.push({ actionId: action.id, tool: tool.name, status: 'saved', result });
   }
+
+  // Nothing was written, so the request failed: the route answers with the real
+  // cause and the tool's own sentence, exactly as a single-row confirm would.
+  const saved = actions.filter((action) => action.status === 'saved');
+  if (saved.length === 0 && refusal) {
+    return { ok: false, reason: refusal.reason, problem: refusal.problem };
+  }
+  const state = stateOf(actions);
 
   if (key) {
     try {
@@ -179,10 +211,10 @@ export async function confirmActions(input: {
       // Two confirms raced on the same key. The first write stands; return it so
       // the caller sees one outcome, not an error and not a second row.
       const recorded = await input.store.findCommit(input.userId, key);
-      if (recorded) return { ok: true, actions: recorded.actions, replayed: true };
+      if (recorded) return { ok: true, actions: recorded.actions, replayed: true, state: stateOf(recorded.actions) };
       throw new Error('confirm commit failed');
     }
   }
 
-  return { ok: true, actions, replayed: false };
+  return { ok: true, actions, replayed: false, state };
 }

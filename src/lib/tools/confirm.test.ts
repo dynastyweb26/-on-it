@@ -267,3 +267,38 @@ test('token hashes compare in constant time and agree on equality', () => {
   assert.equal(sameTokenHash(a, 'b'.repeat(64)), false);
   assert.equal(sameTokenHash(a, 'short'), false);
 });
+
+test('a later refusal does not undo the rows already saved', async () => {
+  const rows = writeCount();
+  const store = fixturePendingStore();
+  const base = writeTool(rows);
+  // One resolved id refuses as if its invoice had been deleted after prepare.
+  const picky = {
+    ...base,
+    execute: async (ctx: Parameters<NonNullable<typeof base.execute>>[0], resolved: unknown) => {
+      if ((resolved as { invoice_id: string }).invoice_id === 'inv-b') {
+        return { ok: false as const, problem: 'That invoice was deleted.' };
+      }
+      return base.execute!(ctx, resolved);
+    },
+  };
+  const registry = buildRegistry([picky as never]);
+
+  const a = await createPendingAction({
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-a', amount: 25 }, store,
+  });
+  const b = await createPendingAction({
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-b', amount: 30 }, store,
+  });
+
+  const result = await confirmActions({
+    userId: OWNER, tokens: [a.token, b.token], store, registry, wctx: wctxFor(),
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.state, 'partial');
+  assert.deepEqual(result.actions.map((action) => action.status), ['saved', 'failed']);
+  const failed = result.actions[1];
+  assert.equal(failed.status === 'failed' ? failed.problem : null, 'That invoice was deleted.');
+  assert.equal(rows.rows, 1, 'the saved row stays saved');
+});
