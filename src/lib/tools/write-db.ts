@@ -11,7 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SelectPlan, ToolDb, WriteDb, WriteMatch } from './contract';
 import { supabaseToolDb } from './db';
 
-export function supabaseWriteDb(client: SupabaseClient): WriteDb {
+export function supabaseWriteDb(client: SupabaseClient, userId: string): WriteDb {
   const read: ToolDb = supabaseToolDb(client);
 
   return {
@@ -27,17 +27,30 @@ export function supabaseWriteDb(client: SupabaseClient): WriteDb {
     },
 
     async update(table, values, match: WriteMatch) {
+      // An update must name exactly the row it is allowed to touch. Anything
+      // broader than one id is refused before a single query is built, and the
+      // same rule applies to any future delete: id plus the caller, nothing else.
+      const id = match.eq?.id;
+      const named = (typeof id === 'string' && id.trim() !== '')
+        || (typeof id === 'number' && Number.isFinite(id));
+      if (!named) {
+        throw new Error('WriteDb.update refuses to run without a non-empty id in match.eq');
+      }
+
       let query = client.from(table).update(values as never) as unknown as {
         eq(column: string, value: unknown): typeof query;
         is(column: string, value: null): typeof query;
         then: Promise<{ error: { message: string } | null }>['then'];
       };
       for (const [column, value] of Object.entries(match.eq ?? {})) {
+        // The scope is the caller's, never something a payload can widen.
+        if (column === 'user_id') continue;
         query = query.eq(column, value);
       }
       for (const column of Object.keys(match.is ?? {})) {
         query = query.is(column, null);
       }
+      query = query.eq('user_id', userId);
       const { error } = await query;
       return { error: error ? { message: error.message } : null };
     },

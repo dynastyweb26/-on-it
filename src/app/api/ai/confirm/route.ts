@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       registry: REGISTRY,
       // The one place a write context exists: the caller's session, after auth
       // and a valid token. No model turn can reach this module (CI enforces it).
-      wctx: { db: supabaseWriteDb(supabase), userId: user.id },
+      wctx: { db: supabaseWriteDb(supabase, user.id), userId: user.id },
     });
 
     if (!result.ok) {
