@@ -26,3 +26,38 @@ test("a default minted key passes the route's length rule (8 to 128)", () => {
   const k = keyFor(new Map(), 'c');
   assert.ok(k.length >= 8 && k.length <= 128);
 });
+
+import { CONFIRM_COPY } from './confirm-client';
+const fake = (status: number, body: unknown = {}) =>
+  (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+
+test('each refusal names its cause and shows the server\'s own sentence', async () => {
+  const cases: [number, string, string, string][] = [
+    [404, 'unknown_token', 'expired', 'That confirmation has expired. Ask me again and I will redo it.'],
+    [410, 'expired_token', 'expired', 'That confirmation is too old. Ask me again and I will redo it.'],
+    [409, 'already_confirmed', 'already-done', 'That one was already done.'],
+    [409, 'state_changed', 'changed', 'That changed since I looked. Ask me again and I will redo it.'],
+    [500, 'execute_failed', 'unsure', 'That may not have gone through. Check, then ask me again.'],
+  ];
+  for (const [status, error, cause, reply] of cases) {
+    assert.deepEqual(await confirmProposal('tok-aaaaaaaa', 'key-11111111', fake(status, { error, reply })), { kind: 'error', cause, reply });
+  }
+});
+
+test('signed out and slow down are their own causes', async () => {
+  assert.deepEqual(await confirmProposal('t', 'k', fake(401, { error: 'signed_out', reply: "You're signed out. Sign in, then confirm." })), { kind: 'error', cause: 'signed-out', reply: "You're signed out. Sign in, then confirm." });
+  assert.deepEqual(await confirmProposal('t', 'k', fake(429, { reply: 'One sec — slow down a moment.' })), { kind: 'error', cause: 'rate-limited', reply: 'One sec — slow down a moment.' });
+});
+
+test('a lost connection says offline, or that it may not have gone through', async () => {
+  const down = (async () => { throw new TypeError('fail'); }) as unknown as typeof fetch;
+  assert.deepEqual(await confirmProposal('t', 'k', down, () => false), { kind: 'error', cause: 'network', reply: CONFIRM_COPY.offline });
+  assert.deepEqual(await confirmProposal('t', 'k', down, () => true), { kind: 'error', cause: 'network', reply: CONFIRM_COPY.dropped });
+});
+
+test('a success is painted from the rows; a partial has a failed row; no rows is an error, not "saved"', async () => {
+  const rows = [{ actionId: 'a', status: 'saved', problem: null }, { actionId: 'b', status: 'failed', problem: 'Nope.' }];
+  assert.deepEqual(await confirmProposal('t', 'k', fake(200, { ok: true, rows })), { kind: 'settled', state: 'partial', rows });
+  assert.equal((await confirmProposal('t', 'k', fake(200, { ok: true, rows: [] }))).kind, 'error');
+  assert.equal((await confirmProposal('t', 'k', fake(200, 'junk'))).kind, 'error');
+});

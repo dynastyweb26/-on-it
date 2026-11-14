@@ -3006,8 +3006,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
       onPrimary: token
         ? async () => {
             const out = await confirmProposal(token, keyFor(confirmKeysRef.current, m.id));
-            if (out.kind === 'error') return { kind: 'error' as const, message: out.reply, done: out.cause === 'already-done' };
-            if (out.state === 'done') setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, confirmed: 'done' as const } : x)));
+            const done = out.kind === 'error' ? out.cause === 'already-done' : out.state === 'done';
+            if (out.kind === 'error') {
+              if (done) setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, confirmed: 'done' as const } : x)));
+              return { kind: 'error' as const, message: out.reply, done };
+            }
+            if (done) setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, confirmed: 'done' as const } : x)));
             return { kind: 'settled' as const, rows: out.rows.map((r) => ({ actionId: r.actionId, outcome: r.status, problem: r.problem })) };
           }
         : undefined,

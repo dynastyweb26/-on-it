@@ -9,6 +9,7 @@ import { applyConfirmResult, batchFromProps, partialLine, problemsOf, rowsFromAc
 import { batchHeadline, beginConfirm, cancelConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
 import type { ConfirmBatchProps } from '@/lib/templates/props';
 import type { ConfirmBatchCallbacks } from '@/lib/templates/callbacks';
+import { CONFIRM_COPY } from '@/lib/confirm-client';
 import './templates.css';
 
 const LINE = '1px solid var(--tpl-line)';
@@ -20,6 +21,7 @@ export default function ConfirmBatch({
 }: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[] }) {
   const [batch, setBatch] = useState(() => batchFromProps(state, statuses, actions));
   const [problems, setProblems] = useState<Record<string, string>>({}); // the server's sentence per refused row
+  const [error, setError] = useState<string | null>(null); // why the last confirm did not settle
   const busy = useRef(batch.phase === 'confirming'); // synchronous: a second tap never gets past it
   const loading = state === 'loading';
   const statusKey = (statuses ?? []).join(','); // a new array each render must not reset the card
@@ -53,12 +55,15 @@ export default function ConfirmBatch({
     if (!onPrimary || busy.current || (ph !== 'pending' && ph !== 'partial')) return;
     busy.current = true; // before any await: a rage-tap in the same frame stops here
     const before = ph;
+    setError(null);
     setBatch(beginConfirm(batch));
     try {
       const out = await onPrimary();
       setProblems(problemsOf(actions, out));
+      if (out && out.kind === 'error' && !out.done) setError(out.message);
       setBatch((prev) => applyConfirmResult(prev, before, actions, out));
     } catch {
+      setError(CONFIRM_COPY.server);
       setBatch((prev) => cancelConfirm(prev, before)); // every exit clears pending
     } finally {
       busy.current = false;
@@ -145,10 +150,10 @@ export default function ConfirmBatch({
         );
       })}
 
-      {partial && (
+      {(partial || (error && ph === 'pending')) && (
         <div style={{ background: 'var(--tpl-red-soft)', padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14, lineHeight: 1.4, color: 'var(--tpl-fail-ink)', borderTop: '1px solid var(--tpl-fail-line)' }}>
           <Sym name="error" size={18} />
-          <span>{partialLine(failed?.summary ?? '', failed ? problems[failed.id] : undefined, batch.rows.some((r) => batch.outcomes[r.id] === 'saved'))}</span>
+          <span>{error ?? partialLine(failed?.summary ?? '', failed ? problems[failed.id] : undefined, batch.rows.some((r) => batch.outcomes[r.id] === 'saved'))}</span>
         </div>
       )}
 
