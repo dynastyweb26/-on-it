@@ -164,8 +164,10 @@ export type ToolDefinition = {
   /**
    * A write or send tool's second half. Runs only from /api/ai/confirm, with a
    * WriteContext. Re-validates the state prepare saw and refuses if it moved.
+   * actionId is the pending action's id, for a tool that needs an idempotency
+   * key of its own when it calls out.
    */
-  execute?: (ctx: WriteContext, resolved: unknown) => Promise<ExecuteOutcome>;
+  execute?: (ctx: WriteContext, resolved: unknown, actionId: string) => Promise<ExecuteOutcome>;
   /**
    * A real prepare() answer for the fixture args, so the shared suite can prove
    * the card, the money rule and the confirm path without a database.
@@ -394,7 +396,7 @@ export function defineWriteTool<In extends z.ZodType, Out extends z.ZodType>(def
   defaultTemplate: ToolTemplate;
   destination?: { screen: string; path: string };
   prepare: (ctx: ToolContext, args: z.infer<In>) => Promise<PreparedProposal>;
-  execute: (ctx: WriteContext, resolved: unknown) => Promise<ExecuteOutcome>;
+  execute: (ctx: WriteContext, resolved: unknown, actionId: string) => Promise<ExecuteOutcome>;
   fallback: (result: z.infer<Out>) => string;
   fixture: { args: z.input<In>; result: z.infer<Out> };
   preview: { resolved: unknown; row: ProposalRow };

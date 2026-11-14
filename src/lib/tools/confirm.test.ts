@@ -279,11 +279,15 @@ test('a later refusal does not undo the rows already saved', async () => {
   // One resolved id refuses as if its invoice had been deleted after prepare.
   const picky = {
     ...base,
-    execute: async (ctx: Parameters<NonNullable<typeof base.execute>>[0], resolved: unknown) => {
+    execute: async (
+      ctx: Parameters<NonNullable<typeof base.execute>>[0],
+      resolved: unknown,
+      actionId: string,
+    ) => {
       if ((resolved as { invoice_id: string }).invoice_id === 'inv-b') {
         return { ok: false as const, problem: 'That invoice was deleted.' };
       }
-      return base.execute!(ctx, resolved);
+      return base.execute!(ctx, resolved, actionId);
     },
   };
   const registry = buildRegistry([picky as never]);
@@ -344,13 +348,14 @@ test('two confirms that reach the claim together execute exactly once', async ()
   });
 });
 
-test('an execute that throws releases the claim so the owner can retry', async () => {
+test('an execute that throws keeps the claim, so a retry cannot write twice', async () => {
   const rows = writeCount();
   const store = fixturePendingStore();
   const good = registryFor(rows);
+  let attempts = 0;
   const broken = buildRegistry([{
     ...good.get('record_payment'),
-    execute: async () => { throw new Error('boom'); },
+    execute: async () => { attempts += 1; throw new Error('boom'); },
   } as never]);
   const { token } = await createPendingAction({
     userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
@@ -359,14 +364,41 @@ test('an execute that throws releases the claim so the owner can retry', async (
   const failed = await confirmActions({
     userId: OWNER, tokens: [token], store, registry: broken, wctx: wctxFor(),
   });
+  // A throw can happen after the row landed, so the action stays claimed and the
+  // reply says to check rather than promising a clean retry.
   assert.deepEqual(failed, { ok: false, reason: 'execute_failed', problem: EXECUTE_FAILED_PROBLEM });
-  assert.equal(rows.rows, 0);
-  assert.deepEqual(store.releases, [store.executions[0]], 'the claim went back');
+  assert.equal(EXECUTE_FAILED_PROBLEM, 'That may not have gone through. Check, then ask me again.');
+  assert.deepEqual(store.releases, [], 'nothing was released');
+  assert.equal(store.executions.length, 1);
 
-  // The same token works now that the store is released.
   const retry = await confirmActions({
     userId: OWNER, tokens: [token], store, registry: good, wctx: wctxFor(),
   });
-  assert.equal(retry.ok, true);
-  assert.equal(rows.rows, 1);
+  // The claimed token is refused up front on the retry, so execute never runs.
+  assert.deepEqual(retry, { ok: false, reason: 'already_confirmed' });
+  assert.equal(attempts, 1, 'execute did not run a second time');
+  assert.equal(rows.rows, 0, 'and nothing was written');
+});
+
+test('execute gets the pending action id as its idempotency key', async () => {
+  const rows = writeCount();
+  const store = fixturePendingStore();
+  let seen: string | null = null;
+  const base = writeTool(rows);
+  const registry = buildRegistry([{
+    ...base,
+    execute: async (ctx: never, resolved: never, actionId: string) => {
+      seen = actionId;
+      return base.execute!(ctx, resolved, actionId);
+    },
+  } as never]);
+  const created = await createPendingAction({
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
+  });
+
+  const result = await confirmActions({
+    userId: OWNER, tokens: [created.token], store, registry, wctx: wctxFor(),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(seen, created.id);
 });

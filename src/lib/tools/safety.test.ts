@@ -355,11 +355,11 @@ for (const tool of WRITE_TOOLS) {
     if (!prepared.ok) return;
     const wctx = { db: wdb, userId: OWNER };
 
-    const first = await tool.execute!(wctx, prepared.resolved);
+    const first = await tool.execute!(wctx, prepared.resolved, 'action-1');
     assert.equal(first.ok, true);
     const writesAfterFirst = wdb.writes;
 
-    const second = await tool.execute!(wctx, prepared.resolved);
+    const second = await tool.execute!(wctx, prepared.resolved, 'action-1');
     assert.equal(second.ok, false, 'the same resolved payload must not write twice');
     assert.equal(wdb.writes, writesAfterFirst, 'a refusal writes nothing');
   });

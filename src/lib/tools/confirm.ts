@@ -83,8 +83,8 @@ function stateOf(actions: readonly ExecutedAction[]): 'done' | 'partial' {
 
 /** The sentence for a token another confirm already claimed. */
 export const ALREADY_CONFIRMED_PROBLEM = 'That one was already done.';
-/** The sentence for an execute that threw; the claim is released for a retry. */
-export const EXECUTE_FAILED_PROBLEM = "That didn't go through. Tap it once more.";
+/** The sentence for an execute that threw: it may have written, so look first. */
+export const EXECUTE_FAILED_PROBLEM = 'That may not have gone through. Check, then ask me again.';
 
 const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
 
@@ -226,10 +226,10 @@ export async function confirmActions(input: {
     // rows already saved: each is reported on its own and the card goes partial.
     let outcome;
     try {
-      outcome = await tool.execute(input.wctx, action.resolved);
+      outcome = await tool.execute(input.wctx, action.resolved, action.id);
     } catch (error) {
-      // Nothing was written, so hand the claim back and let the owner retry.
-      await releaseClaim(input.store, input.userId, action.id);
+      // A throw is not a refusal: it can land after the write did. Keep the claim
+      // so a retry cannot write twice, and tell the owner to check first.
       console.error('[confirm] execute threw', tool.name, (error as Error)?.message);
       actions.push({
         actionId: action.id, tool: tool.name, status: 'failed', problem: EXECUTE_FAILED_PROBLEM,
