@@ -39,6 +39,7 @@ const FAILURE: Record<ConfirmFailure, { status: number; reply: string }> = {
   already_confirmed: { status: 409, reply: 'That one was already done.' },
   not_executable: { status: 400, reply: 'That action cannot be confirmed.' },
   state_changed: { status: 409, reply: 'That changed since I looked. Ask me again and I will redo it.' },
+  execute_failed: { status: 500, reply: "That didn't go through. Tap it once more." },
 };
 
 export async function POST(req: NextRequest) {

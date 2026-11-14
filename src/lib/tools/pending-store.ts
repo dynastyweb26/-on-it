@@ -42,13 +42,26 @@ export function supabasePendingStore(client: SupabaseClient, userId: string): Pe
       };
     },
 
-    async markExecuted(ownerId: string, actionId: string) {
-      const { error } = await client
+    async claim(ownerId: string, actionId: string) {
+      // The whole race is decided by this one statement: executed_at is only set
+      // where it is still null, and only the caller that sets it gets a row back.
+      const { data, error } = await client
         .from('tool_pending_actions')
         .update({ executed_at: new Date().toISOString() })
         .eq('user_id', ownerId)
         .eq('id', actionId)
-        .is('executed_at', null);
+        .is('executed_at', null)
+        .select('id');
+      if (error) throw new Error(error.message);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async release(ownerId: string, actionId: string) {
+      const { error } = await client
+        .from('tool_pending_actions')
+        .update({ executed_at: null })
+        .eq('user_id', ownerId)
+        .eq('id', actionId);
       if (error) throw new Error(error.message);
     },
 

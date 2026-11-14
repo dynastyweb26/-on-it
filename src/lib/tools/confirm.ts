@@ -64,7 +64,14 @@ export type RecordedCommit = { actions: ExecutedAction[] };
 export interface PendingStore {
   insert(action: PendingAction): Promise<void>;
   findByTokenHash(userId: string, tokenHash: string): Promise<PendingAction | null>;
-  markExecuted(userId: string, actionId: string): Promise<void>;
+  /**
+   * Claim the action for execution, atomically: an UPDATE that sets executed_at
+   * only where it is still null. True means this caller won and may execute;
+   * false means someone else already did.
+   */
+  claim(userId: string, actionId: string): Promise<boolean>;
+  /** Hand a won claim back (executed_at to null) so the owner can retry. */
+  release(userId: string, actionId: string): Promise<void>;
   findCommit(userId: string, idempotencyKey: string): Promise<RecordedCommit | null>;
   insertCommit(userId: string, idempotencyKey: string, commit: RecordedCommit): Promise<void>;
 }
@@ -73,6 +80,11 @@ export interface PendingStore {
 function stateOf(actions: readonly ExecutedAction[]): 'done' | 'partial' {
   return actions.every((action) => action.status === 'saved') ? 'done' : 'partial';
 }
+
+/** The sentence for a token another confirm already claimed. */
+export const ALREADY_CONFIRMED_PROBLEM = 'That one was already done.';
+/** The sentence for an execute that threw; the claim is released for a retry. */
+export const EXECUTE_FAILED_PROBLEM = "That didn't go through. Tap it once more.";
 
 const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
 
@@ -118,7 +130,9 @@ export type ConfirmFailure =
   | 'already_confirmed'
   | 'not_executable'
   /** execute() re-validated and the world moved: nothing was written. */
-  | 'state_changed';
+  | 'state_changed'
+  /** execute() threw: the claim was released and nothing was saved. */
+  | 'execute_failed';
 
 export type ConfirmResult =
   | {
@@ -129,6 +143,19 @@ export type ConfirmResult =
     state: 'done' | 'partial';
   }
   | { ok: false; reason: ConfirmFailure; problem?: string };
+
+/**
+ * Give a claim back after a refused or failed execute. A release that itself
+ * fails leaves the token claimed, which needs a person to notice, so it is
+ * logged loudly and never silently swallowed.
+ */
+async function releaseClaim(store: PendingStore, userId: string, actionId: string): Promise<void> {
+  try {
+    await store.release(userId, actionId);
+  } catch (error) {
+    console.error('[confirm] could not release a claim', actionId, (error as Error)?.message);
+  }
+}
 
 /**
  * Execute one or more confirmed actions under the caller's own session.
@@ -183,16 +210,44 @@ export async function confirmActions(input: {
 
   for (const { action, tool } of resolved) {
     if (!tool.execute) return { ok: false, reason: 'not_executable' };
+
+    // Claim FIRST, atomically. Two confirms with one token can both get past the
+    // check above and land here together; the single UPDATE ... WHERE
+    // executed_at IS NULL picks exactly one winner, and only that one executes.
+    if (!(await input.store.claim(input.userId, action.id))) {
+      actions.push({
+        actionId: action.id, tool: tool.name, status: 'failed', problem: ALREADY_CONFIRMED_PROBLEM,
+      });
+      refusal ??= { reason: 'already_confirmed', problem: ALREADY_CONFIRMED_PROBLEM };
+      continue;
+    }
+
     // execute re-validates what prepare saw. One refused row does not undo the
     // rows already saved: each is reported on its own and the card goes partial.
-    const outcome = await tool.execute(input.wctx, action.resolved);
+    let outcome;
+    try {
+      outcome = await tool.execute(input.wctx, action.resolved);
+    } catch (error) {
+      // Nothing was written, so hand the claim back and let the owner retry.
+      await releaseClaim(input.store, input.userId, action.id);
+      console.error('[confirm] execute threw', tool.name, (error as Error)?.message);
+      actions.push({
+        actionId: action.id, tool: tool.name, status: 'failed', problem: EXECUTE_FAILED_PROBLEM,
+      });
+      refusal ??= { reason: 'execute_failed', problem: EXECUTE_FAILED_PROBLEM };
+      continue;
+    }
+
     if (!outcome.ok) {
+      // Refused before writing: release so the owner can confirm again once the
+      // state is fixed, instead of being told it was already done.
+      await releaseClaim(input.store, input.userId, action.id);
       actions.push({ actionId: action.id, tool: tool.name, status: 'failed', problem: outcome.problem });
       refusal ??= { reason: 'state_changed', problem: outcome.problem };
       continue;
     }
+
     const result = tool.output.parse(outcome.result);
-    await input.store.markExecuted(input.userId, action.id);
     actions.push({ actionId: action.id, tool: tool.name, status: 'saved', result });
   }
 

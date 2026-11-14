@@ -286,6 +286,44 @@ for (const tool of WRITE_TOOLS) {
     assert.equal(wdb.writes, 1, 'the second tap wrote nothing');
   });
 
+  test(`${tool.name}: two confirms racing the claim write one row`, async () => {
+    const store = fixturePendingStore();
+    const wdb = fixtureWriteDb({}, OWNER);
+    const registry = buildRegistry([tool]);
+    const wctx = { db: wdb, userId: OWNER };
+
+    const prepared = await preparedOnEmpty();
+    assert.equal(prepared.ok, true);
+    if (!prepared.ok) return;
+    const { token } = await createPendingAction({
+      userId: OWNER, tool: tool.name, resolved: prepared.resolved, store,
+    });
+
+    // Both confirms arrive at the claim before either one runs it: the claim's
+    // UPDATE ... WHERE executed_at IS NULL is the only thing picking a winner.
+    let arrivals = 0;
+    let open: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const racing = {
+      ...store,
+      claim: async (userId: string, actionId: string) => {
+        arrivals += 1;
+        if (arrivals === 2) open();
+        if (arrivals < 2) await gate;
+        return store.claim(userId, actionId);
+      },
+    };
+
+    const outcomes = await Promise.all([
+      confirmActions({ userId: OWNER, tokens: [token], store: racing, registry, wctx }),
+      confirmActions({ userId: OWNER, tokens: [token], store: racing, registry, wctx }),
+    ]);
+
+    assert.equal(wdb.writes, 1, 'execute ran exactly once');
+    assert.equal(store.executions.length, 1, 'exactly one claim was granted');
+    assert.equal(outcomes.filter((outcome) => outcome.ok).length, 1, 'one confirm reports the save');
+  });
+
   test(`${tool.name}: an expired or foreign token writes nothing`, async () => {
     const store = fixturePendingStore();
     const wdb = fixtureWriteDb({}, OWNER);

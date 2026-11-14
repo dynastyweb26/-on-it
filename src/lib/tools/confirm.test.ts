@@ -7,13 +7,15 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { buildRegistry, defineTool, defineWriteTool, type WriteContext } from './contract';
 import {
+  ALREADY_CONFIRMED_PROBLEM,
+  EXECUTE_FAILED_PROBLEM,
   CONFIRM_TOKEN_TTL_MS,
   confirmActions,
   confirmSentence,
   createPendingAction,
   sameTokenHash,
 } from './confirm';
-import { fixturePendingStore } from './pending-fixture';
+import { fixturePendingStore, type FixturePendingStore } from './pending-fixture';
 import { fixtureWriteDb } from './write-fixture';
 import { ConfirmBatchProps } from '@/lib/templates/props';
 
@@ -224,7 +226,9 @@ test('execute refuses when the state moved after prepare, and writes nothing', a
   });
   assert.deepEqual(result, { ok: false, reason: 'state_changed', problem: 'That invoice was deleted.' });
   assert.equal(rows.rows, 0);
-  assert.equal(store.executions.length, 0, 'nothing was marked executed');
+  // The claim was won and handed straight back, so a retry is possible.
+  assert.deepEqual(store.releases, [store.executions[0]]);
+  assert.equal([...store.actions.values()][0].executedAt, null);
 });
 
 test('the confirm sentence is composed by the server and says "ready"', () => {
@@ -301,4 +305,68 @@ test('a later refusal does not undo the rows already saved', async () => {
   const failed = result.actions[1];
   assert.equal(failed.status === 'failed' ? failed.problem : null, 'That invoice was deleted.');
   assert.equal(rows.rows, 1, 'the saved row stays saved');
+});
+
+test('two confirms that reach the claim together execute exactly once', async () => {
+  const rows = writeCount();
+  const base = fixturePendingStore();
+  let arrivals = 0;
+  let openGate: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { openGate = resolve; });
+  const store: FixturePendingStore = {
+    ...base,
+    claim: async (userId, actionId) => {
+      arrivals += 1;
+      // Let both confirms arrive before either claim runs: the store's UPDATE is
+      // what decides the winner, not the check that let them both this far.
+      if (arrivals === 2) openGate();
+      if (arrivals < 2) await gate;
+      return base.claim(userId, actionId);
+    },
+  };
+  const registry = registryFor(rows);
+  const wctx = wctxFor();
+  const { token } = await createPendingAction({
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
+  });
+
+  const outcomes = await Promise.all([
+    confirmActions({ userId: OWNER, tokens: [token], store, registry, wctx }),
+    confirmActions({ userId: OWNER, tokens: [token], store, registry, wctx }),
+  ]);
+
+  assert.equal(rows.rows, 1, 'execute ran exactly once');
+  assert.equal(base.executions.length, 1, 'one claim was granted');
+  assert.equal(outcomes.filter((result) => result.ok).length, 1);
+  const loser = outcomes.find((result) => !result.ok);
+  assert.deepEqual(loser, {
+    ok: false, reason: 'already_confirmed', problem: ALREADY_CONFIRMED_PROBLEM,
+  });
+});
+
+test('an execute that throws releases the claim so the owner can retry', async () => {
+  const rows = writeCount();
+  const store = fixturePendingStore();
+  const good = registryFor(rows);
+  const broken = buildRegistry([{
+    ...good.get('record_payment'),
+    execute: async () => { throw new Error('boom'); },
+  } as never]);
+  const { token } = await createPendingAction({
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
+  });
+
+  const failed = await confirmActions({
+    userId: OWNER, tokens: [token], store, registry: broken, wctx: wctxFor(),
+  });
+  assert.deepEqual(failed, { ok: false, reason: 'execute_failed', problem: EXECUTE_FAILED_PROBLEM });
+  assert.equal(rows.rows, 0);
+  assert.deepEqual(store.releases, [store.executions[0]], 'the claim went back');
+
+  // The same token works now that the store is released.
+  const retry = await confirmActions({
+    userId: OWNER, tokens: [token], store, registry: good, wctx: wctxFor(),
+  });
+  assert.equal(retry.ok, true);
+  assert.equal(rows.rows, 1);
 });

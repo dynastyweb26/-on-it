@@ -6,8 +6,9 @@ import type { PendingAction, PendingStore, RecordedCommit } from './confirm';
 export type FixturePendingStore = PendingStore & {
   actions: Map<string, PendingAction>;
   commits: Map<string, RecordedCommit>;
-  /** Executions the store saw, for the one-row assertions. */
+  /** Claims this store granted, for the one-write assertions. */
   executions: string[];
+  releases: string[];
   interrupts: number;
 };
 
@@ -17,11 +18,13 @@ export function fixturePendingStore(seed: readonly PendingAction[] = []): Fixtur
   const actions = new Map<string, PendingAction>(seed.map((a) => [`${a.userId}:${a.tokenHash}`, a]));
   const commits = new Map<string, RecordedCommit>();
   const executions: string[] = [];
+  const releases: string[] = [];
 
   return {
     actions,
     commits,
     executions,
+    releases,
     interrupts: 0,
     async insert(action: PendingAction) {
       // The fixture stores the same field the table does: resolved ids only.
@@ -32,11 +35,23 @@ export function fixturePendingStore(seed: readonly PendingAction[] = []): Fixtur
     async findByTokenHash(userId: string, tokenHash: string) {
       return actions.get(`${userId}:${tokenHash}`) ?? null;
     },
-    async markExecuted(userId: string, actionId: string) {
+    async claim(userId: string, actionId: string) {
       for (const [key, action] of actions) {
         if (action.userId === userId && action.id === actionId) {
+          // Same rule as the UPDATE: a claimed row cannot be claimed again.
+          if (action.executedAt) return false;
           actions.set(key, { ...action, executedAt: new Date().toISOString() });
           executions.push(actionId);
+          return true;
+        }
+      }
+      return false;
+    },
+    async release(userId: string, actionId: string) {
+      for (const [key, action] of actions) {
+        if (action.userId === userId && action.id === actionId) {
+          actions.set(key, { ...action, executedAt: null });
+          releases.push(actionId);
           return;
         }
       }
