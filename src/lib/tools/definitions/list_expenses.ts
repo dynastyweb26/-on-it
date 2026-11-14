@@ -77,7 +77,7 @@ const fixtureRow = (over: Partial<ExpenseRow> = {}): ExpenseRow => ({
 export const listExpensesTool = defineTool({
   name: LIST_EXPENSES,
   description:
-    'Read-only list of the user’s own logged expenses, newest first, with optional category, text, date and amount filters. Category words are forgiving: gas, gasoline and petrol all mean fuel, meals means food. Returns at most 25 rows plus the full count; unknown filter values are reported in `ignored`, never an error. This is a list of individual rows: totals and questions like "how much did I spend on gas?" belong to run_report.',
+    'Read-only list of the user’s own logged expenses, newest first, with each row’s vendor, description, category label, date, amount and tax-deductible flag, and optional category, text, date and amount filters. Category words are forgiving: gas, gasoline and petrol all mean fuel, meals means food. So "which expenses are tax deductible" and "what did I buy at Shell" can be read from the rows. Returns at most 25 rows plus the full count; unknown filter values are reported in `ignored`, never an error. For a single total like "how much did I spend on gas?" use run_report.',
   input: ListExpensesInput,
   output: ListExpensesOutput,
   type: 'read',

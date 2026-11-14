@@ -35,7 +35,12 @@ test('a request to see records is always a tool call, even with an odd filter wo
   assert.match(TOOL_SYSTEM, /never refuse[^.]*before a tool has tried/);
 });
 
-test("one client's invoices go through find_client then list_invoices, not get_invoice", () => {
-  assert.match(TOOL_SYSTEM, /find_client for the name, then list_invoices with that client/);
+test("a client's records end on the list tool, and find_client only resolves a name", () => {
+  assert.match(TOOL_SYSTEM, /answer is always the list tool filtered by that client/);
+  assert.match(TOOL_SYSTEM, /list_invoices, list_estimates or list_payments/);
+  assert.match(TOOL_SYSTEM, /find_client first only when the name is unclear/);
+  assert.match(TOOL_SYSTEM, /Never end a turn on find_client/);
   assert.match(TOOL_SYSTEM, /get_invoice needs an invoice number/);
+  // The PR #185 wording made the lookup the goal; it must not come back.
+  assert.equal(TOOL_SYSTEM.includes('find_client for the name, then'), false);
 });

@@ -42,7 +42,7 @@ export const GetEstimateOutput = z.object({
 export const getEstimateTool = defineTool({
   name: GET_ESTIMATE,
   description:
-    'Read-only lookup of ONE estimate by its number (E-0007) or id, returning its status, total, line count, expiry date and a link to the record. Use list_estimates when the user has not named a single estimate.',
+    'Read-only lookup of ONE estimate by its number (E-0007) or id, returning its client, status (Accepted once paid, Expired once overdue), total, line count, expiry date and a link to the record. Use list_estimates when the user has not named a single estimate.',
   input: GetEstimateInput,
   output: GetEstimateOutput,
   type: 'read',

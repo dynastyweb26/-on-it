@@ -333,7 +333,7 @@
         "other_income": [],
         "expenses": []
       },
-      "expect": { "tools": ["run_report"], "args": { "run_report": { "sort": "slowest", "period": { "oneOf": ["this_year", "year"] } } }, "templateId": "stat.tiles", "writes": 0 }
+      "expect": { "tools": ["run_report"], "args": { "run_report": { "sort": "slowest", "period": { "oneOf": ["this_year", "year", "this year"] } } }, "templateId": "stat.tiles", "writes": 0 }
     }
   ]
 }

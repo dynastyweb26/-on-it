@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "notes": "Graded on tool calls, arguments, template id and writes (never wording). Covers the six read tools; expectedFail cases are the Nov 11 record-payment bugs, still owned by the old flow.",
+  "notes": "Graded on tool calls, arguments, template id and writes (never wording). Covers the six read tools. The Nov 11 record-payment cases are ordinary gates now: the bugs they documented are fixed.",
   "cases": [
     {
       "id": "invoices-list-recent",
@@ -70,18 +70,14 @@
       "request": "Ruth paid me $25 for a car wash",
       "expect": {
         "writes": 0
-      },
-      "expectedFail": true,
-      "reason": "The old /api/parse record-payment flow appends 'Did someone pay you? Name the client and how much...' to every reply instead of asking once (PUNCH-LIST, Chat record-payment)."
+      }
     },
     {
       "id": "record-payment-amount-in-words",
       "request": "Ruth paid me $25 for a car wash",
       "expect": {
         "writes": 0
-      },
-      "expectedFail": true,
-      "reason": "The old /api/parse early return lets the model state the amount as words ('Ruth paid you 25') with no dollar sign; the money guard does not cover that path (PUNCH-LIST, TOOL-AUDIT F1)."
+      }
     },
     {
       "id": "record-payment-card-empty-after-zelle",
@@ -89,9 +85,7 @@
       "followUp": "Zelle",
       "expect": {
         "writes": 0
-      },
-      "expectedFail": true,
-      "reason": "After 'Ruth $25 for carwash' then 'Zelle', the old flow opens the card with Client empty and Amount 0.00: the parsed fields never carry the earlier turn's client and amount into the proposal (PUNCH-LIST)."
+      }
     },
     {
       "id": "get-invoice-by-number",
@@ -116,11 +110,11 @@
       }
     },
     {
-      "id": "get-invoice-not-estimate",
+      "id": "get-estimate-number-74",
       "request": "show me estimate 74 as an invoice",
       "expect": {
         "tools": [
-          "get_invoice"
+          "get_estimate"
         ],
         "writes": 0
       }

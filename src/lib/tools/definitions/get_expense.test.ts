@@ -19,6 +19,8 @@ const run = (rows: unknown[], args: unknown) =>
   ) as Promise<{
     match: string;
     count: number;
+    rows: unknown[];
+    reason?: string;
     expense: { id: string; amount: string; vendor: string | null } | null;
   }>;
 
@@ -27,6 +29,15 @@ test('an id finds exactly that expense', async () => {
   assert.equal(out.match, 'one');
   assert.equal(out.expense?.id, 'exp-2');
   assert.equal(out.expense?.vendor, 'Exxon');
+});
+
+test('no id and no word returns nothing with a reason, never every expense', async () => {
+  const out = await run([row(), row({ id: 'exp-2', vendor: 'Exxon' })], {});
+  assert.equal(out.match, 'none');
+  assert.equal(out.count, 0);
+  assert.equal(out.expense, null);
+  assert.deepEqual(out.rows, []);
+  assert.match(out.reason ?? '', /vendor, a description or a category word/);
 });
 
 test('a vendor or category word finds the matching expense', async () => {

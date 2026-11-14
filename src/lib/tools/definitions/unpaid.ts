@@ -135,9 +135,11 @@ export function unpaidCard(summary: UnpaidSummary, todayISO: string) {
 export const unpaidTool = defineTool({
   name: UNPAID_TOOL_NAME,
   description:
-    'List this owner\'s sent invoices that are still unpaid, oldest due date first, ' +
-    'with the number still owed on each. Read-only: it never changes, sends or saves ' +
-    'anything. Amounts come back for your reasoning only — the app prints every figure.',
+    'Read-only list of this owner\'s sent invoices that are still unpaid, oldest due date first, ' +
+    'with the number still owed on each and how many days late it is, plus the total still ' +
+    'owed and how many clients owe it. Paid, void and draft invoices never appear. Optional ' +
+    'min_balance keeps only rows owing at least that much, and limit caps the rows. Amounts ' +
+    'come back for your reasoning only — the app prints every figure.',
   input: UnpaidInput,
   output: UnpaidOutput,
   type: 'read',
