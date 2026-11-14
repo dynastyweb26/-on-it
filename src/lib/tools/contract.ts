@@ -61,6 +61,8 @@ export type ToolContext = { db: ToolDb; userId: string };
 export type ProposalRow = {
   icon: string;
   summary: string;
+  /** A second line naming what exactly will be saved, when there is more to say. */
+  detail?: string;
   /** A finished money string, or '' when the action moves no money. */
   amount: string;
   tone: 'in' | 'out' | 'neutral';

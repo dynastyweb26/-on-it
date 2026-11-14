@@ -198,6 +198,8 @@ export const ConfirmBatchProps = z.object({
         kind: BatchActionKind,
         icon: z.string().min(1),
         summary: z.string().min(1),
+        /** A second line of server-composed detail about what will be saved. */
+        detail: z.string().optional(),
         /** A finished money string, sign included when it moves money. */
         amount: z.string(),
         tone: Tone,

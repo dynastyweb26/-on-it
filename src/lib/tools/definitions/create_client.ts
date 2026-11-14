@@ -80,6 +80,9 @@ export const createClientTool = defineWriteTool({
       row: {
         icon: 'person',
         summary: `Add client ${name}`,
+        // The card shows the whole save, not just the name: the contacts the
+        // owner gave, composed here so the model never writes them.
+        detail: [phone, email].filter(Boolean).join(' · ') || undefined,
         amount: '',
         tone: 'neutral',
       },
@@ -112,6 +115,12 @@ export const createClientTool = defineWriteTool({
   },
   preview: {
     resolved: { name: 'Maria Santos', phone: '555-0100', email: 'maria@example.com' },
-    row: { icon: 'person', summary: 'Add client Maria Santos', amount: '', tone: 'neutral' },
+    row: {
+      icon: 'person',
+      summary: 'Add client Maria Santos',
+      detail: '555-0100 · maria@example.com',
+      amount: '',
+      tone: 'neutral',
+    },
   },
 });

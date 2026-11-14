@@ -27,6 +27,7 @@ export function proposalCard(pending: readonly PendingProposal[]): ToolCard | nu
       kind: 'record',
       icon: proposal.row.icon,
       summary: proposal.row.summary,
+      detail: proposal.row.detail,
       amount: proposal.row.amount,
       tone: proposal.row.tone,
       status: 'pending',
