@@ -124,14 +124,16 @@ export async function POST(req: NextRequest) {
       question,
       budget,
       // A write tool proposed here stays pending until /api/ai/confirm runs it.
-      pending: async ({ tool, args }) => {
+      // What is stored is prepare()'s resolved ids, never the model's args: the
+      // confirm can only write what the tool itself validated.
+      pending: async ({ tool, resolved }) => {
         const created = await createPendingAction({
           userId: user.id,
           tool,
-          args,
+          resolved,
           store: supabasePendingStore(supabase, user.id),
         });
-        return { actionId: created.id, token: created.token, expiresAt: created.expiresAt, tool };
+        return { actionId: created.id, token: created.token, expiresAt: created.expiresAt };
       },
     });
   } catch (e) {
@@ -159,6 +161,7 @@ export async function POST(req: NextRequest) {
     toolRuns: result.toolRuns,
     registry: REGISTRY,
     budgetExhausted: result.budgetExhausted,
+    pending: result.pending,
   });
   const { card, tool: okTool } = answer;
   const reply = answer.reply;
@@ -176,7 +179,8 @@ export async function POST(req: NextRequest) {
     toolsCalled: result.toolRuns.map((run) => run.name),
     templateId: loggedRun
       ? REGISTRY.find(loggedRun.name)?.defaultTemplate.id ?? null
-      : null,
+      // A proposal has no ok run; the card is the turn's own confirm.batch.
+      : card?.id ?? null,
     inputTokens: result.usage.inputTokens,
     outputTokens: result.usage.outputTokens,
   });

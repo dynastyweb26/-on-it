@@ -205,7 +205,9 @@ export const ConfirmBatchProps = z.object({
         status: BatchActionStatus,
       }),
     )
-    .min(2)
+    // One row is a legitimate batch: a single proposal the owner confirms. The
+    // founder approved the one-row card for the AI write path.
+    .min(1)
     .max(4),
 });
 export type ConfirmBatchProps = z.infer<typeof ConfirmBatchProps>;
