@@ -1,5 +1,5 @@
 {
-  "tolerancePx": 8,
+  "tolerancePx": 2,
   "_note": "Every state from every design file, at 390 and 1280. The app side is the /dev/ai-templates fixtures page (not in production), which must render one card per case with data-template and data-state. Design files render their default state; a non-default case needs the matching design state before its pair can gate.",
   "cases": [
     {
@@ -10,7 +10,17 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=filled",
@@ -23,10 +33,11 @@
       "pairs": [
         {
           "name": "list.ranked filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -41,7 +52,17 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=filled",
@@ -54,10 +75,11 @@
       "pairs": [
         {
           "name": "list.ranked filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -72,7 +94,20 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=loading",
@@ -85,10 +120,11 @@
       "pairs": [
         {
           "name": "list.ranked loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -103,7 +139,20 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=loading",
@@ -116,10 +165,11 @@
       "pairs": [
         {
           "name": "list.ranked loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -134,7 +184,20 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=empty",
@@ -147,10 +210,11 @@
       "pairs": [
         {
           "name": "list.ranked empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -165,7 +229,20 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=empty",
@@ -178,10 +255,11 @@
       "pairs": [
         {
           "name": "list.ranked empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -196,7 +274,20 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=error",
@@ -209,10 +300,11 @@
       "pairs": [
         {
           "name": "list.ranked error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -227,7 +319,20 @@
       },
       "design": {
         "file": "design/ai-templates/RankedList.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('RankedList',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=list.ranked&state=error",
@@ -240,10 +345,11 @@
       "pairs": [
         {
           "name": "list.ranked error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"list.ranked\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -258,7 +364,17 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=filled",
@@ -271,10 +387,11 @@
       "pairs": [
         {
           "name": "stat.tiles filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -289,7 +406,17 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=filled",
@@ -302,10 +429,11 @@
       "pairs": [
         {
           "name": "stat.tiles filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -320,7 +448,20 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=loading",
@@ -333,10 +474,11 @@
       "pairs": [
         {
           "name": "stat.tiles loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -351,7 +493,20 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=loading",
@@ -364,10 +519,11 @@
       "pairs": [
         {
           "name": "stat.tiles loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -382,7 +538,20 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=empty",
@@ -395,10 +564,11 @@
       "pairs": [
         {
           "name": "stat.tiles empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -413,7 +583,20 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=empty",
@@ -426,10 +609,11 @@
       "pairs": [
         {
           "name": "stat.tiles empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -444,7 +628,20 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=error",
@@ -457,10 +654,11 @@
       "pairs": [
         {
           "name": "stat.tiles error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -475,7 +673,20 @@
       },
       "design": {
         "file": "design/ai-templates/StatTiles.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('StatTiles',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=stat.tiles&state=error",
@@ -488,10 +699,11 @@
       "pairs": [
         {
           "name": "stat.tiles error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"stat.tiles\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -506,7 +718,17 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=filled",
@@ -519,10 +741,11 @@
       "pairs": [
         {
           "name": "chart.trend filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -537,7 +760,17 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=filled",
@@ -550,10 +783,11 @@
       "pairs": [
         {
           "name": "chart.trend filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -568,7 +802,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=loading",
@@ -581,10 +828,11 @@
       "pairs": [
         {
           "name": "chart.trend loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -599,7 +847,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=loading",
@@ -612,10 +873,11 @@
       "pairs": [
         {
           "name": "chart.trend loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -630,7 +892,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=empty",
@@ -643,10 +918,11 @@
       "pairs": [
         {
           "name": "chart.trend empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -661,7 +937,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=empty",
@@ -674,10 +963,11 @@
       "pairs": [
         {
           "name": "chart.trend empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -692,7 +982,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=error",
@@ -705,10 +1008,11 @@
       "pairs": [
         {
           "name": "chart.trend error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -723,7 +1027,20 @@
       },
       "design": {
         "file": "design/ai-templates/TrendChart.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('TrendChart',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.trend&state=error",
@@ -736,10 +1053,11 @@
       "pairs": [
         {
           "name": "chart.trend error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.trend\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -754,7 +1072,17 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=filled",
@@ -767,10 +1095,11 @@
       "pairs": [
         {
           "name": "chart.breakdown filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -785,7 +1114,17 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=filled",
@@ -798,10 +1137,11 @@
       "pairs": [
         {
           "name": "chart.breakdown filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -816,7 +1156,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=loading",
@@ -829,10 +1182,11 @@
       "pairs": [
         {
           "name": "chart.breakdown loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -847,7 +1201,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=loading",
@@ -860,10 +1227,11 @@
       "pairs": [
         {
           "name": "chart.breakdown loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -878,7 +1246,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=empty",
@@ -891,10 +1272,11 @@
       "pairs": [
         {
           "name": "chart.breakdown empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -909,7 +1291,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=empty",
@@ -922,10 +1317,11 @@
       "pairs": [
         {
           "name": "chart.breakdown empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -940,7 +1336,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=error",
@@ -953,10 +1362,11 @@
       "pairs": [
         {
           "name": "chart.breakdown error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -971,7 +1381,20 @@
       },
       "design": {
         "file": "design/ai-templates/Breakdown.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Breakdown',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=chart.breakdown&state=error",
@@ -984,10 +1407,11 @@
       "pairs": [
         {
           "name": "chart.breakdown error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"chart.breakdown\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1002,7 +1426,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"draft\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=draft&channel=Text&device=phone",
@@ -1015,10 +1452,11 @@
       "pairs": [
         {
           "name": "draft.message draft",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"draft\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1033,7 +1471,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"draft\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=draft&channel=Text&device=phone",
@@ -1046,10 +1497,56 @@
       "pairs": [
         {
           "name": "draft.message draft",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"draft\"]",
           "check": [
-            "w"
+            "w",
+            "h"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-draft-laptop-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"draft\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=draft&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message draft",
+          "design": "#dc-root .sc-host > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"draft\"]",
+          "check": [
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1064,7 +1561,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"editing\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=editing&channel=Text&device=phone",
@@ -1077,10 +1587,11 @@
       "pairs": [
         {
           "name": "draft.message editing",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"editing\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1095,7 +1606,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"editing\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=editing&channel=Text&device=phone",
@@ -1108,10 +1632,56 @@
       "pairs": [
         {
           "name": "draft.message editing",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"editing\"]",
           "check": [
-            "w"
+            "w",
+            "h"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-editing-laptop-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"editing\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=editing&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message editing",
+          "design": "#dc-root .sc-host > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"editing\"]",
+          "check": [
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1126,7 +1696,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"opened\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=opened&channel=Text&device=phone",
@@ -1139,10 +1722,11 @@
       "pairs": [
         {
           "name": "draft.message opened",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"opened\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1157,7 +1741,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"opened\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=opened&channel=Text&device=phone",
@@ -1170,10 +1767,11 @@
       "pairs": [
         {
           "name": "draft.message opened",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"opened\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1188,7 +1786,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"copied\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=copied&channel=Text&device=laptop",
@@ -1201,10 +1812,11 @@
       "pairs": [
         {
           "name": "draft.message copied",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"copied\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1219,7 +1831,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"copied\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=copied&channel=Text&device=laptop",
@@ -1232,10 +1857,11 @@
       "pairs": [
         {
           "name": "draft.message copied",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"copied\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1250,7 +1876,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"openError\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=copyError&channel=Text&device=laptop",
@@ -1263,10 +1902,11 @@
       "pairs": [
         {
           "name": "draft.message copyError",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"copyError\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1281,7 +1921,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"openError\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=copyError&channel=Text&device=laptop",
@@ -1294,10 +1947,11 @@
       "pairs": [
         {
           "name": "draft.message copyError",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"copyError\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1312,7 +1966,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"done\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=done&channel=Text&device=phone",
@@ -1325,10 +1992,11 @@
       "pairs": [
         {
           "name": "draft.message done",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"done\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1343,7 +2011,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"done\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=done&channel=Text&device=phone",
@@ -1356,10 +2037,11 @@
       "pairs": [
         {
           "name": "draft.message done",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"done\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1374,7 +2056,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"openError\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=openError&channel=Text&device=phone",
@@ -1387,10 +2082,11 @@
       "pairs": [
         {
           "name": "draft.message openError",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"openError\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1405,7 +2101,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"openError\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=openError&channel=Text&device=phone",
@@ -1418,10 +2127,56 @@
       "pairs": [
         {
           "name": "draft.message openError",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"openError\"]",
           "check": [
-            "w"
+            "w",
+            "h"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-openError-laptop-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"openError\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=openError&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message openError",
+          "design": "#dc-root .sc-host > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"openError\"]",
+          "check": [
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1436,7 +2191,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"sent\",channel:\"Email\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=sent&channel=Email&device=phone",
@@ -1449,10 +2217,11 @@
       "pairs": [
         {
           "name": "draft.message sent",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"sent\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1467,7 +2236,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"sent\",channel:\"Email\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=sent&channel=Email&device=phone",
@@ -1480,10 +2262,11 @@
       "pairs": [
         {
           "name": "draft.message sent",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"sent\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1498,7 +2281,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"error\",channel:\"Email\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=error&channel=Email&device=phone",
@@ -1511,10 +2307,11 @@
       "pairs": [
         {
           "name": "draft.message error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1529,7 +2326,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"error\",channel:\"Email\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=error&channel=Email&device=phone",
@@ -1542,10 +2352,56 @@
       "pairs": [
         {
           "name": "draft.message error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-error-laptop-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"error\",channel:\"Email\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=error&channel=Email&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message error",
+          "design": "#dc-root .sc-host > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"error\"]",
+          "check": [
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1560,7 +2416,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"nocontact\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=nocontact&channel=Text&device=phone",
@@ -1573,10 +2442,11 @@
       "pairs": [
         {
           "name": "draft.message nocontact",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1591,7 +2461,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"nocontact\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=nocontact&channel=Text&device=phone",
@@ -1604,10 +2487,56 @@
       "pairs": [
         {
           "name": "draft.message nocontact",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
           "check": [
-            "w"
+            "w",
+            "h"
+          ],
+          "animations": true
+        }
+      ],
+      "maxPixelDiffPct": null
+    },
+    {
+      "name": "draft.message-nocontact-laptop-1280",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "design": {
+        "file": "design/ai-templates/DraftMessage.dc.html",
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"nocontact\",channel:\"Text\",device:\"laptop\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "app": {
+        "path": "/dev/ai-templates?template=draft.message&state=nocontact&channel=Text&device=laptop",
+        "steps": [
+          {
+            "wait": 300
+          }
+        ]
+      },
+      "pairs": [
+        {
+          "name": "draft.message nocontact",
+          "design": "#dc-root .sc-host > div",
+          "app": "[data-template=\"draft.message\"][data-state=\"nocontact\"]",
+          "check": [
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1622,7 +2551,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"loading\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=loading&channel=Text&device=phone",
@@ -1635,10 +2577,11 @@
       "pairs": [
         {
           "name": "draft.message loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1653,7 +2596,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"loading\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=loading&channel=Text&device=phone",
@@ -1666,10 +2622,11 @@
       "pairs": [
         {
           "name": "draft.message loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1684,7 +2641,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"cancelled\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=cancelled&channel=Text&device=phone",
@@ -1697,10 +2667,11 @@
       "pairs": [
         {
           "name": "draft.message cancelled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"cancelled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1715,7 +2686,20 @@
       },
       "design": {
         "file": "design/ai-templates/DraftMessage.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps(\"DraftMessage\",{state:\"cancelled\",channel:\"Text\",device:\"phone\"})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=draft.message&state=cancelled&channel=Text&device=phone",
@@ -1728,10 +2712,11 @@
       "pairs": [
         {
           "name": "draft.message cancelled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"draft.message\"][data-state=\"cancelled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1746,7 +2731,17 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=pending",
@@ -1759,10 +2754,11 @@
       "pairs": [
         {
           "name": "confirm.batch pending",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1777,7 +2773,17 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=pending",
@@ -1790,10 +2796,11 @@
       "pairs": [
         {
           "name": "confirm.batch pending",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"pending\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1808,7 +2815,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'confirming'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=confirming",
@@ -1821,10 +2841,11 @@
       "pairs": [
         {
           "name": "confirm.batch confirming",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1839,7 +2860,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'confirming'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=confirming",
@@ -1852,10 +2886,11 @@
       "pairs": [
         {
           "name": "confirm.batch confirming",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"confirming\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1870,7 +2905,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'done'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=done",
@@ -1883,10 +2931,11 @@
       "pairs": [
         {
           "name": "confirm.batch done",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1901,7 +2950,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'done'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=done",
@@ -1914,10 +2976,11 @@
       "pairs": [
         {
           "name": "confirm.batch done",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"done\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1932,7 +2995,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'partial',failIndex:1})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=partial&failed=1",
@@ -1945,10 +3021,11 @@
       "pairs": [
         {
           "name": "confirm.batch partial",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1963,7 +3040,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'partial',failIndex:1})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=partial&failed=1",
@@ -1976,10 +3066,11 @@
       "pairs": [
         {
           "name": "confirm.batch partial",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"partial\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -1994,7 +3085,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=loading",
@@ -2007,10 +3111,11 @@
       "pairs": [
         {
           "name": "confirm.batch loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2025,7 +3130,20 @@
       },
       "design": {
         "file": "design/ai-templates/BatchConfirm.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('BatchConfirm',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=confirm.batch&state=loading",
@@ -2038,10 +3156,11 @@
       "pairs": [
         {
           "name": "confirm.batch loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"confirm.batch\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2056,7 +3175,17 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=filled",
@@ -2069,10 +3198,11 @@
       "pairs": [
         {
           "name": "cant.do filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2087,7 +3217,17 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=filled",
@@ -2100,10 +3240,11 @@
       "pairs": [
         {
           "name": "cant.do filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2118,7 +3259,20 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=requested",
@@ -2131,10 +3285,11 @@
       "pairs": [
         {
           "name": "cant.do requested",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2149,7 +3304,20 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'requested'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=requested",
@@ -2162,10 +3330,11 @@
       "pairs": [
         {
           "name": "cant.do requested",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"requested\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2180,7 +3349,20 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=error",
@@ -2193,10 +3375,11 @@
       "pairs": [
         {
           "name": "cant.do error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2211,7 +3394,20 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=error",
@@ -2224,10 +3420,11 @@
       "pairs": [
         {
           "name": "cant.do error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2242,7 +3439,20 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=loading",
@@ -2255,10 +3465,11 @@
       "pairs": [
         {
           "name": "cant.do loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2273,7 +3484,20 @@
       },
       "design": {
         "file": "design/ai-templates/CantDo.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CantDo',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=cant.do&state=loading",
@@ -2286,10 +3510,11 @@
       "pairs": [
         {
           "name": "cant.do loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"cant.do\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2304,7 +3529,17 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=filled",
@@ -2317,10 +3552,11 @@
       "pairs": [
         {
           "name": "nav.link filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2335,7 +3571,17 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=filled",
@@ -2348,10 +3594,11 @@
       "pairs": [
         {
           "name": "nav.link filled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"filled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2366,7 +3613,20 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=loading",
@@ -2379,10 +3639,11 @@
       "pairs": [
         {
           "name": "nav.link loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2397,7 +3658,20 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'loading'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=loading",
@@ -2410,10 +3684,11 @@
       "pairs": [
         {
           "name": "nav.link loading",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"loading\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2428,7 +3703,20 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=empty",
@@ -2441,10 +3729,11 @@
       "pairs": [
         {
           "name": "nav.link empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2459,7 +3748,20 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'empty'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=empty",
@@ -2472,10 +3774,11 @@
       "pairs": [
         {
           "name": "nav.link empty",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"empty\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2490,7 +3793,20 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=error",
@@ -2503,10 +3819,11 @@
       "pairs": [
         {
           "name": "nav.link error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2521,7 +3838,20 @@
       },
       "design": {
         "file": "design/ai-templates/NavLink.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('NavLink',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=nav.link&state=error",
@@ -2534,10 +3864,11 @@
       "pairs": [
         {
           "name": "nav.link error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"nav.link\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2552,7 +3883,17 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=idle",
@@ -2565,10 +3906,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs idle",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"idle\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2583,7 +3925,23 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div:nth-child(2)\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=idle",
@@ -2596,10 +3954,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs idle",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"idle\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2614,7 +3973,20 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'up'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=up",
@@ -2627,10 +3999,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs up",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"up\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2645,7 +4018,26 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'up'})"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div:nth-child(2)\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=up",
@@ -2658,10 +4050,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs up",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"up\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2676,7 +4069,20 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'down'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=down",
@@ -2689,10 +4095,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs down",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"down\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2707,7 +4114,26 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'down'})"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div:nth-child(2)\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=down",
@@ -2720,10 +4146,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs down",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"down\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2738,7 +4165,20 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'open'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=open",
@@ -2751,10 +4191,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"open\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2769,7 +4210,26 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'open'})"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div:nth-child(2)\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=open",
@@ -2782,10 +4242,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"open\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2800,7 +4261,20 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'openFilled'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=openFilled",
@@ -2813,10 +4287,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs openFilled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"openFilled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2831,7 +4306,26 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'openFilled'})"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div:nth-child(2)\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=openFilled",
@@ -2844,10 +4338,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs openFilled",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"openFilled\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2862,7 +4357,20 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'error'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=error",
@@ -2875,10 +4383,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2893,7 +4402,26 @@
       },
       "design": {
         "file": "design/ai-templates/Feedback.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('Feedback',{state:'error'})"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div:nth-child(2)\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.thumbs&state=error",
@@ -2906,10 +4434,11 @@
       "pairs": [
         {
           "name": "feedback.thumbs error",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.thumbs\"][data-state=\"error\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2924,7 +4453,17 @@
       },
       "design": {
         "file": "design/ai-templates/CheckIn.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.checkin&state=open",
@@ -2937,10 +4476,11 @@
       "pairs": [
         {
           "name": "feedback.checkin open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"open\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2955,7 +4495,23 @@
       },
       "design": {
         "file": "design/ai-templates/CheckIn.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.checkin&state=open",
@@ -2968,10 +4524,11 @@
       "pairs": [
         {
           "name": "feedback.checkin open",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"open\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -2986,7 +4543,20 @@
       },
       "design": {
         "file": "design/ai-templates/CheckIn.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CheckIn',{state:'picked'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.checkin&state=picked",
@@ -2999,10 +4569,11 @@
       "pairs": [
         {
           "name": "feedback.checkin picked",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"picked\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -3017,7 +4588,26 @@
       },
       "design": {
         "file": "design/ai-templates/CheckIn.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CheckIn',{state:'picked'})"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.checkin&state=picked",
@@ -3030,10 +4620,11 @@
       "pairs": [
         {
           "name": "feedback.checkin picked",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"picked\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -3048,7 +4639,20 @@
       },
       "design": {
         "file": "design/ai-templates/CheckIn.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"322px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CheckIn',{state:'dismissed'})"
+          },
+          {
+            "wait": 300
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.checkin&state=dismissed",
@@ -3061,10 +4665,11 @@
       "pairs": [
         {
           "name": "feedback.checkin dismissed",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"dismissed\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }
@@ -3079,7 +4684,26 @@
       },
       "design": {
         "file": "design/ai-templates/CheckIn.dc.html",
-        "steps": []
+        "steps": [
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{document.body.style.margin=\"0\";const x=document.getElementById(\"dc-root\");x.style.display=\"block\";x.style.width=\"684px\"})()"
+          },
+          {
+            "eval": "window.__dcSetProps('CheckIn',{state:'dismissed'})"
+          },
+          {
+            "wait": 300
+          },
+          {
+            "eval": "(()=>{const e=document.querySelector(\"#dc-root .sc-host > div > div\");if(e){e.style.boxSizing=\"border-box\";e.style.maxWidth=\"420px\"}})()"
+          },
+          {
+            "wait": 100
+          }
+        ]
       },
       "app": {
         "path": "/dev/ai-templates?template=feedback.checkin&state=dismissed",
@@ -3092,10 +4716,11 @@
       "pairs": [
         {
           "name": "feedback.checkin dismissed",
-          "design": "x-dc > div",
+          "design": "#dc-root .sc-host > div",
           "app": "[data-template=\"feedback.checkin\"][data-state=\"dismissed\"]",
           "check": [
-            "w"
+            "w",
+            "h"
           ],
           "animations": true
         }

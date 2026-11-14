@@ -93,3 +93,37 @@ test('copy has no "quote" and no emoji', () => {
     assert.doesNotMatch(s, /\p{Extended_Pictographic}/u);
   }
 });
+
+test('200 keeps template, fallback, tool and pending when the server sends them', async () => {
+  const body = {
+    reply: 'Two are unpaid.',
+    template: { id: 'list.ranked', props: { eyebrow: 'x' } },
+    fallback: 'Two invoices are unpaid.',
+    tool: { totalCount: 2 },
+    pending: null,
+  };
+  assert.deepEqual(await askQuestion('who owes me', fake(200, body)), {
+    kind: 'ok',
+    messageId: null,
+    reply: 'Two are unpaid.',
+    template: { id: 'list.ranked', props: { eyebrow: 'x' } },
+    fallback: 'Two invoices are unpaid.',
+    tool: { totalCount: 2 },
+  });
+});
+
+test('a null template stays absent, so the caller shows the fallback text', async () => {
+  const out = await askQuestion('q', fake(200, { reply: 'r', template: null, fallback: 'Plain answer.' }));
+  assert.deepEqual(out, { kind: 'ok',
+    messageId: null, reply: 'r', fallback: 'Plain answer.' });
+});
+
+test('a destination is kept only when it is an in-app path', async () => {
+  const ok = await askQuestion('q', fake(200, { reply: 'r', destination: { screen: 'Invoices', path: '/invoices?filter=unpaid' } }));
+  assert.deepEqual(ok, { kind: 'ok',
+    messageId: null, reply: 'r', destination: { screen: 'Invoices', path: '/invoices?filter=unpaid' } });
+  for (const path of ['https://evil.example', '//evil.example', 'invoices']) {
+    assert.deepEqual(await askQuestion('q', fake(200, { reply: 'r', destination: { screen: 'x', path } })), { kind: 'ok',
+    messageId: null, reply: 'r' }, path);
+  }
+});

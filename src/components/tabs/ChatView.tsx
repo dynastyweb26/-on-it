@@ -118,6 +118,13 @@ import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
 import { askQuestion } from '@/lib/ask-client';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
+import TemplateReply from '@/components/chat/templates/TemplateReply';
+import { openDestination } from '@/components/chat/templates/destination';
+import { sendFeatureRequest } from '@/lib/ask-feature-request-client';
+import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
+import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
+import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
+import { resolveTemplate } from '@/components/chat/templates/render-model';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
 // The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
@@ -147,6 +154,16 @@ interface Msg {
   /** A daily or weekly recap (alive layer 07): a local assistant card built from
    *  the owner's own rows, never an event and never anything /api/parse sees. */
   recapCard?: RecapModel;
+  /** AI Smart answer card (flag on only): the template id and props exactly as
+   *  /api/ask sent them. Re-checked against lib/templates/props.ts on every render,
+   *  so a stored card that no longer fits shows `fallbackText` instead. */
+  template?: { id: string; props: unknown };
+  /** The server's plain-text answer for the card above; shown when it cannot draw. */
+  fallbackText?: string;
+  /** The logged chat_messages id /api/ask returned. No id, no thumbs. */
+  messageId?: string;
+  /** Where the answer's full list lives (an in-app path the server declared). */
+  destination?: { screen: string; path: string };
   /** Posted by the open-time dice, not asked for: never saved with the thread. */
   auto?: true;
   id: string; role: 'user' | 'assistant'; content: string; source?: 'voice' | 'typed'; failed?: Failure; action?: 'new-chat';
@@ -1539,7 +1556,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
       const out = await askQuestion(trimmed, fetch, turnId);
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
-          const replyMsg = aMsg(out.reply, { skipHistory: true });
+          // A card is kept only when it can be drawn; otherwise the server's plain
+          // fallback is the answer (never a makeshift card). `reply` is what voice speaks.
+          const card = out.kind === 'ok' && resolveTemplate(out.template) ? out.template : undefined;
+          const replyMsg = out.kind === 'ok' && (card || out.fallback)
+            ? aMsg(card ? out.reply : (out.fallback as string), {
+                skipHistory: true,
+                ...(out.messageId ? { messageId: out.messageId } : {}),
+                ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
+              })
+            : aMsg(out.reply, { skipHistory: true, ...(out.kind === 'ok' && out.messageId ? { messageId: out.messageId } : {}) });
           setMessages((m) => {
             // Keep the Q&A out of the job history parse reads later.
             const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
@@ -2935,6 +2961,48 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // passed down so the outcome replaces THIS bubble (success) or leaves it as-is
   // (repeat failure). finalize reuses the same convoId/finalize_key, so the
   // server-side 23505 read-back guarantees no duplicate invoice on a retry.
+  // Taps on a template card in the thread. Show all, a row and a link open the
+  // destination the server declared (none declared, nothing to open); Try again
+  // re-runs the question this answer replied to, in place of the answer.
+  // Thumbs (RULES §6 items 1-3): thumbs.ts decides, from the message and where it sits.
+  // The reply must carry a messageId (nothing to save against otherwise), and a typed
+  // reply waits for its text to finish appearing.
+  const [streamDone, setStreamDone] = useState<Set<string>>(() => new Set());
+  const markStreamDone = (id: string) => setStreamDone((p) => (p.has(id) ? p : new Set(p).add(id)));
+  function thumbsFor(m: Msg, mi: number, wrap: boolean) {
+    const lastAssistant = [...messages].reverse().find((x) => x.role === 'assistant');
+    const restored = restoredMsgIdsRef.current.has(m.id);
+    const reply = thumbReplyFor(m, {
+      isLatestAssistantReply: lastAssistant?.id === m.id,
+      textDone: restored || streamDone.has(m.id),
+      reopenedPastChatLast: restored && mi === messages.length - 1,
+    });
+    if (!reply || !m.messageId) return null;
+    const thumbs = <ReplyThumbs key={m.messageId} messageId={m.messageId} reply={reply} />;
+    // 4 under the reply; the avatar column (22 + 8) is skipped when this bubble carries the mark.
+    return wrap ? <div className={`!mt-1${messages[mi - 1]?.role !== 'assistant' ? ' pl-[30px]' : ''}`}>{thumbs}</div> : thumbs;
+  }
+
+  function templateHandlers(m: Msg, mi: number): ChatTemplateHandlers {
+    const open = openDestination(m.destination?.path, (p) => router.push(p));
+    const asked = messages[mi - 1]?.role === 'user' ? messages[mi - 1].content : null;
+    return {
+      onRowTap: open, onShowAll: open, onOpen: open,
+      // Returns the send, so the card shows pending until it settles and ignores repeat taps.
+      onRetry: asked ? () => send(asked, 'typed', m.id) : undefined,
+      // cant.do: an alternative starts the message (never sends); Request posts the
+      // reply's messageId to /api/ask/request-feature (hidden without one).
+      onAlt: fillComposer,
+      requestable: Boolean(m.messageId),
+      onRequest: m.messageId
+        ? async () => {
+            const out = await sendFeatureRequest(m.messageId as string);
+            if (out.kind !== 'ok') throw new Error(out.message);
+          }
+        : undefined,
+    };
+  }
+
   function retry(msg: Msg) {
     if (phase || !msg.failed) return; // a turn is in flight, or nothing to retry
     // Synchronous guard: state lags a render, so a rage-tap would re-run the op.
@@ -4940,9 +5008,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   );
 
   return (
-    // xl: the design's 720px column; the composer is a child of it, so the two
-    // share left and right edges exactly (gate: design 720, app 720).
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col xl:max-w-[720px]">
+    // xl (AI_TOOLS only, so the flag-off chat is byte-for-byte main): LAPTOP-SPEC's column, 720 of content with 24 each side (768 border-box); the
+    // composer is a child of it, so the two share left and right edges exactly.
+    <div className={`mx-auto flex h-full w-full max-w-4xl flex-col ${AI_TOOLS ? 'xl:max-w-[768px] xl:px-6' : 'xl:max-w-[720px]'}`}>
       {shutterKey > 0 && <div key={shutterKey} aria-hidden className="onit-shutter" />}
       {/* The ONE scroll owner. overscroll-y-contain keeps a fling that hits
           the end inside the list (its own bounce), instead of chaining to the
@@ -4952,7 +5020,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         ref={listRef}
         onScroll={onListScroll}
         data-coach="chat-messages"
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 md:px-6"
+        className={`min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-4 md:px-6${AI_TOOLS ? ' xl:space-y-[14px] xl:px-0 xl:py-5' : ''}`}
       >
         {hydrated && dayLabel(messages) && (
           <div className="onit-day-in py-1 text-center text-[11px] font-semibold tracking-[.08em] text-on-surface-variant/70">{dayLabel(messages)}</div>
@@ -5046,6 +5114,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </div>
               </div>
             </div>
+          ) : m.template && resolveTemplate(m.template) ? (
+            <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={templateHandlers(m, mi)} prevRole={messages[mi - 1]?.role} after={thumbsFor(m, mi, false)} live={!restoredMsgIdsRef.current.has(m.id)} onTextDone={() => markStreamDone(m.id)} />
           ) : m.signInLink ? (
             <div key={m.id} className="flex justify-start">
               <div className="flex max-w-[82%] flex-col items-start gap-2">
@@ -5355,11 +5425,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
                     the line. Restored history, and everything you wrote, is
                     static — no error, card or quick reply goes through it. */}
                 {restoredMsgIdsRef.current.has(m.id) || m.role === 'user'
-                  ? m.content
-                  : <StreamText text={m.content} />}
+                  ? (m.template && m.fallbackText ? m.fallbackText : m.content)
+                  : <StreamText text={m.content} onDone={m.messageId ? () => markStreamDone(m.id) : undefined} />}
               </div>
             </div>
           )}
+          {!(m.template && resolveTemplate(m.template)) && thumbsFor(m, mi, true)}
           {m.id === cardAnchorId && invoiceCard}
           {m.id === cardAnchorId && invoiceCard && unsentShare && !unsentShareOpen && (
             // S1b: Keep as draft leaves this pinned under the document until the

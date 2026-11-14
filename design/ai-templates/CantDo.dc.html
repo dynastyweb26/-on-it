@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&amp;display=block" rel="stylesheet">
+<style>@keyframes onitPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}</style>
+</helmet>
+<div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start;font-family:Inter,sans-serif;color:#221D18">
+  <sc-if value="{{ isLoading }}">
+    <div style="background:#F4ECDF;border:1px solid #E6DBC7;border-radius:20px;padding:16px 18px;display:flex;gap:6px"><div style="width:7px;height:7px;border-radius:50%;background:#B5AA9A"></div><div style="width:7px;height:7px;border-radius:50%;background:#B5AA9A"></div><div style="width:7px;height:7px;border-radius:50%;background:#B5AA9A"></div></div>
+  </sc-if>
+  <sc-if value="{{ notLoading }}">
+    <div style="max-width:100%;box-sizing:border-box;background:#F4ECDF;border:1px solid #E6DBC7;border-radius:20px;padding:11px 15px;font-size:16px;line-height:1.4;text-wrap:pretty">{{ line }}</div>
+    <sc-if value="{{ notRequested }}">
+      <div role="button" onClick="{{ onRequest }}" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer" style-hover="background:#FBF5EA"><span class="material-symbols-outlined" style="font-size:18px">lightbulb</span>Request this feature</div>
+    </sc-if>
+    <sc-if value="{{ isRequested }}">
+      <div style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:999px;background:#F2E6BF;font-size:15px;font-weight:600;color:#221D18">{{ popCheck }}Requested. We read every one.</div>
+    </sc-if>
+    <sc-if value="{{ isError }}">
+      <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#A8432A"><span class="material-symbols-outlined" style="font-size:16px">error</span>Couldn't send the request. Tap to try again.</div>
+    </sc-if>
+    <sc-if value="{{ hasAlts }}">
+      <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#857B6E;margin-top:4px">I can do this instead</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;max-width:100%">
+        <sc-for list="{{ alts }}" as="a" hint-placeholder-count="2">
+          <div role="button" onClick="{{ a.onTap }}" style="display:inline-flex;align-items:center;gap:6px;min-height:44px;max-width:100%;box-sizing:border-box;padding:0 14px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFCF7;font-size:15px;font-weight:500;cursor:pointer" style-hover="background:#FBF5EA"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.label }}</span><span class="material-symbols-outlined" style="font-size:18px;color:#8C8275;flex:none">south_west</span></div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:260},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;filled&quot;,&quot;requested&quot;,&quot;error&quot;,&quot;loading&quot;],&quot;default&quot;:&quot;filled&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;line&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;I can't split one invoice into monthly payments yet.&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;noAlts&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;alternatives&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;string[] (max 2)&quot;}}">
+class Component extends DCLogic {
+  state = { st: this.props.state ?? 'filled' };
+  componentDidUpdate(pp) { if (pp.state !== this.props.state) this.setState({ st: this.props.state ?? 'filled' }); }
+  renderVals() {
+    const p = this.props, st = this.state.st;
+    const alts = (p.alternatives ?? ['Record a partial payment', 'Send a payment reminder']).slice(0, 2).map(l => ({ label: l, onTap: () => p.onAlt?.(l) }));
+    return {
+      line: p.line ?? "I can't split one invoice into monthly payments yet.",
+      isLoading: st === 'loading', notLoading: st !== 'loading',
+      isRequested: st === 'requested', notRequested: st !== 'requested', isError: st === 'error',
+      hasAlts: st !== 'loading' && alts.length > 0 && p.noAlts !== 'true', alts,
+      onRequest: () => this.setState({ st: 'requested' }),
+      popCheck: React.createElement('span', { key: 'pop', className: 'material-symbols-outlined', style: { width: 32, height: 32, borderRadius: '50%', background: '#D4AF37', fontSize: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', animation: 'onitPop 420ms cubic-bezier(.2,.9,.3,1.25) both' } }, 'check')
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+/* Hover, pressed and motion for the AI chat templates (design/ai-templates). */
+@keyframes onitPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){[data-template],[data-template] *{animation:none !important;transition:none !important}}
+.tpl-tap{cursor:pointer}
+.tpl-hover:hover{background:var(--tpl-hover)}
+.tpl-press:hover{background:var(--tpl-hover)}
+.tpl-press:active{background:var(--tpl-press)}
+@keyframes onitSpin{to{transform:rotate(360deg)}}
+/* feedback.thumbs: the one motion, an opacity fade-in once the reply text is done (board, T9). */
+@keyframes onitFade{from{opacity:0}to{opacity:1}}
+.tpl-fade{animation:onitFade 150ms ease both}
+/* Laptop (1280 and up): the follow-up and the check-in card stop at 420 (RULES.md §4). */
+@media (min-width:1280px){.tpl-xl-420{max-width:420px}}
+.tpl-hover-bubble:hover{background:var(--tpl-bubble)}

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Montserrat:wght@700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&amp;display=block" rel="stylesheet">
+</helmet>
+<div style="background:#FFFCF7;border:1.5px solid #ECE2D0;border-radius:24px;overflow:hidden;font-family:Inter,sans-serif;color:#221D18">
+  <div style="padding:16px 16px 12px;display:flex;flex-direction:column;gap:6px">
+    <div style="font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#857B6E">{{ eyebrow }}</div>
+    <sc-if value="{{ showTitle }}" hint-placeholder-val="{{ true }}"><div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:20px;line-height:1.2;letter-spacing:-.01em;text-wrap:pretty">{{ title }}</div></sc-if>
+    <sc-if value="{{ isLoading }}"><div style="height:18px;width:58%;border-radius:6px;background:#F1E9DC;margin-top:4px"></div></sc-if>
+  </div>
+  <sc-if value="{{ isLoading }}">
+    <sc-for list="{{ skel }}" as="s" hint-placeholder-count="3">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid #EFE6D8">
+        <div style="width:36px;height:36px;border-radius:50%;background:#F1E9DC;flex:none"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:12px;width:55%;border-radius:6px;background:#F1E9DC"></div><div style="height:10px;width:35%;border-radius:5px;background:#F5EFE5"></div></div>
+        <div style="height:14px;width:64px;border-radius:6px;background:#F1E9DC"></div>
+      </div>
+    </sc-for>
+  </sc-if>
+  <sc-if value="{{ isEmpty }}">
+    <div style="padding:0 16px 16px;font-size:15px;line-height:1.45;color:#5F574D;text-wrap:pretty">{{ emptyLine }}</div>
+  </sc-if>
+  <sc-if value="{{ isError }}">
+    <div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span class="material-symbols-outlined" style="font-size:20px;color:#A8432A">error</span>
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+          <div style="font-size:15px;font-weight:600;line-height:1.35">Couldn't load this list.</div>
+          <div style="font-size:13px;line-height:1.4;color:#6E655A">Nothing changed. Check your connection and try again.</div>
+        </div>
+      </div>
+      <div style="display:flex"><div role="button" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 18px;border-radius:999px;border:1.5px solid #E2D6C2;background:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer"><span class="material-symbols-outlined" style="font-size:18px">refresh</span>Try again</div></div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isFilled }}">
+    <sc-for list="{{ visible }}" as="r" hint-placeholder-count="5">
+      <div role="button" onClick="{{ r.onTap }}" style="display:flex;align-items:center;gap:12px;padding:12px 10px 12px 16px;border-top:1px solid #EFE6D8;cursor:pointer;min-height:64px;box-sizing:border-box" style-hover="background:#FBF5EA" style-active="background:#F5EDDF">
+        <div style="width:36px;height:36px;border-radius:50%;background:#F2E6BF;color:#5E4700;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">{{ r.initials }}</div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div>
+          <div style="font-size:13px;color:#6E655A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.secondary }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none">
+          <div style="font-family:Montserrat,sans-serif;font-weight:700;font-size:15px;color:{{ r.color }};white-space:nowrap">{{ r.amount }}</div>
+          <sc-if value="{{ r.hasChip }}"><div style="display:inline-flex;align-items:center;gap:3px;height:20px;padding:0 7px;border-radius:999px;background:{{ r.chipBg }};color:{{ r.chipFg }};font-size:11px;font-weight:600;white-space:nowrap"><span class="material-symbols-outlined" style="font-size:13px">{{ r.chipIcon }}</span><span>{{ r.chipLabel }}</span></div></sc-if>
+        </div>
+        <span class="material-symbols-outlined" style="font-size:20px;color:#A39888;flex:none">chevron_right</span>
+      </div>
+    </sc-for>
+    <sc-if value="{{ hasTotal }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-top:1px solid #EFE6D8;background:#F7F0E4">
+        <div style="font-size:13px;color:#5F574D;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ total.label }}</div>
+        <div style="font-family:Montserrat,sans-serif;font-weight:800;font-size:17px;white-space:nowrap;color:{{ total.color }}">{{ total.amount }}</div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ hasMore }}">
+      <div role="button" onClick="{{ onShowAll }}" style="display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 16px;height:52px;border-top:1px solid #EFE6D8;cursor:pointer;color:#7A5E00;font-size:15px;font-weight:600" style-hover="background:#FBF5EA">
+        <span>{{ moreLabel }}</span><span class="material-symbols-outlined" style="font-size:20px">chevron_right</span>
+      </div>
+    </sc-if>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:322,&quot;height&quot;:520},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;filled&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;error&quot;],&quot;default&quot;:&quot;filled&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;eyebrow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Who owes you&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Biggest balance first.&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;totalCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:18,&quot;tsType&quot;:&quot;number&quot;},&quot;rows&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{name,secondary,amount,tone?,chip?:{tone,label}}[]&quot;},&quot;total&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{label,amount,tone?}&quot;},&quot;hideTotal&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onRowTap&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(row,i)=&gt;void&quot;},&quot;onShowAll&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;()=&gt;void&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    const st = p.state ?? 'filled';
+    const tone = { in: '#2D6B3E', out: '#A8432A', neutral: '#221D18' };
+    const chipStyle = { late: ['#F8E3DC', '#A8432A', 'schedule'], paid: ['#E3F1E6', '#2B7A4B', 'verified'], due: ['#F1E9DC', '#5F574D', 'event'] };
+    const rows = p.rows ?? [
+      { name: 'Chenyi', secondary: 'INV-0074 · Kitchen remodel', amount: '$8,100.00', chip: { tone: 'late', label: '34d late' } },
+      { name: 'Maryam', secondary: '3 open · Door install', amount: '$2,450.00', chip: { tone: 'late', label: '12d late' } },
+      { name: 'Ruth Lawrence', secondary: '2 open · Deck repair', amount: '$295.00' },
+      { name: 'Joyn', secondary: 'INV-0081 · Car wash', amount: '$160.00' },
+      { name: 'Syeda', secondary: 'INV-0083 · Therapy sessions', amount: '$50.00', chip: { tone: 'due', label: 'Due Fri' } }
+    ];
+    const ini = n => { const w = n.trim().split(/\s+/); return (w.length > 1 ? w[0][0] + w[1][0] : n.slice(0, 2)).toUpperCase(); };
+    const visible = rows.slice(0, 5).map((r, i) => {
+      const c = r.chip ? (chipStyle[r.chip.tone] ?? chipStyle.due) : null;
+      return { ...r, initials: r.initials ?? ini(r.name), color: tone[r.tone ?? 'neutral'], hasChip: !!c, chipBg: c?.[0], chipFg: c?.[1], chipIcon: c?.[2], chipLabel: r.chip?.label, onTap: () => p.onRowTap?.(r, i) };
+    });
+    const count = Number(p.totalCount ?? 18);
+    const t = p.hideTotal === 'true' || p.hideTotal === true ? null : (p.total ?? { label: 'Owed to you · 18 clients', amount: '$77,140.40' });
+    return {
+      eyebrow: p.eyebrow ?? 'Who owes you',
+      title: st === 'empty' ? (p.emptyTitle ?? 'Nobody owes you.') : (p.title ?? 'Biggest balance first.'),
+      emptyLine: p.emptyLine ?? 'Every invoice is paid up. New ones show here once they are sent.',
+      isLoading: st === 'loading', isEmpty: st === 'empty', isError: st === 'error', isFilled: st === 'filled',
+      showTitle: st === 'filled' || st === 'empty',
+      skel: [1, 2, 3], visible,
+      hasTotal: !!t, total: t ? { ...t, color: tone[t.tone ?? 'neutral'] } : {},
+      hasMore: count > 5, moreLabel: `Show all ${count}`,
+      onShowAll: () => p.onShowAll?.()
+    };
+  }
+}
+</script>
+</body>
+</html>
