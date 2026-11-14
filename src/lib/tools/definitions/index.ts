@@ -22,4 +22,5 @@ import { editClientTool } from './edit_client';
 import { saveItemTool } from './save_item';
 import { editExpenseTool } from './edit_expense';
 import { deleteExpenseTool } from './delete_expense';
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool, getClientSummaryTool, listExpensesTool, getExpenseTool, listPaymentsTool, listSavedItemsTool, runReportTool, createClientTool, editClientTool, saveItemTool, editExpenseTool, deleteExpenseTool];
+import { deleteDraftTool } from './delete_draft';
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool, getClientSummaryTool, listExpensesTool, getExpenseTool, listPaymentsTool, listSavedItemsTool, runReportTool, createClientTool, editClientTool, saveItemTool, editExpenseTool, deleteExpenseTool, deleteDraftTool];
