@@ -8,6 +8,9 @@ import { openTestDb, OWNER, OTHER, type TestDb } from './pglite-test-db';
 
 const COLUMNS = 'select user_text, reply_text, created_at from public.chat_messages';
 
+/** The fixtures' clock: a few minutes after the last seeded row, inside the 30-minute window. */
+const NOW = new Date('2026-11-14T10:10:00Z');
+
 /** The same filtered read the Supabase reader issues, as the caller's session. */
 const reader = (db: TestDb, userId: string): HistoryReader => async ({ sessionId, limit }) =>
   db.as(userId, async (q) => (await q.query<HistoryRow>(
@@ -33,7 +36,7 @@ async function seeded(): Promise<TestDb> {
 test('the caller gets their own turns, oldest first, text only', async () => {
   const db = await seeded();
   try {
-    const messages = await loadHistory(reader(db, OWNER), 'session-a');
+    const messages = await loadHistory(reader(db, OWNER), 'session-a', NOW);
     assert.deepEqual(messages, [
       { role: 'user', content: 'who owes me?' },
       { role: 'assistant', content: 'Two are unpaid, $120.00 in total.' },
@@ -52,7 +55,7 @@ test('the caller gets their own turns, oldest first, text only', async () => {
 test('another session is never mixed in', async () => {
   const db = await seeded();
   try {
-    const messages = await loadHistory(reader(db, OWNER), 'session-b');
+    const messages = await loadHistory(reader(db, OWNER), 'session-b', NOW);
     assert.deepEqual(messages, [
       { role: 'user', content: 'something else entirely' },
       { role: 'assistant', content: 'Another thread.' },
@@ -66,9 +69,9 @@ test('another session is never mixed in', async () => {
 test('another owner reusing the same session id is invisible', async () => {
   const db = await seeded();
   try {
-    const messages = await loadHistory(reader(db, OWNER), 'session-a');
+    const messages = await loadHistory(reader(db, OWNER), 'session-a', NOW);
     assert.equal(JSON.stringify(messages).includes('not the owner'), false);
-    const theirs = await loadHistory(reader(db, OTHER), 'session-a');
+    const theirs = await loadHistory(reader(db, OTHER), 'session-a', NOW);
     assert.deepEqual(theirs, [
       { role: 'user', content: "not the owner's question" },
       { role: 'assistant', content: "Not the owner's answer." },
@@ -93,7 +96,7 @@ test('a signed-out caller gets no history, not an error', async () => {
         await db.raw.exec('reset role');
       }
     };
-    assert.deepEqual(await loadHistory(anon, 'session-a'), []);
+    assert.deepEqual(await loadHistory(anon, 'session-a', NOW), []);
   } finally {
     await db.close();
   }
@@ -123,7 +126,7 @@ test('a turn without either side of the text is skipped', () => {
     historyMessages([
       { user_text: '   ', reply_text: 'orphan answer', created_at: '2026-11-14T10:00:00Z' },
       { user_text: 'a real question', reply_text: null, created_at: '2026-11-14T10:01:00Z' },
-    ]),
+    ], NOW),
     [{ role: 'user', content: 'a real question' }],
   );
 });
