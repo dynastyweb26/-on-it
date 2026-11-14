@@ -56,6 +56,21 @@ test('a turn id rides along so the router and ask share one budget', async () =>
   assert.equal(headers['x-turn-id'], undefined, 'no turn id, no header');
 });
 
+test('a chat session rides along so the server can read this thread\'s turns', async () => {
+  let headers: Record<string, string> = {};
+  const spy = (async (_url: string, init: RequestInit) => {
+    headers = init.headers as Record<string, string>;
+    return new Response(JSON.stringify({ reply: 'ok' }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  await askQuestion('send him a reminder', spy, 'turn-123', 'chat-9');
+  assert.equal(headers['x-chat-session'], 'chat-9');
+  assert.equal(headers['x-turn-id'], 'turn-123', 'the turn id still rides along');
+
+  await askQuestion('who owes me', spy, 'turn-123');
+  assert.equal(headers['x-chat-session'], undefined, 'no session, no header');
+});
+
 test('401 is signed out, named as such', async () => {
   const out = await askQuestion('q', fake(401, { reply: 'Sign in' }));
   assert.deepEqual(out, { kind: 'signed-out', reply: ASK_COPY.signedOut });

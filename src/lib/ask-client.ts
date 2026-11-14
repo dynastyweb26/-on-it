@@ -36,6 +36,7 @@ export async function askQuestion(
   question: string,
   fetchImpl: typeof fetch = fetch,
   turnId?: string | null,
+  sessionId?: string | null,
 ): Promise<AskOutcome> {
   let res: Response;
   try {
@@ -44,6 +45,9 @@ export async function askQuestion(
       headers: {
         'content-type': 'application/json',
         ...(turnId ? { 'x-turn-id': turnId } : {}),
+        // The chat thread's own session: the server reads the last turns under
+        // it. A turn id changes every message and can never stand in for it.
+        ...(sessionId ? { 'x-chat-session': sessionId } : {}),
       },
       body: JSON.stringify({ question }),
     });
