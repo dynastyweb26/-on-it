@@ -178,3 +178,13 @@ export function batchRows(state: BatchState): Array<BatchRow & { status: RowStat
 export function failedCount(state: BatchState): number {
   return state.rows.filter((row) => state.outcomes[row.id] === 'failed').length;
 }
+
+/**
+ * The request did not settle (refused, offline, signed out): the card goes back to
+ * where the tap found it, so the button is idle again. Outcomes already answered
+ * stay, so a partial batch still says "Retry 1".
+ */
+export function cancelConfirm(state: BatchState, back: 'pending' | 'partial'): BatchState {
+  if (state.phase !== 'confirming') return state;
+  return { ...state, phase: back, attempting: [] };
+}

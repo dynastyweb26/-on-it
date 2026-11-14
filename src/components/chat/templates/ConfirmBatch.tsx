@@ -5,8 +5,8 @@
 // request (onPrimary) and moves the card on by changing `state`.
 import { useEffect, useRef, useState } from 'react';
 import { Sym, TONE, tap } from './shared';
-import { batchFromProps, rowsFromActions } from './confirm-batch-view';
-import { batchHeadline, beginConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
+import { applyConfirmResult, batchFromProps, rowsFromActions } from './confirm-batch-view';
+import { batchHeadline, beginConfirm, cancelConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
 import type { ConfirmBatchProps } from '@/lib/templates/props';
 import type { ConfirmBatchCallbacks } from '@/lib/templates/callbacks';
 import './templates.css';
@@ -48,11 +48,19 @@ export default function ConfirmBatch({
   const failed = batch.rows.find((r) => batch.outcomes[r.id] === 'failed');
   const showFooter = (ph === 'pending' && n > 0) || confirming || partial;
 
-  const primary = () => {
+  const primary = async () => {
     if (!onPrimary || busy.current || (ph !== 'pending' && ph !== 'partial')) return;
-    busy.current = true;
+    busy.current = true; // before any await: a rage-tap in the same frame stops here
+    const before = ph;
     setBatch(beginConfirm(batch));
-    onPrimary?.();
+    try {
+      const out = await onPrimary();
+      setBatch((prev) => applyConfirmResult(prev, before, actions, out));
+    } catch {
+      setBatch((prev) => cancelConfirm(prev, before)); // every exit clears pending
+    } finally {
+      busy.current = false;
+    }
   };
   const remove = (id: string, i: number) => {
     if (ph !== 'pending') return;

@@ -125,6 +125,7 @@ import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
 import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
 import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
+import { confirmProposal, keyFor } from '@/lib/confirm-client';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
 // The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
@@ -162,6 +163,8 @@ interface Msg {
   fallbackText?: string;
   /** confirm.batch: the one-time token /api/ask returned. Memory only: never drawn, never written to storage. */
   confirmToken?: string;
+  /** confirm.batch: the server settled every row as saved. Stored, so a reopened chat shows the card done. */
+  confirmed?: 'done';
   /** The logged chat_messages id /api/ask returned. No id, no thumbs. */
   messageId?: string;
   /** Where the answer's full list lives (an in-app path the server declared). */
@@ -2986,8 +2989,11 @@ export default function Chat({ active = true }: { active?: boolean }) {
     return wrap ? <div className={`!mt-1${messages[mi - 1]?.role !== 'assistant' ? ' pl-[30px]' : ''}`}>{thumbs}</div> : thumbs;
   }
 
+  // One idempotency key per confirm card, minted at its first tap and reused on every retry.
+  const confirmKeysRef = useRef(new Map<string, string>());
   function templateHandlers(m: Msg, mi: number): ChatTemplateHandlers {
     const open = openDestination(m.destination?.path, (p) => router.push(p));
+    const token = m.confirmToken;
     const asked = messages[mi - 1]?.role === 'user' ? messages[mi - 1].content : null;
     return {
       onRowTap: open, onShowAll: open, onOpen: open,
@@ -2996,6 +3002,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // cant.do: an alternative starts the message (never sends); Request posts the
       // reply's messageId to /api/ask/request-feature (hidden without one).
       onAlt: fillComposer,
+      // confirm.batch: the real request. The card owns the pending state and the synchronous guard.
+      onPrimary: token
+        ? async () => {
+            const out = await confirmProposal(token, keyFor(confirmKeysRef.current, m.id));
+            if (out.kind === 'error') return { kind: 'error' as const, message: out.reply, done: out.cause === 'already-done' };
+            if (out.state === 'done') setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, confirmed: 'done' as const } : x)));
+            return { kind: 'settled' as const, rows: out.rows.map((r) => ({ actionId: r.actionId, outcome: r.status, problem: r.problem })) };
+          }
+        : undefined,
       requestable: Boolean(m.messageId),
       onRequest: m.messageId
         ? async () => {

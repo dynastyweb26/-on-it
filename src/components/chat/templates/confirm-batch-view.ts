@@ -1,7 +1,8 @@
 // Builds the confirm.batch state machine's starting state from the card's props.
 // Pure, no JSX, so it is unit-tested; every transition is lib/templates/confirm-batch.ts.
-import { beginConfirm, settle, startBatch, type BatchRow, type BatchState } from '@/lib/templates/confirm-batch';
+import { beginConfirm, cancelConfirm, settle, startBatch, type BatchRow, type BatchState } from '@/lib/templates/confirm-batch';
 import type { ConfirmBatchProps } from '@/lib/templates/props';
+import type { ConfirmBatchResult } from '@/lib/templates/callbacks';
 
 export type RowStatus = 'saved' | 'failed';
 
@@ -34,4 +35,29 @@ export function batchFromProps(
     return settle(beginConfirm(start), results);
   }
   return start;
+}
+
+/**
+ * The card's state after the host's confirm request ends. A settled answer paints
+ * the server's own row statuses; anything else puts the card back where the tap
+ * found it. A row the server did not answer for is never marked saved.
+ */
+export function applyConfirmResult(
+  prev: BatchState,
+  before: 'pending' | 'partial',
+  actions: ConfirmBatchProps['actions'],
+  out: ConfirmBatchResult | void,
+): BatchState {
+  if (!out) return cancelConfirm(prev, before);
+  if (out.kind === 'error') {
+    if (!out.done) return cancelConfirm(prev, before);
+    // The server said it is already done: that is its statement, not a guess.
+    return settle(prev, prev.attempting.map((id) => ({ id, outcome: 'saved' as const })));
+  }
+  const results = out.rows.flatMap((r) => {
+    const i = actions.findIndex((a) => a.id === r.actionId);
+    return i < 0 ? [] : [{ id: String(i), outcome: r.outcome }];
+  });
+  if (prev.attempting.some((id) => !results.some((r) => r.id === id))) return cancelConfirm(prev, before);
+  return settle(prev, results);
 }
