@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { fixtureDb } from './fixture-db';
 import { systemForTurn } from './turn';
 import { localYmd, resolveTimeZone } from '@/lib/recap/dates';
+import { TOOL_SYSTEM } from './prompt';
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 
@@ -27,4 +28,9 @@ test('no profile row falls back to the default zone the tools use', async () => 
 
   const today = localYmd(resolveTimeZone(null), now);
   assert.ok(system.includes(`(${today})`));
+});
+
+test('a request to see records is always a tool call, even with an odd filter word', () => {
+  assert.match(TOOL_SYSTEM, /request to see their own records[^.]*is always a tool call/);
+  assert.match(TOOL_SYSTEM, /never refuse[^.]*before a tool has tried/);
 });
