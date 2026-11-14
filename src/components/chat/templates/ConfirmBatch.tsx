@@ -9,7 +9,7 @@ import { applyConfirmResult, batchFromProps, partialLine, problemsOf, rowsFromAc
 import { batchHeadline, beginConfirm, cancelConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
 import type { ConfirmBatchProps } from '@/lib/templates/props';
 import type { ConfirmBatchCallbacks } from '@/lib/templates/callbacks';
-import { CONFIRM_COPY, EXPIRED_HEAD } from '@/lib/confirm-client';
+import { CANCELLED_HEAD, CONFIRM_COPY, EXPIRED_HEAD } from '@/lib/confirm-client';
 import './templates.css';
 
 const LINE = '1px solid var(--tpl-line)';
@@ -17,11 +17,12 @@ const MONT = 'var(--font-montserrat), Montserrat, sans-serif';
 const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
 
 export default function ConfirmBatch({
-  state = 'pending', statuses, actions, expired = false, onPrimary, onRemove, onUndo,
-}: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[]; expired?: boolean }) {
+  state = 'pending', statuses, actions, expired = false, cancelled = false, onPrimary, onRemove, onUndo, onCancel,
+}: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[]; expired?: boolean; cancelled?: boolean }) {
   const [batch, setBatch] = useState(() => batchFromProps(state, statuses, actions));
   const [problems, setProblems] = useState<Record<string, string>>({}); // the server's sentence per refused row
   const [error, setError] = useState<string | null>(null); // why the last confirm did not settle
+  const [cancelledNow, setCancelledNow] = useState(false); // Cancel tapped: no server call, the card is closed
   const busy = useRef(batch.phase === 'confirming'); // synchronous: a second tap never gets past it
   const loading = state === 'loading';
   const statusKey = (statuses ?? []).join(','); // a new array each render must not reset the card
@@ -42,6 +43,8 @@ export default function ConfirmBatch({
   const isEmpty = ph === 'pending' && n === 0;
   const [head, sub] = loading
     ? ['Getting these ready…', 'One moment.']
+    : cancelled || cancelledNow
+      ? CANCELLED_HEAD
     : expired
       ? EXPIRED_HEAD
     : isEmpty
@@ -51,7 +54,8 @@ export default function ConfirmBatch({
   const partial = ph === 'partial';
   const done = ph === 'done';
   const failed = batch.rows.find((r) => batch.outcomes[r.id] === 'failed');
-  const showFooter = !expired && ((ph === 'pending' && n > 0) || confirming || partial);
+  const noControls = expired || cancelled || cancelledNow;
+  const showFooter = !noControls && ((ph === 'pending' && n > 0) || confirming || partial);
 
   const primary = async () => {
     if (!onPrimary || busy.current || (ph !== 'pending' && ph !== 'partial')) return;
@@ -70,6 +74,11 @@ export default function ConfirmBatch({
     } finally {
       busy.current = false;
     }
+  };
+  const cancel = () => {
+    if (busy.current || ph !== 'pending') return;
+    setCancelledNow(true);
+    onCancel?.();
   };
   const remove = (id: string, i: number) => {
     if (ph !== 'pending') return;
@@ -139,7 +148,7 @@ export default function ConfirmBatch({
               )}
             </div>
             <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', flex: 'none', color: TONE[a.tone] }}>{r.amount}</div>
-            {ph === 'pending' && !expired ? (
+            {ph === 'pending' && !noControls ? (
               <div {...rm} aria-label="Remove" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', cursor: 'pointer' }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--tpl-skel)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Sym name="close" size={17} color="var(--tpl-muted-2)" />
@@ -176,7 +185,7 @@ export default function ConfirmBatch({
       {showFooter && (
         <div style={{ padding: '12px 16px 16px', display: 'flex', gap: 10, borderTop: LINE }}>
           {ph === 'pending' && (
-            <div {...tap()} style={{ flex: 1, height: 48, borderRadius: 999, border: '1.5px solid var(--tpl-btn-border)', background: 'var(--tpl-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>Cancel</div>
+            <div {...tap(cancel)} style={{ flex: 1, height: 48, borderRadius: 999, border: '1.5px solid var(--tpl-btn-border)', background: 'var(--tpl-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>Cancel</div>
           )}
           <div
             {...tap(primary)}

@@ -13,7 +13,7 @@ export type ChatTemplateHandlers = RankedListCallbacks & NavLinkCallbacks & Cant
   /** cant.do: false hides Request this feature (the reply has no messageId to attach it to). */
   requestable?: boolean;
   /** confirm.batch: live while its token is in memory; done or expired when the chat was reopened. */
-  confirmView?: 'live' | 'done' | 'expired';
+  confirmView?: 'live' | 'done' | 'expired' | 'cancelled';
 };
 
 export default function ChatTemplate({ card, handlers }: { card: ResolvedTemplate; handlers: ChatTemplateHandlers }) {
@@ -25,7 +25,7 @@ export default function ChatTemplate({ card, handlers }: { card: ResolvedTemplat
     case 'nav.link':
       return <NavLink {...card.props} onOpen={handlers.onOpen} onRetry={handlers.onRetry} />;
     case 'confirm.batch':
-      return <ConfirmBatch {...card.props} state={handlers.confirmView === 'done' ? 'done' : card.props.state} expired={handlers.confirmView === 'expired'} onPrimary={handlers.onPrimary} onRemove={handlers.onRemove} onUndo={handlers.onUndo} />;
+      return <ConfirmBatch {...card.props} state={handlers.confirmView === 'done' ? 'done' : card.props.state} expired={handlers.confirmView === 'expired'} cancelled={handlers.confirmView === 'cancelled'} onPrimary={handlers.onPrimary} onCancel={handlers.onCancel} onRemove={handlers.onRemove} onUndo={handlers.onUndo} />;
     case 'cant.do':
       return <CantDo {...card.props} onAlt={handlers.onAlt} onRequest={handlers.onRequest} requestable={handlers.requestable} />;
   }

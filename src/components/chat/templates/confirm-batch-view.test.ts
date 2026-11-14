@@ -85,3 +85,9 @@ test('a card with no token in memory is never live: done if settled, expired if 
   assert.equal(confirmViewFor({ confirmed: 'done' }), 'done');
   assert.equal(confirmViewFor({ confirmToken: 'tok-aaaaaaaa', confirmed: 'done' }), 'done');
 });
+
+test('a cancelled card never shows Confirm again, token or not; done still wins', () => {
+  assert.equal(confirmViewFor({ cancelled: true }), 'cancelled');
+  assert.equal(confirmViewFor({ cancelled: true, confirmToken: 'tok-aaaaaaaa' }), 'cancelled');
+  assert.equal(confirmViewFor({ cancelled: true, confirmed: 'done' }), 'done');
+});

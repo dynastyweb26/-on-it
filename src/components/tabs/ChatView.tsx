@@ -166,6 +166,8 @@ interface Msg {
   confirmToken?: string;
   /** confirm.batch: the server settled every row as saved. Stored, so a reopened chat shows the card done. */
   confirmed?: 'done';
+  /** confirm.batch: the owner cancelled it. Stored: the card never offers Confirm again. */
+  cancelled?: true;
   /** The logged chat_messages id /api/ask returned. No id, no thumbs. */
   messageId?: string;
   /** Where the answer's full list lives (an in-app path the server declared). */
@@ -3005,8 +3007,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // reply's messageId to /api/ask/request-feature (hidden without one).
       onAlt: fillComposer,
       confirmView: confirmViewFor(m),
+      onCancel: () => setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, cancelled: true as const } : x))),
       // confirm.batch: the real request. The card owns the pending state and the synchronous guard.
-      onPrimary: token
+      onPrimary: token && !m.cancelled
         ? async () => {
             const out = await shareInflight(confirmInflightRef.current, m.id, () => confirmProposal(token, keyFor(confirmKeysRef.current, m.id)));
             const done = out.kind === 'error' ? out.cause === 'already-done' : out.state === 'done';

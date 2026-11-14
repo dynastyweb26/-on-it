@@ -82,14 +82,15 @@ export function partialLine(summary: string, problem: string | undefined, others
   return `"${summary}" didn't save. ${problem ?? 'The connection dropped.'}${others}`;
 }
 
-export type ConfirmView = 'live' | 'done' | 'expired';
+export type ConfirmView = 'live' | 'done' | 'expired' | 'cancelled';
 
 /**
  * Which face a confirm card wears. A card is live only while its token is still in
  * memory (this session, this page); a reopened chat has none, so it shows done when
  * the server settled it, and expired otherwise. Never a confirm button without a token.
  */
-export function confirmViewFor(m: { confirmToken?: string; confirmed?: 'done' }): ConfirmView {
+export function confirmViewFor(m: { confirmToken?: string; confirmed?: 'done'; cancelled?: true }): ConfirmView {
   if (m.confirmed === 'done') return 'done';
+  if (m.cancelled) return 'cancelled'; // never Confirm again, in this session or after a restore
   return m.confirmToken ? 'live' : 'expired';
 }

@@ -54,6 +54,9 @@ name. Do not invent other ids.
   Anything bigger than that still goes to Claude Design first.
 - Owner-approved exception (Nov 14 2026): `confirm.batch` may show ONE row, in the same
   card with the same look. The "2 to 4 actions" in section 2 is 1 to 4 from here on.
+  Same date: Cancel on that card collapses it to the same no-controls face as expired,
+  header "Cancelled.", second line "Nothing was saved." No server call. A cancelled card
+  never shows Confirm again, also after a restore.
 - Text in the design is the copy. Do not reword it. Wording that depends on data follows the
   pattern in the file's script (for example "Confirm 3 changes?", "2 saved, 1 didn't.").
 - Truncation rules are part of the design: names and secondary lines truncate to one line;

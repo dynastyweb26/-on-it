@@ -35,6 +35,9 @@ export const CONFIRM_COPY = {
 /** A reopened chat's unconfirmed card: the server's expired sentence, split into the card's two lines. */
 export const EXPIRED_HEAD = ['Confirmation expired.', 'Ask me again and I will redo it.'] as const;
 
+/** Cancel is the owner's own decision: no server call, nothing was saved. */
+export const CANCELLED_HEAD = ['Cancelled.', 'Nothing was saved.'] as const;
+
 const CAUSE_OF_CODE: Record<string, ConfirmCause> = {
   unknown_token: 'expired',
   expired_token: 'expired',
