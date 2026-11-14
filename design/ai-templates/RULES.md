@@ -28,7 +28,7 @@ name. Do not invent other ids.
 | `chart.trend` | `TrendChart.dc.html` | falls back to `stat.tiles` at 1 point |
 | `chart.breakdown` | `Breakdown.dc.html` | horizontal bars, never a pie |
 | `draft.message` | `DraftMessage.dc.html` | revised Nov 12; see section 6, item 8 |
-| `confirm.batch` | `BatchConfirm.dc.html` | 2 to 4 actions |
+| `confirm.batch` | `BatchConfirm.dc.html` | 1 to 4 actions (one row approved Nov 14 2026, section 3) |
 | `cant.do` | `CantDo.dc.html` | extends P-73 on Board 8 |
 | `nav.link` | `NavLink.dc.html` | 1 to 3 items |
 | `feedback.thumbs` | `Feedback.dc.html` | thumbs plus the thumbs-down follow-up |
@@ -48,6 +48,8 @@ name. Do not invent other ids.
   Recorded so far: `copyError` on `draft.message` (section 6, item 8), the failed-vote
   strip under the thumbs (section 6, item 3), and the pending dim on `nav.link` Retry.
   Anything bigger than that still goes to Claude Design first.
+- Owner-approved exception (Nov 14 2026): `confirm.batch` may show ONE row, in the same
+  card with the same look. The "2 to 4 actions" in section 2 is 1 to 4 from here on.
 - Text in the design is the copy. Do not reword it. Wording that depends on data follows the
   pattern in the file's script (for example "Confirm 3 changes?", "2 saved, 1 didn't.").
 - Truncation rules are part of the design: names and secondary lines truncate to one line;
