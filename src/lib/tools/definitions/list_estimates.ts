@@ -10,6 +10,7 @@ import { RankedListProps } from '@/lib/templates/props';
 import {
   READ_CAP,
   InvoiceRow,
+  ambiguousClientNames,
   asInvoiceRow,
   docLabel,
   forgivingFilters,
@@ -54,6 +55,8 @@ export const ListEstimatesOutput = z.object({
   rows: RankedListProps.shape.rows,
   total: RankedListProps.shape.total,
   documents: z.array(Document),
+  /** Rows of more than one client under one name filter: ask which client. */
+  clientMatches: z.array(z.string()),
   /** A from/to that was given but is not a date: the list is empty, not wide. */
   dateProblem: z.string().optional(),
 });
@@ -82,6 +85,7 @@ export const listEstimatesTool = defineTool({
         rows: [],
         total: { label: '0 estimates', amount: moneyText(0) },
         documents: [],
+        clientMatches: [],
         dateProblem: badDates[0],
       };
     }
@@ -123,6 +127,7 @@ export const listEstimatesTool = defineTool({
         label: `${count} ${count === 1 ? 'estimate' : 'estimates'}`,
         amount: moneyText(total),
       },
+      clientMatches: ambiguousClientNames(matched.map((r) => r.client_name), filters.client),
       documents: shown.map((r) => ({
         id: r.id,
         number: docLabel(r),
@@ -151,6 +156,7 @@ export const listEstimatesTool = defineTool({
       totalCount: 1,
       rows: [{ name: 'Mike Alvarez', secondary: 'E-0003', amount: '$2,400.00' }],
       total: { label: '1 estimate', amount: '$2,400.00' },
+      clientMatches: [],
       documents: [
         {
           id: 'est-3',

@@ -10,6 +10,7 @@ import { RankedListProps } from '@/lib/templates/props';
 import {
   READ_CAP,
   InvoiceRow,
+  ambiguousClientNames,
   asInvoiceRow,
   docLabel,
   forgivingFilters,
@@ -55,6 +56,12 @@ export const ListInvoicesOutput = z.object({
   rows: RankedListProps.shape.rows,
   total: RankedListProps.shape.total,
   documents: z.array(Document),
+  /**
+   * Set when the client filter matched rows of more than one person: these rows
+   * are not one client's records, so the model must ask which client instead of
+   * adding them together.
+   */
+  clientMatches: z.array(z.string()),
   /** A from/to that was given but is not a date: the list is empty, not wide. */
   dateProblem: z.string().optional(),
 });
@@ -97,6 +104,7 @@ export const listInvoicesTool = defineTool({
         rows: [],
         total: { label: '0 invoices', amount: moneyText(0) },
         documents: [],
+        clientMatches: [],
         dateProblem: badDates[0],
       };
     }
@@ -132,6 +140,7 @@ export const listInvoicesTool = defineTool({
               : undefined,
       })),
       total: { label: `${count} ${count === 1 ? 'invoice' : 'invoices'}`, amount: moneyText(total) },
+      clientMatches: ambiguousClientNames(matched.map((r) => r.client_name), filters.client),
       documents: shown.map((r) => ({
         id: r.id,
         number: docLabel(r),
@@ -164,6 +173,7 @@ export const listInvoicesTool = defineTool({
         { name: 'Ruth Lawrence', secondary: 'INV-0001', amount: '$120.00' },
       ],
       total: { label: '2 invoices', amount: '$200.00' },
+      clientMatches: [],
       documents: [
         {
           id: 'inv-2',

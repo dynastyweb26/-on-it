@@ -40,6 +40,27 @@ export function nameMatches(query: string, candidate: string): boolean {
   return q.split(' ').every((token) => words.some((w) => w.startsWith(token)));
 }
 
+/**
+ * The client names behind a client filter, when the filter is ambiguous.
+ *
+ * One name is the ordinary case and returns nothing. Two or more mean the rows
+ * of different people would otherwise be added together under one name, so no
+ * money answer can come from them: the caller must ask which client instead.
+ * Empty whenever no client filter was given.
+ */
+export function ambiguousClientNames(
+  names: readonly (string | null | undefined)[],
+  client: string | undefined,
+): string[] {
+  if (!client?.trim()) return [];
+  const seen = new Map<string, string>();
+  for (const raw of names) {
+    const name = raw?.trim();
+    if (name) seen.set(normName(name), name);
+  }
+  return seen.size > 1 ? [...seen.values()].sort((a, b) => a.localeCompare(b)) : [];
+}
+
 /** The statuses the invoices table accepts (001_init). */
 export const INVOICE_STATUSES = ['draft', 'sent', 'paid', 'overdue', 'void'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];

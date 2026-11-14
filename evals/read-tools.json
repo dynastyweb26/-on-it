@@ -277,6 +277,16 @@
     {
       "id": "find-client-two-ruths",
       "request": "show me Ruth's invoice",
+      "fixture": {
+        "clients": [
+          { "id": "cli-ruth-1", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Ruth Chen", "email": "ruth.chen@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" },
+          { "id": "cli-ruth-2", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Ruth Lawrence", "email": "ruth@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" }
+        ],
+        "invoices": [
+          { "id": "inv-chen", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "invoice_number": 81, "client_name": "Ruth Chen", "status": "sent", "total": 300, "amount_paid": 0, "due_date": "2026-10-08", "created_at": "2026-09-02T12:00:00Z", "deleted_at": null, "line_items": [] },
+          { "id": "inv-lawrence", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "invoice_number": 82, "client_name": "Ruth Lawrence", "status": "sent", "total": 120, "amount_paid": 0, "due_date": "2026-10-09", "created_at": "2026-09-03T12:00:00Z", "deleted_at": null, "line_items": [] }
+        ]
+      },
       "expect": {
         "tools": [
           "find_client"
