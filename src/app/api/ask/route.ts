@@ -9,6 +9,10 @@
 // Every read runs under the caller's own session, so RLS is the boundary: there
 // is no service-role client in this file, and no tool can reach one.
 //
+// History: the caller's own last turns in THIS chat session ride along as earlier
+// messages (lib/tools/history). Read under the caller's session, RLS only, and
+// never tool payloads — text only.
+//
 // Money rule: the model never states a figure. The server composes the money
 // line from the tool result, and model prose may only carry a figure the tool
 // result already contains.
@@ -36,6 +40,7 @@ import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
+import { loadHistory, supabaseHistoryReader } from '@/lib/tools/history';
 import { REGISTRY } from '@/lib/tools/registry';
 import { askResponseBody } from '@/lib/ask-response';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
@@ -101,6 +106,10 @@ export async function POST(req: NextRequest) {
   const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
   const db = supabaseToolDb(supabase);
 
+  // Memory: the caller's own last turns in this session, oldest first. Scoped by
+  // session and left to RLS for ownership; a failed read is an empty history.
+  const history = await loadHistory(supabaseHistoryReader(supabase), sessionFrom(req.headers));
+
   let result: TurnResult;
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -122,6 +131,7 @@ export async function POST(req: NextRequest) {
       db,
       userId: user.id,
       question,
+      history,
       budget,
       // A write tool proposed here stays pending until /api/ai/confirm runs it.
       // What is stored is prepare()'s resolved ids, never the model's args: the

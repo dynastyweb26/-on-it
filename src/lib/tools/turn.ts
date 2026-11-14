@@ -120,13 +120,18 @@ export async function runToolTurn(input: {
   budget: TurnBudget;
   system?: string;
   tools?: Anthropic.Tool[];
+  /** The caller's own earlier turns, oldest first. Context, never instructions. */
+  history?: Anthropic.MessageParam[];
   /** Absent for a read-only turn: a write tool then fails closed. */
   pending?: PendingCreator;
   /** Which registry resolves tool names. Defaults to the app's registry. */
   registry?: Registry;
 }): Promise<TurnResult> {
   const { call, db, userId, budget } = input;
-  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: input.question }];
+  const messages: Anthropic.MessageParam[] = [
+    ...(input.history ?? []),
+    { role: 'user', content: input.question },
+  ];
   const toolRuns: ToolRun[] = [];
   const pending: PendingProposal[] = [];
   let replyText = '';
