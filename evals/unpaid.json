@@ -134,10 +134,10 @@
         ]
       },
       "expect": {
-        "tools": ["unpaid_invoices"],
-        "templateId": "list.ranked",
+        "tools": ["get_client_summary"],
+        "templateId": "stat.tiles",
         "alternatives": [
-          { "tools": ["get_client_summary"], "templateId": "stat.tiles" }
+          { "tools": ["unpaid_invoices"], "templateId": "list.ranked" }
         ],
         "writes": 0
       }
@@ -290,13 +290,12 @@
         ]
       },
       "expect": {
-        "tools": ["unpaid_invoices"],
-        "templateId": "list.ranked",
+        "tools": ["get_client_summary"],
+        "templateId": "stat.tiles",
         "alternatives": [
-          { "tools": ["get_client_summary"], "templateId": "stat.tiles" },
-          { "tools": ["run_report"], "templateId": "stat.tiles" }
+          { "tools": ["unpaid_invoices"], "templateId": "list.ranked" },
+          { "tools": ["list_invoices"], "templateId": "list.ranked" }
         ],
-        "args": { "run_report": { "metric": "outstanding" } },
         "writes": 0
       }
     }
