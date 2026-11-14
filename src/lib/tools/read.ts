@@ -89,6 +89,104 @@ export function forgivingCategory(value: string | null | undefined): {
   return { ignored: [raw] };
 }
 
+/** The periods run_report understands: one stored key per period. */
+export const REPORT_PERIODS = [
+  'this_week', 'last_week', 'this_month', 'last_month', 'this_year', 'last_year', 'custom',
+] as const;
+export type ReportPeriod = (typeof REPORT_PERIODS)[number];
+
+/**
+ * The words a person uses for a period, normalised with normName() so case,
+ * spacing and punctuation never decide it. A bare "year" is this year and a bare
+ * "month" is this month; "ytd" is this year too.
+ */
+const PERIOD_ALIASES: Record<string, ReportPeriod> = {
+  week: 'this_week',
+  'this week': 'this_week',
+  'current week': 'this_week',
+  'last week': 'last_week',
+  'previous week': 'last_week',
+  month: 'this_month',
+  'this month': 'this_month',
+  'current month': 'this_month',
+  'last month': 'last_month',
+  'previous month': 'last_month',
+  year: 'this_year',
+  ytd: 'this_year',
+  'y t d': 'this_year',
+  'year to date': 'this_year',
+  'this year': 'this_year',
+  'current year': 'this_year',
+  'last year': 'last_year',
+  'previous year': 'last_year',
+};
+
+/**
+ * One period word → the stored period, or nothing. Forgiving by rule, the same
+ * way forgivingCategory is: an unknown word is named in `ignored` and resolves
+ * to NO period, so the caller must refuse to report rather than default.
+ */
+export function forgivingPeriod(value: string | null | undefined): {
+  period?: ReportPeriod;
+  ignored: string[];
+} {
+  const raw = value?.trim();
+  if (!raw) return { ignored: [] };
+  const key = normName(raw);
+  if ((REPORT_PERIODS as readonly string[]).includes(key)) {
+    return { period: key as ReportPeriod, ignored: [] };
+  }
+  const alias = PERIOD_ALIASES[key];
+  if (alias) return { period: alias, ignored: [] };
+  return { ignored: [raw] };
+}
+
+/** The metrics run_report understands: one stored key per metric. */
+export const REPORT_METRICS = ['collected', 'spent', 'net', 'invoiced', 'outstanding'] as const;
+export type ReportMetric = (typeof REPORT_METRICS)[number];
+
+/**
+ * The words a person uses for a metric, normalised with normName() so case and
+ * punctuation never decide it: "income", "revenue", "made" and "earned" are
+ * collected money, "owed" and "unpaid" are outstanding.
+ */
+const METRIC_ALIASES: Record<string, ReportMetric> = {
+  income: 'collected',
+  revenue: 'collected',
+  made: 'collected',
+  earned: 'collected',
+  expense: 'spent',
+  expenses: 'spent',
+  spending: 'spent',
+  spend: 'spent',
+  profit: 'net',
+  kept: 'net',
+  keep: 'net',
+  owed: 'outstanding',
+  unpaid: 'outstanding',
+  due: 'outstanding',
+};
+
+/**
+ * One metric word → the stored metric, or nothing. Forgiving by rule, the same
+ * way forgivingCategory is: an unknown word is named in `ignored` and resolves
+ * to NO metric, so the caller can refuse to report rather than pick one.
+ */
+export function forgivingMetric(value: string | null | undefined): {
+  metric?: ReportMetric;
+  ignored: string[];
+} {
+  const raw = value?.trim();
+  if (!raw) return { ignored: [] };
+  const key = normName(raw);
+  if ((REPORT_METRICS as readonly string[]).includes(key)) {
+    return { metric: key as ReportMetric, ignored: [] };
+  }
+  const alias = METRIC_ALIASES[key];
+  if (alias) return { metric: alias, ignored: [] };
+  return { ignored: [raw] };
+}
+
 export type Filters = {
   status?: string[];
   client?: string;
@@ -102,12 +200,15 @@ export type FilterOutcome = {
   filters: Filters;
   /** Values that were not understood, in the shape the user sent them. */
   ignored: string[];
+  /** A from/to that was given but is not a date: the caller must not widen. */
+  badDates: string[];
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function forgivingFilters(input: Filters): FilterOutcome {
   const ignored: string[] = [];
+  const badDates: string[] = [];
   const out: Filters = {};
 
   if (input.status?.length) {
@@ -124,7 +225,10 @@ export function forgivingFilters(input: Filters): FilterOutcome {
     const value = input[key]?.trim();
     if (!value) continue;
     if (ISO_DATE.test(value) && !Number.isNaN(Date.parse(value))) out[key] = value;
-    else ignored.push(value);
+    else {
+      ignored.push(value);
+      badDates.push(value);
+    }
   }
 
   for (const key of ['min_amount', 'max_amount'] as const) {
@@ -134,7 +238,7 @@ export function forgivingFilters(input: Filters): FilterOutcome {
     else ignored.push(String(value));
   }
 
-  return { filters: out, ignored };
+  return { filters: out, ignored, badDates };
 }
 
 /** A row as the invoices table stores it, narrowed to what these tools read. */

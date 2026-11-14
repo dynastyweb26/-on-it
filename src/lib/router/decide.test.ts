@@ -18,14 +18,23 @@ test('any unpaid invoices -> ask', () => {
   );
 });
 
-test('how much did I spend on gas? -> unsupported (never parse)', () => {
-  const d = decideRoute({
-    flagOn: true,
-    bypass: null,
-    classified: 'unsupported',
-    text: 'how much did I spend on gas?',
-  });
-  assert.deepEqual(d, { route: 'unsupported', via: 'router' });
+test('an out-of-scope question -> ask, so /api/ask decides and no turn ends there', () => {
+  // Each of these is classified 'unsupported' (nothing can look it up yet).
+  // Under the flag that is a question like any other: /api/ask answers it and
+  // composes the cant.do card. Never a canned refusal, never /api/parse.
+  for (const text of [
+    'how much did I spend this month',
+    'show me my gas expenses',
+    'what do I charge for a service call',
+    'can you file my taxes',
+    'how much did I spend on gas?',
+  ]) {
+    assert.deepEqual(
+      decideRoute({ flagOn: true, bypass: null, classified: 'unsupported', text }),
+      { route: 'ask', via: 'router' },
+      text,
+    );
+  }
 });
 
 test('invoice ZZ Test A $50 for a repair -> build', () => {
@@ -69,6 +78,20 @@ test("who owes me 50 for the fence -> build, and the model is never asked", () =
     assert.equal(hasFigure(t), true, t);
   }
   assert.equal(hasFigure('who owes me'), false);
+});
+
+test('the same question with the flag off keeps the old path', () => {
+  // Flag off means the pre-Slice-2 app: the regex gate decides, and an
+  // out-of-scope question is a build/parse candidate there, exactly as before.
+  assert.deepEqual(
+    decideRoute({
+      flagOn: false,
+      bypass: null,
+      classified: 'unsupported',
+      text: 'how much did I spend this month',
+    }),
+    { route: 'build', via: 'regex' },
+  );
 });
 
 test('$40 as a clarification reply -> bypass, and no model answer can override it', () => {

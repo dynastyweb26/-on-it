@@ -3,6 +3,11 @@
 // Ten per route, weighted toward the nasty build cases. Not a CI test: the
 // expected label is what the product wants, and only the real model can be
 // measured against it. Run scripts/router-accuracy.ts to score it.
+//
+// The label is the route the APP takes, not the model's raw word: an
+// out-of-scope account question is labelled `ask`, because under the flag the
+// router sends every question to /api/ask and the cant.do card is composed
+// there. `unsupported` is still a classification, never a destination.
 import type { RouterRoute } from '../decide';
 
 export interface Labelled {
@@ -36,16 +41,20 @@ export const ROUTER_PHRASES: Labelled[] = [
   { text: 'log 60 bucks for gas at Shell', route: 'build', note: 'expense' },
   { text: 'same as last time for Bob', route: 'build', note: 'ambiguous → build' },
 
-  // ── unsupported: account questions nothing can answer yet ────────────────
-  { text: 'how much did I spend on gas?', route: 'unsupported' },
-  { text: "what's my profit this month?", route: 'unsupported' },
-  { text: 'how much do I owe in taxes?', route: 'unsupported' },
-  { text: 'what did I spend at Home Depot last month?', route: 'unsupported' },
-  { text: "what's my total income this year?", route: 'unsupported' },
-  { text: 'how much is in my bank account?', route: 'unsupported' },
-  { text: 'what are my biggest expenses?', route: 'unsupported' },
-  { text: 'how much did I make last week?', route: 'unsupported' },
-  { text: 'am I actually making money on these jobs?', route: 'unsupported' },
-  { text: "what's my net profit for the quarter?", route: 'unsupported' },
-  { text: 'how much should I charge for a water heater install?', route: 'unsupported', note: 'pricing advice — nothing in the app prices a job' },
+  // ── ask, out of scope: a question /api/ask answers with the cant.do card ──
+  { text: 'how much did I spend on gas?', route: 'ask' },
+  { text: 'how much did I spend this month', route: 'ask', note: 'spend — no tool totals it yet' },
+  { text: 'show me my gas expenses', route: 'ask', note: 'expenses list, asked as a question' },
+  { text: 'what do I charge for a service call', route: 'ask', note: 'pricing advice — nothing in the app prices a job' },
+  { text: 'can you file my taxes', route: 'ask', note: 'doing a thing no tool does' },
+  { text: "what's my profit this month?", route: 'ask' },
+  { text: 'how much do I owe in taxes?', route: 'ask' },
+  { text: 'what did I spend at Home Depot last month?', route: 'ask' },
+  { text: "what's my total income this year?", route: 'ask' },
+  { text: 'how much is in my bank account?', route: 'ask' },
+  { text: 'what are my biggest expenses?', route: 'ask' },
+  { text: 'how much did I make last week?', route: 'ask' },
+  { text: 'am I actually making money on these jobs?', route: 'ask' },
+  { text: "what's my net profit for the quarter?", route: 'ask' },
+  { text: 'how much should I charge for a water heater install?', route: 'ask', note: 'pricing advice — the cant.do card names what does work' },
 ];

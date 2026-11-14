@@ -31,6 +31,7 @@ const run = (rows: unknown[], args: unknown = {}) =>
     total: { amount: string };
     rows: Array<{ name: string; amount: string }>;
     totalCount: number;
+    dateProblem?: string;
   }>;
 
 test('gas means fuel, so a person’s word finds the stored category', async () => {
@@ -59,10 +60,13 @@ test('date and amount filters are inclusive and unknown categories are ignored, 
   assert.deepEqual(out.ignored, ['banana']);
 });
 
-test('a bad date is reported in ignored and otherwise ignored', async () => {
-  const out = await run([row()], { from: '10/01/2026' });
-  assert.equal(out.count, 1);
+test('a from that does not parse returns no rows instead of widening to all time', async () => {
+  const out = await run([row(), row({ id: 'e2', spent_on: '2026-10-01' })], { from: '10/01/2026' });
+  assert.equal(out.count, 0);
+  assert.deepEqual(out.rows, []);
   assert.deepEqual(out.ignored, ['10/01/2026']);
+  assert.equal(out.dateProblem, '10/01/2026');
+  assert.match(listExpensesTool.fallback(out as never), /10\/01\/2026/);
 });
 
 test('more than 25 matches keep the full count and a deterministic first page', async () => {

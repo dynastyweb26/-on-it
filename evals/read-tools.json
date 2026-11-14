@@ -72,7 +72,7 @@
         "writes": 0
       },
       "expectedFail": true,
-      "note": "Old /api/parse flow owns record payment and re-asks 'Did someone pay you?' after every reply (PUNCH-LIST)."
+      "reason": "The old /api/parse record-payment flow appends 'Did someone pay you? Name the client and how much...' to every reply instead of asking once (PUNCH-LIST, Chat record-payment)."
     },
     {
       "id": "record-payment-amount-in-words",
@@ -81,7 +81,7 @@
         "writes": 0
       },
       "expectedFail": true,
-      "note": "The old flow replies 'Ruth paid you 25 for a car wash' with no dollar sign; the figure is model text, not a server-composed string (PUNCH-LIST)."
+      "reason": "The old /api/parse early return lets the model state the amount as words ('Ruth paid you 25') with no dollar sign; the money guard does not cover that path (PUNCH-LIST, TOOL-AUDIT F1)."
     },
     {
       "id": "record-payment-card-empty-after-zelle",
@@ -91,7 +91,7 @@
         "writes": 0
       },
       "expectedFail": true,
-      "note": "The old flow opens the card with Client empty and Amount 0.00 after the client and amount were typed (PUNCH-LIST)."
+      "reason": "After 'Ruth $25 for carwash' then 'Zelle', the old flow opens the card with Client empty and Amount 0.00: the parsed fields never carry the earlier turn's client and amount into the proposal (PUNCH-LIST)."
     },
     {
       "id": "get-invoice-by-number",
@@ -252,6 +252,14 @@
     {
       "id": "find-client-one-ruth",
       "request": "show me Ruth's invoice",
+      "fixture": {
+        "clients": [
+          { "id": "cli-ruth", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Ruth Lawrence", "email": "ruth@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" }
+        ],
+        "invoices": [
+          { "id": "inv-74", "user_id": "11111111-1111-1111-1111-111111111111", "kind": "invoice", "invoice_number": 74, "client_name": "Ruth Lawrence", "status": "sent", "total": 120, "amount_paid": 0, "due_date": "2026-10-08", "created_at": "2026-09-01T12:00:00Z", "deleted_at": null, "line_items": [] }
+        ]
+      },
       "expect": {
         "tools": [
           "find_client",
@@ -335,7 +343,7 @@
       "request": "who hasn't paid me",
       "expect": {
         "tools": [
-          "unpaid"
+          "unpaid_invoices"
         ],
         "writes": 0
       }

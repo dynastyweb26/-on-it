@@ -29,8 +29,12 @@ type EvalCase = {
   id: string;
   tags?: string[];
   request: string;
+  /** The field the cases use: this request is signed out. */
+  signedOut?: boolean;
+  /** The older field, still honoured: signedIn false means the same thing. */
   signedIn?: boolean;
-  fixture: FixtureRows;
+  /** No fixture means an empty account, never a crash. */
+  fixture?: FixtureRows;
   /** Known bug this case documents: the gate expects it to fail. */
   expectedFail?: boolean;
   /** Why it is expected to fail. Required whenever expectedFail is true. */
@@ -124,17 +128,50 @@ export function matchingToolSet(
   );
 }
 
+/**
+ * The card is graded only when the case names one. An absent templateId means
+ * "do not grade the card" — most cases only care which tool ran — and only an
+ * explicit `templateId: null` asks for no card at all.
+ */
+export function templateMismatch(
+  expected: { templateId?: string | null },
+  actual: string | null,
+): string | null {
+  if (!('templateId' in expected)) return null;
+  return expected.templateId === actual
+    ? null
+    : `template ${actual} != expected ${expected.templateId ?? null}`;
+}
+
 function realCall(apiKey: string): ModelCall {
   const client = new Anthropic({ apiKey });
   return async ({ system, tools, messages }) =>
     client.messages.create({ model: MODEL, max_tokens: 512, system, tools, messages });
 }
 
+/**
+ * The two fields a case may use for the same thing: "signedOut": true is what
+ * the cases declare, and the older "signedIn": false keeps working. Before
+ * this, only the older field was read, so every signedOut case ran signed in.
+ */
+export function isSignedOut(testCase: { signedIn?: boolean; signedOut?: boolean }): boolean {
+  return testCase.signedOut === true || testCase.signedIn === false;
+}
+
+/** A case may accept any one of several spellings for one argument. */
+function isOneOf(value: unknown): value is { oneOf: unknown[] } {
+  return Boolean(value)
+    && typeof value === 'object'
+    && Array.isArray((value as { oneOf?: unknown }).oneOf);
+}
+
 function argsMatch(expected: Record<string, unknown> | undefined, actual: unknown): boolean {
   if (!expected) return true;
   if (!actual || typeof actual !== 'object') return false;
   const got = actual as Record<string, unknown>;
-  return Object.entries(expected).every(([key, value]) => got[key] === value);
+  return Object.entries(expected).every(([key, value]) =>
+    isOneOf(value) ? value.oneOf.includes(got[key]) : got[key] === value,
+  );
 }
 
 async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Result> {
@@ -143,7 +180,7 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
   const expect = testCase.expect;
 
   // A signed-out user never reaches a tool and never reaches the model.
-  if (testCase.signedIn === false) {
+  if (isSignedOut(testCase)) {
     if (!expect.refused) reasons.push('expected a refusal for a signed-out request');
     if (!expect.refused) return { id: testCase.id, tags, pass: false, reasons };
     return { id: testCase.id, tags, pass: true, reasons: [] };
@@ -185,10 +222,8 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
     .map((run) => REGISTRY.find(run.name)?.defaultTemplate.id ?? null)
     .find((id) => id != null) ?? null;
   if (matchedExpect) {
-    const expectedTemplateId = matchedExpect.templateId ?? null;
-    if (expectedTemplateId !== templateId) {
-      reasons.push(`template ${templateId} != expected ${expectedTemplateId}`);
-    }
+    const templateReason = templateMismatch(matchedExpect, templateId);
+    if (templateReason) reasons.push(templateReason);
   }
 
   const writes = db.attempts;
@@ -197,8 +232,9 @@ async function runCase(testCase: EvalCase, call: ModelCall | null): Promise<Resu
   if (JSON.stringify(db.rows) !== before) reasons.push('the graded turn changed database state');
 
   // The model said something, even if it had no tools: an empty reply is a fail
-  // only when the case expected a tool result to be phrased.
-  if (expect.tools.length > 0 && !result.replyText.trim()) {
+  // only when the case expected a tool result to be phrased. A case may leave
+  // `tools` out entirely (the record-payment cases do).
+  if ((expect.tools ?? []).length > 0 && !result.replyText.trim()) {
     reasons.push('empty reply');
   }
 

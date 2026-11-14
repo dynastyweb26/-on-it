@@ -55,6 +55,18 @@ test('client, date and amount filters narrow the list', async () => {
   assert.equal(out.count, 1);
 });
 
+test('a to that does not parse returns no rows instead of widening to all time', async () => {
+  const out = (await run([inv(1), inv(2)], { to: '31/10/2026' })) as never as {
+    count: number;
+    ignored: string[];
+    dateProblem?: string;
+  };
+  assert.equal(out.count, 0);
+  assert.deepEqual(out.ignored, ['31/10/2026']);
+  assert.equal(out.dateProblem, '31/10/2026');
+  assert.match(listInvoicesTool.fallback(out as never), /31\/10\/2026/);
+});
+
 test('caps at 25 rows while the count stays the full total', async () => {
   const rows = Array.from({ length: 30 }, (_, i) => inv(i + 1));
   const out = (await run(rows)) as never as { count: number; rows: unknown[]; match: string };

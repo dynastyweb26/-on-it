@@ -17,7 +17,6 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
-import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 import { createTurnBudget } from '@/lib/tools/budget';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { anthropicRouteCall, classify } from '@/lib/router/classify';
@@ -80,9 +79,9 @@ export async function POST(req: NextRequest) {
     {
       route: decision.route,
       via: decision.via,
-      // The one sentence this endpoint writes. It comes from the shared copy
-      // helper, never from the model, and the model is not consulted again.
-      reply: decision.route === 'unsupported' ? UNSUPPORTED_REPLY : null,
+      // This endpoint writes no text. Every route is a question in the end:
+      // /api/ask answers it, or composes the cant.do card when nothing can.
+      reply: null,
     },
     NO_STORE,
   );

@@ -83,6 +83,15 @@ test('a period, client and method filter narrow the list and its total', async (
   assert.equal(out.payments[0].kind, 'invoice_payment');
 });
 
+test('a from that does not parse returns no rows instead of widening to all time', async () => {
+  const out = await run(fixture(), { from: '10/01/2026' });
+  assert.equal(out.count, 0);
+  assert.deepEqual(out.payments, []);
+  assert.deepEqual((out as unknown as { ignored: string[] }).ignored, ['10/01/2026']);
+  assert.equal((out as unknown as { dateProblem?: string }).dateProblem, '10/01/2026');
+  assert.match(listPaymentsTool.fallback(out as never), /10\/01\/2026/);
+});
+
 test('an unknown method is reported in ignored, not fatal', async () => {
   const out = await run(fixture(), { method: 'carrier pigeon' });
   assert.equal(out.count, 3);

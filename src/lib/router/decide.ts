@@ -75,9 +75,11 @@ export interface Decision {
  *  - a valid answer   → that answer
  *  - null             → the old path (regex, then parse)
  *
- * `unsupported` is never downgraded into build: the server already composed its
- * reply, and letting it fall through would send "how much did I spend on gas?"
- * to /api/parse as an expense — the exact bug this slice exists to fix.
+ * `unsupported` is never downgraded into build: letting it fall through would
+ * send "how much did I spend on gas?" to /api/parse as an expense — the exact
+ * bug this slice exists to fix. Under the flag it is not a dead end either: it
+ * is still a question, so it goes to /api/ask, which answers it from what really
+ * ran and composes the cant.do card when nothing could.
  */
 export function decideRoute(input: {
   flagOn: boolean;
@@ -97,5 +99,10 @@ export function decideRoute(input: {
 
   if (!input.flagOn) return oldPath;
   if (!input.classified) return oldPath;
+  // Every question goes to /api/ask under the flag. The router still sends
+  // create/record requests (and anything with a figure) to build, but an
+  // out-of-scope account question is answered where the tools are, not refused
+  // here with a canned line.
+  if (input.classified === 'unsupported') return { route: 'ask', via: 'router' };
   return { route: input.classified, via: 'router' };
 }

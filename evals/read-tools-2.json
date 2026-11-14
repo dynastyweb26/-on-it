@@ -13,7 +13,7 @@
       },
       "expect": {
         "tools": ["list_expenses"],
-        "args": { "list_expenses": { "category": "fuel" } },
+        "args": { "list_expenses": { "category": { "oneOf": ["gas", "fuel"] } } },
         "templateId": "list.ranked",
         "writes": 0
       }
@@ -232,7 +232,7 @@
       },
       "expect": {
         "tools": ["run_report"],
-        "args": { "run_report": { "metric": "spent", "category": "fuel" } },
+        "args": { "run_report": { "metric": "spent", "category": { "oneOf": ["fuel", "gas"] } } },
         "templateId": "stat.tiles",
         "writes": 0
       }
@@ -333,7 +333,7 @@
         "other_income": [],
         "expenses": []
       },
-      "expect": { "tools": ["run_report"], "args": { "run_report": { "sort": "slowest", "period": "this_year" } }, "templateId": "stat.tiles", "writes": 0 }
+      "expect": { "tools": ["run_report"], "args": { "run_report": { "sort": "slowest", "period": { "oneOf": ["this_year", "year"] } } }, "templateId": "stat.tiles", "writes": 0 }
     }
   ]
 }

@@ -59,6 +59,8 @@ export const ListPaymentsOutput = z.object({
   rows: RankedListProps.shape.rows,
   total: RankedListProps.shape.total,
   payments: z.array(Payment),
+  /** A from/to that was given but is not a date: the list is empty, not wide. */
+  dateProblem: z.string().optional(),
 });
 
 type InvoiceLite = {
@@ -106,7 +108,7 @@ const fixtureInvoices: InvoiceLite[] = [
 export const listPaymentsTool = defineTool({
   name: LIST_PAYMENTS,
   description:
-    'Read-only list of money received, newest first: invoice payments (refunds and disputes appear as signed negative rows) plus other income that is not tied to an invoice. The list total equals the Books Collected figure for the same range. Supports client, method, date and amount filters; at most 25 rows plus the full count.',
+    'Read-only list of money received, newest first: invoice payments (refunds and disputes appear as signed negative rows) plus other income that is not tied to an invoice. The list total equals the Books Collected figure for the same range. Supports client, method, date and amount filters; at most 25 rows plus the full count. This answers "payments this month" and "what came in this week": pass from and to. For a single total of what came in, run_report does that too.',
   input: ListPaymentsInput,
   output: ListPaymentsOutput,
   type: 'read',
@@ -114,7 +116,7 @@ export const listPaymentsTool = defineTool({
   defaultTemplate: { id: 'list.ranked', props: RankedListProps },
   destination: { screen: 'Income', path: '/income' },
   handler: async (ctx, args) => {
-    const { filters, ignored } = forgivingFilters({
+    const { filters, ignored, badDates } = forgivingFilters({
       from: args.from,
       to: args.to,
       min_amount: args.min_amount,
@@ -122,6 +124,22 @@ export const listPaymentsTool = defineTool({
     });
     const method = forgivingMethod(args.method);
     ignored.push(...method.ignored);
+
+    if (badDates.length) {
+      // A date we cannot read must never widen the answer to all time.
+      return {
+        match: 'none' as const,
+        count: 0,
+        ignored,
+        eyebrow: 'Payments received',
+        title: '',
+        totalCount: 0,
+        rows: [],
+        total: { label: '0 payments', amount: moneyText(0) },
+        payments: [],
+        dateProblem: badDates[0],
+      };
+    }
 
     const profile = await ctx.db.select<{ timezone: string | null }>('profiles', {
       columns: 'timezone',
@@ -273,9 +291,11 @@ export const listPaymentsTool = defineTool({
     };
   },
   fallback: (result) =>
-    result.count === 0
-      ? 'No payments match that.'
-      : `${result.count} ${result.count === 1 ? 'payment' : 'payments'}, ${result.total.amount} collected.`,
+    result.dateProblem
+      ? `No rows: I did not understand the date "${result.dateProblem}".`
+      : result.count === 0
+        ? 'No payments match that.'
+        : `${result.count} ${result.count === 1 ? 'payment' : 'payments'}, ${result.total.amount} collected.`,
   fixture: {
     args: { from: '2026-11-01', to: '2026-11-30' },
     result: {
