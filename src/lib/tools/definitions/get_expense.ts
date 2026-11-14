@@ -50,6 +50,8 @@ export const GetExpenseOutput = z.object({
   totalCount: z.number().int().nonnegative(),
   total: RankedListProps.shape.total,
   expense: Expense.nullable(),
+  /** Set when the call could not look anything up: a clear reason, not an empty match. */
+  reason: z.string().optional(),
 });
 
 const fixtureRow = (over: Record<string, unknown> = {}): ExpenseRowType => ({
@@ -74,7 +76,7 @@ const line = (row: ExpenseRowType) =>
 export const getExpenseTool = defineTool({
   name: GET_EXPENSE,
   description:
-    'Read-only lookup of ONE logged expense by its id or by a description, vendor or category word (gas finds fuel). One match renders as a link, several as a ranked list of the matches, and no match is a plain-text answer rather than an invented expense.',
+    'Read-only lookup of ONE logged expense by its id or by a description, vendor or category word (gas finds fuel), returning its vendor, description, category label, date, amount and tax-deductible flag. One match renders as a link, several as a ranked list of the matches, and no match is a plain-text answer rather than an invented expense. A lookup with neither an id nor a word returns a reason instead of every expense; use list_expenses to show them all.',
   input: GetExpenseInput,
   output: GetExpenseOutput,
   type: 'read',
@@ -87,6 +89,24 @@ export const getExpenseTool = defineTool({
   },
   destination: { screen: 'Expenses', path: '/expenses' },
   handler: async (ctx, args) => {
+    // No id and no word is not a lookup: matching every row would answer
+    // "Which one?" and invite a second list call. Say what is missing instead.
+    if (!args.id && !(args.description ?? '').trim()) {
+      return {
+        match: 'none' as const,
+        count: 0,
+        ignored: [],
+        eyebrow: 'Expenses',
+        title: '',
+        items: [],
+        rows: [],
+        totalCount: 0,
+        total: { label: '0 expenses', amount: moneyText(0) },
+        expense: null,
+        reason: 'Give an id, a vendor, a description or a category word; without one this would match every expense.',
+      };
+    }
+
     const { data, error } = await ctx.db.select<ExpenseRowType>('expenses', {
       columns: '*',
       eq: { user_id: ctx.userId },
@@ -149,7 +169,7 @@ export const getExpenseTool = defineTool({
     result.expense
       ? `${result.expense.vendor ?? result.expense.description ?? result.expense.categoryLabel}, ${result.expense.categoryLabel.toLowerCase()}, ${result.expense.spentOn}: ${result.expense.amount}.`
       : result.count === 0
-        ? 'No expense matches that.'
+        ? result.reason ?? 'No expense matches that.'
         : `${result.count} expenses match; say which one you mean.`,
   fixture: {
     args: { description: 'Shell' },

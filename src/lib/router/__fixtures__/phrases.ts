@@ -17,8 +17,33 @@ export interface Labelled {
   note?: string;
 }
 
+/**
+ * Lookups spoken as commands: no question mark, so only the verb says it is a
+ * lookup. Both the router prompt and the regex fallback must route these to
+ * ask; these are the fixtures the fallback is tested against.
+ */
+export const COMMAND_LOOKUPS: Labelled[] = [
+  { text: 'find Ruth', route: 'ask' },
+  { text: 'show me my invoices', route: 'ask' },
+  { text: 'pull up the Smith estimate', route: 'ask' },
+  { text: 'list my payments this month', route: 'ask' },
+  { text: 'open the estimate for Smith', route: 'ask' },
+  { text: 'look up the Alvarez expenses', route: 'ask' },
+  { text: "what about Ruth's estimates", route: 'ask' },
+  { text: 'when did Smith pay', route: 'ask' },
+];
+
+/** The same verb shapes with build intent: these must never become a lookup. */
+export const COMMAND_BUILDS: Labelled[] = [
+  { text: 'create an invoice for Smith', route: 'build' },
+  { text: 'record a payment from Ruth', route: 'build' },
+  { text: 'send the estimate to Smith', route: 'build' },
+  { text: 'open a new invoice', route: 'build', note: 'lookup verb, build intent' },
+];
+
 export const ROUTER_PHRASES: Labelled[] = [
-  // ── ask: the one lookup that exists today ────────────────────────────────
+  // ── ask: lookups, including commands with no question mark ───────────────
+  ...COMMAND_LOOKUPS,
   { text: "who hasn't paid me", route: 'ask' },
   { text: 'any unpaid invoices', route: 'ask' },
   { text: 'who owes me', route: 'ask' },
@@ -31,6 +56,7 @@ export const ROUTER_PHRASES: Labelled[] = [
   { text: 'hey can you tell me who owes me', route: 'ask' },
 
   // ── build: create/edit, plus the traps that look like questions ──────────
+  ...COMMAND_BUILDS,
   { text: 'invoice ZZ Test A $50 for a repair', route: 'build' },
   { text: "Maria hasn't paid, bill her again", route: 'build', note: 'reads like an ask, is an instruction' },
   { text: 'invoice the client who hasn’t paid for the roof', route: 'build', note: 'unpaid words, building intent' },

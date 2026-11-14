@@ -76,7 +76,7 @@ const row = (i: number, over: Partial<InvoiceRow> = {}): InvoiceRow => ({
 export const listInvoicesTool = defineTool({
   name: LIST_INVOICES,
   description:
-    'Read-only list of the user’s own invoices, newest first, with optional status, client name, date and amount filters. Returns at most 25 documents plus the full count; unknown filter values are reported in `ignored`, never an error.',
+    'Read-only list of the user’s own invoices, newest first, with each invoice’s client, status, total, outstanding balance and due date, and optional status, client name, date and amount filters. Statuses are draft, sent, paid, overdue and void. This answers "which invoices are paid" and "how many invoices have I sent"; the outstanding total across clients belongs to unpaid_invoices. Returns at most 25 documents plus the full count; unknown filter values are reported in `ignored`, never an error.',
   input: ListInvoicesInput,
   output: ListInvoicesOutput,
   type: 'read',
