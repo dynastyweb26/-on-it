@@ -45,6 +45,12 @@ test("a client's records end on the list tool, and find_client only resolves a n
   assert.equal(TOOL_SYSTEM.includes('find_client for the name, then'), false);
 });
 
+test('a name that resolves to one client still gets the money answer', () => {
+  assert.match(TOOL_SYSTEM, /resolves to exactly one client is still not the answer/);
+  assert.match(TOOL_SYSTEM, /take that client into the money tool/);
+  assert.match(TOOL_SYSTEM, /list_payments, list_invoices, list_estimates or get_client_summary/);
+});
+
 test('a name that matches several clients is never answered as money', () => {
   assert.match(TOOL_SYSTEM, /returns more than one client[^.]*ask which one/);
   assert.match(TOOL_SYSTEM, /never answer a money question about a name that matches several clients/);
