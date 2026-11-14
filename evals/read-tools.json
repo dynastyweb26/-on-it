@@ -263,7 +263,7 @@
       "expect": {
         "tools": [
           "find_client",
-          "get_invoice"
+          "list_invoices"
         ],
         "writes": 0
       }
