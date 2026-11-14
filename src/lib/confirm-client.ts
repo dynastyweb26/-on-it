@@ -89,3 +89,16 @@ export async function confirmProposal(
   if (rows.length === 0) return { kind: 'error', cause: 'server', reply: CONFIRM_COPY.server };
   return { kind: 'settled', state: rows.some((r) => r.status === 'failed') ? 'partial' : 'done', rows };
 }
+
+/**
+ * One request per card at a time, whoever asks. A second call while the first is
+ * in flight gets the same promise (and sends nothing); the slot clears on every
+ * exit, so the next tap after a failure can try again.
+ */
+export function shareInflight<T>(inflight: Map<string, Promise<T>>, cardId: string, run: () => Promise<T>): Promise<T> {
+  const running = inflight.get(cardId);
+  if (running) return running;
+  const p = run().finally(() => inflight.delete(cardId));
+  inflight.set(cardId, p);
+  return p;
+}

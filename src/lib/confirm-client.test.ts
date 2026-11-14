@@ -61,3 +61,24 @@ test('a success is painted from the rows; a partial has a failed row; no rows is
   assert.equal((await confirmProposal('t', 'k', fake(200, { ok: true, rows: [] }))).kind, 'error');
   assert.equal((await confirmProposal('t', 'k', fake(200, 'junk'))).kind, 'error');
 });
+
+import { shareInflight } from './confirm-client';
+
+test('a rage-tap run sends one request, and the slot clears on success and on failure', async () => {
+  const inflight = new Map<string, Promise<string>>();
+  let sent = 0;
+  let release!: (v: string) => void;
+  const run = () => { sent++; return new Promise<string>((r) => { release = r; }); };
+  const a = shareInflight(inflight, 'c1', run);
+  const b = shareInflight(inflight, 'c1', run);
+  assert.equal(a, b);
+  assert.equal(sent, 1);
+  release('ok');
+  await a;
+  assert.equal(inflight.size, 0);
+  const bad = shareInflight(inflight, 'c1', async () => { sent++; throw new Error('x'); });
+  await assert.rejects(bad);
+  assert.equal(inflight.size, 0);
+  shareInflight(inflight, 'c1', async () => { sent++; return 'again'; });
+  assert.equal(sent, 3, 'a tap after it settled runs again');
+});

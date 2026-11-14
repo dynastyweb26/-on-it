@@ -125,7 +125,7 @@ import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
 import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
 import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
-import { confirmProposal, keyFor } from '@/lib/confirm-client';
+import { confirmProposal, keyFor, shareInflight, type ConfirmOutcome } from '@/lib/confirm-client';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
 // The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
@@ -2991,6 +2991,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
   // One idempotency key per confirm card, minted at its first tap and reused on every retry.
   const confirmKeysRef = useRef(new Map<string, string>());
+  const confirmInflightRef = useRef(new Map<string, Promise<ConfirmOutcome>>()); // one request per card, even across a remount
   function templateHandlers(m: Msg, mi: number): ChatTemplateHandlers {
     const open = openDestination(m.destination?.path, (p) => router.push(p));
     const token = m.confirmToken;
@@ -3005,7 +3006,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // confirm.batch: the real request. The card owns the pending state and the synchronous guard.
       onPrimary: token
         ? async () => {
-            const out = await confirmProposal(token, keyFor(confirmKeysRef.current, m.id));
+            const out = await shareInflight(confirmInflightRef.current, m.id, () => confirmProposal(token, keyFor(confirmKeysRef.current, m.id)));
             const done = out.kind === 'error' ? out.cause === 'already-done' : out.state === 'done';
             if (out.kind === 'error') {
               if (done) setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, confirmed: 'done' as const } : x)));
