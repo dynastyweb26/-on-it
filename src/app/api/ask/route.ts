@@ -106,9 +106,12 @@ export async function POST(req: NextRequest) {
   const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
   const db = supabaseToolDb(supabase);
 
-  // Memory: the caller's own last turns in this session, oldest first. Scoped by
-  // session and left to RLS for ownership; a failed read is an empty history.
-  const history = await loadHistory(supabaseHistoryReader(supabase), sessionFrom(req.headers));
+  // Memory: the caller's own last turns in this session, oldest first. RLS plus
+  // the reader's own user_id filter both hold; a failed read is an empty history.
+  const history = await loadHistory(
+    supabaseHistoryReader(supabase, user.id),
+    sessionFrom(req.headers),
+  );
 
   let result: TurnResult;
   try {

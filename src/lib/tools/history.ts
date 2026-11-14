@@ -35,12 +35,17 @@ export type HistoryQuery = { sessionId: string; limit: number };
 
 export type HistoryReader = (query: HistoryQuery) => Promise<readonly HistoryRow[] | null | undefined>;
 
-/** The caller's own session client: RLS decides whose rows these are. */
-export function supabaseHistoryReader(client: SupabaseClient): HistoryReader {
+/**
+ * The caller's own session client. RLS is the boundary; the explicit user_id
+ * filter is the second lock, so a missing policy still cannot return a row that
+ * belongs to someone else who happens to share this session id.
+ */
+export function supabaseHistoryReader(client: SupabaseClient, userId: string): HistoryReader {
   return async ({ sessionId, limit }) => {
     const { data, error } = await client
       .from('chat_messages')
       .select('user_text, reply_text, created_at')
+      .eq('user_id', userId)
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false })
       .limit(limit);

@@ -3,7 +3,9 @@
 // with two sessions, and a second owner reusing the first owner's session id.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { historyMessages, loadHistory, type HistoryReader, type HistoryRow } from './history';
+import { readFileSync } from 'node:fs';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { historyMessages, loadHistory, supabaseHistoryReader, type HistoryReader, type HistoryRow } from './history';
 import { openTestDb, OWNER, OTHER, type TestDb } from './pglite-test-db';
 
 const COLUMNS = 'select user_text, reply_text, created_at from public.chat_messages';
@@ -119,6 +121,43 @@ test('a failed read is an empty history, never a thrown turn', async () => {
     throw new Error('permission denied');
   };
   assert.deepEqual(await loadHistory(read, 'session-a'), []);
+});
+
+test('the Supabase reader filters by user id as well as session', async () => {
+  const filters: { column: string; value: unknown }[] = [];
+  // A client that ignores nothing: it returns whatever it is given, so only the
+  // filters the reader applied can keep another owner's rows out.
+  const rows: HistoryRow[] = [
+    { user_text: "owner's question", reply_text: 'answer', created_at: '2026-11-14T10:00:00Z' },
+    { user_text: 'someone else\'s question', reply_text: 'answer', created_at: '2026-11-14T10:01:00Z' },
+  ];
+  type Chain = {
+    select: () => Chain;
+    eq: (column: string, value: unknown) => Chain;
+    order: () => Chain;
+    limit: () => Chain;
+    then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise<unknown>;
+  };
+  const chain: Chain = {
+    select: () => chain,
+    eq: (column: string, value: unknown) => { filters.push({ column, value }); return chain; },
+    order: () => chain,
+    limit: () => chain,
+    then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+      Promise.resolve({ data: rows, error: null }).then(resolve, reject),
+  };
+  const client = { from: () => chain } as unknown as SupabaseClient;
+
+  await supabaseHistoryReader(client, OWNER)({ sessionId: 'session-a', limit: 3 });
+  assert.deepEqual(filters, [
+    { column: 'user_id', value: OWNER },
+    { column: 'session_id', value: 'session-a' },
+  ]);
+});
+
+test('the route passes the signed-in user id to the reader', () => {
+  const route = readFileSync('src/app/api/ask/route.ts', 'utf8');
+  assert.match(route, /supabaseHistoryReader\(supabase, user\.id\)/);
 });
 
 test('a turn without either side of the text is skipped', () => {
