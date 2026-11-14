@@ -50,6 +50,8 @@ export const GetExpenseOutput = z.object({
   totalCount: z.number().int().nonnegative(),
   total: RankedListProps.shape.total,
   expense: Expense.nullable(),
+  /** Why there is no expense to show, in words the reply can use. */
+  problem: z.enum(['no_filter']).optional(),
 });
 
 const fixtureRow = (over: Record<string, unknown> = {}): ExpenseRowType => ({
@@ -98,6 +100,25 @@ export const getExpenseTool = defineTool({
     const rows = (data ?? []).map(asExpenseRow).filter((row) => !row.deleted_at);
     const exact = args.id ? rows.filter((row) => row.id === args.id) : [];
     const query = args.description?.trim();
+
+    // No id and no word is not a lookup. Matching every row answered "Which
+    // one?", which reads as a failed lookup and invites a second list call;
+    // say what is missing instead and let the caller ask.
+    if (!args.id && !query) {
+      return {
+        match: 'none' as const,
+        count: 0,
+        ignored: [],
+        eyebrow: 'Expenses',
+        title: '',
+        items: [],
+        rows: [],
+        totalCount: 0,
+        total: { label: '0 expenses', amount: moneyText(0) },
+        expense: null,
+        problem: 'no_filter' as const,
+      };
+    }
     const matched = exact.length
       ? exact
       : rows.filter((row) => {
@@ -146,7 +167,9 @@ export const getExpenseTool = defineTool({
     };
   },
   fallback: (result) =>
-    result.expense
+    result.problem === 'no_filter'
+      ? 'Say which expense you mean: a vendor, a description or a category.'
+      : result.expense
       ? `${result.expense.vendor ?? result.expense.description ?? result.expense.categoryLabel}, ${result.expense.categoryLabel.toLowerCase()}, ${result.expense.spentOn}: ${result.expense.amount}.`
       : result.count === 0
         ? 'No expense matches that.'

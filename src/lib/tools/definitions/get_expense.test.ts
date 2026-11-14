@@ -20,6 +20,7 @@ const run = (rows: unknown[], args: unknown) =>
     match: string;
     count: number;
     expense: { id: string; amount: string; vendor: string | null } | null;
+    problem?: string;
   }>;
 
 test('an id finds exactly that expense', async () => {
@@ -55,4 +56,13 @@ test('another owner and a deleted expense never match', async () => {
   ], { description: 'shell' });
   assert.equal(out.match, 'none');
   assert.equal(out.expense, null);
+});
+
+test('no id and no word is not a lookup: nothing matches, and the reply says what to give', async () => {
+  const out = await run([row(), row({ id: 'exp-2', vendor: 'Exxon' })], {});
+  assert.equal(out.match, 'none');
+  assert.equal(out.count, 0);
+  assert.equal(out.expense, null);
+  assert.equal(out.problem, 'no_filter');
+  assert.match(String(getExpenseTool.fallback?.(out as never)), /Say which expense/);
 });
