@@ -34,3 +34,8 @@ test('a request to see records is always a tool call, even with an odd filter wo
   assert.match(TOOL_SYSTEM, /request to see their own records[^.]*is always a tool call/);
   assert.match(TOOL_SYSTEM, /never refuse[^.]*before a tool has tried/);
 });
+
+test("one client's invoices go through find_client then list_invoices, not get_invoice", () => {
+  assert.match(TOOL_SYSTEM, /find_client for the name, then list_invoices with that client/);
+  assert.match(TOOL_SYSTEM, /get_invoice needs an invoice number/);
+});
