@@ -21,6 +21,7 @@ export function replyKindOf(m: ThumbMsg): ReplyKind {
   if (m.signInLink) return 'signed_out';
   if (m.failed) return 'error';
   if (m.template?.id === 'cant.do') return 'cant_do';
+  if (m.template?.id === 'confirm.batch') return 'confirm_pending'; // never thumbs, whatever its state
   if (m.recapCard) return 'recap';
   if (m.ownerCard || m.commandCard || m.payCard || m.sentCard || m.logged || m.payoutsNudge) return 'event';
   return 'answer';

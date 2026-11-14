@@ -31,3 +31,13 @@ test('RULES §6 item 1: latest only, after its text is done, never the last mess
   assert.equal(shows({ messageId: ID }, { ...live, textDone: false }), false);
   assert.equal(shows({ messageId: ID }, { ...live, reopenedPastChatLast: true }), false);
 });
+
+test('a confirm card never carries thumbs, whatever state it is in', async () => {
+  const { thumbDecision } = await import('@/lib/templates/thumbs');
+  const reply = thumbReplyFor(
+    { messageId: 'm1', template: { id: 'confirm.batch' } },
+    { isLatestAssistantReply: true, textDone: true, reopenedPastChatLast: false },
+  );
+  assert.equal(reply?.kind, 'confirm_pending');
+  assert.equal(thumbDecision(reply!).show, false);
+});
