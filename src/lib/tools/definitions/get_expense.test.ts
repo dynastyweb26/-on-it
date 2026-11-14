@@ -31,6 +31,23 @@ test('an id finds exactly that expense', async () => {
   assert.equal(out.expense?.vendor, 'Exxon');
 });
 
+test('the filter words the model sends (vendor, category, text) are the same lookup', async () => {
+  const rows = [row(), row({ id: 'exp-2', vendor: 'Exxon', category: 'fuel' })];
+  // "show me the Shell expense" sent { vendor: "Shell" }: strict() used to
+  // refuse that as an unknown key, so the call never ran.
+  const byVendor = await run(rows, { vendor: 'Shell' });
+  assert.equal(byVendor.expense?.id, 'exp-1');
+
+  const byCategory = await run(rows, { category: 'fuel' });
+  assert.equal(byCategory.match, 'many');
+
+  const byText = await run(rows, { text: 'Exxon' });
+  assert.equal(byText.expense?.id, 'exp-2');
+
+  // An unknown key is still refused rather than silently ignored.
+  assert.throws(() => getExpenseTool.input.parse({ amount: 50 }));
+});
+
 test('no id and no word returns nothing with a reason, never every expense', async () => {
   const out = await run([row(), row({ id: 'exp-2', vendor: 'Exxon' })], {});
   assert.equal(out.match, 'none');

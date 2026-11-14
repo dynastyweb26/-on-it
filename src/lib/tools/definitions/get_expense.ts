@@ -25,6 +25,12 @@ export const GetExpenseInput = z
   .object({
     id: z.string().max(64).optional(),
     description: z.string().max(120).optional(),
+    // The description names a vendor or a category word, so the model sends
+    // those as their own keys. strict() refused them and the call never ran;
+    // they are the same single word query as description.
+    vendor: z.string().max(120).optional(),
+    category: z.string().max(60).optional(),
+    text: z.string().max(120).optional(),
   })
   .strict();
 
@@ -76,7 +82,7 @@ const line = (row: ExpenseRowType) =>
 export const getExpenseTool = defineTool({
   name: GET_EXPENSE,
   description:
-    'Read-only lookup of ONE logged expense by its id or by a description, vendor or category word (gas finds fuel), returning its vendor, description, category label, date, amount and tax-deductible flag. One match renders as a link, several as a ranked list of the matches, and no match is a plain-text answer rather than an invented expense. A lookup with neither an id nor a word returns a reason instead of every expense; use list_expenses to show them all.',
+    'Read-only lookup of ONE logged expense by its id or by one word — pass it as description; vendor, category and text are the same filter — matched against the vendor, the description and the category label (gas finds fuel), returning its vendor, description, category label, date, amount and tax-deductible flag. One match renders as a link, several as a ranked list of the matches, and no match is a plain-text answer rather than an invented expense. A lookup with neither an id nor a word returns a reason instead of every expense; use list_expenses to show them all.',
   input: GetExpenseInput,
   output: GetExpenseOutput,
   type: 'read',
@@ -89,9 +95,12 @@ export const getExpenseTool = defineTool({
   },
   destination: { screen: 'Expenses', path: '/expenses' },
   handler: async (ctx, args) => {
+    const query = [args.description, args.text, args.vendor, args.category]
+      .map((value) => value?.trim())
+      .find((value) => Boolean(value));
     // No id and no word is not a lookup: matching every row would answer
     // "Which one?" and invite a second list call. Say what is missing instead.
-    if (!args.id && !(args.description ?? '').trim()) {
+    if (!args.id && !query) {
       return {
         match: 'none' as const,
         count: 0,
@@ -117,7 +126,6 @@ export const getExpenseTool = defineTool({
 
     const rows = (data ?? []).map(asExpenseRow).filter((row) => !row.deleted_at);
     const exact = args.id ? rows.filter((row) => row.id === args.id) : [];
-    const query = args.description?.trim();
     const matched = exact.length
       ? exact
       : rows.filter((row) => {
