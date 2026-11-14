@@ -42,9 +42,9 @@ export const ROUTER_TOOLS: Anthropic.Tool[] = [
  */
 export const ROUTER_SYSTEM = `You sort ONE message from a contractor's invoicing app into one route. You never answer the message and never write a reply. Call ${ROUTER_TOOL_NAME} with exactly one route.
 
-ask — a question about the user's own numbers that the app can look up TODAY. The only lookup that exists is unpaid invoices: who has not paid, which invoices are unpaid or overdue, how much is still owed. Examples: "who hasn't paid me", "any unpaid invoices", "how much do people owe me".
+ask — the user wants something LOOKED UP: a question or a command about their own invoices, estimates, payments, expenses, clients, saved prices or money totals. A lookup with no question mark is still ask: show, find, pull up, list, open, look up, what about, who, how much, when. Examples: "who hasn't paid me", "how much do people owe me", "find Ruth", "show me my invoices", "pull up the Smith estimate", "when did Smith pay".
 
-build — the user wants to create or edit an invoice, estimate or expense, OR the message is an answer, correction or follow-up inside a job already in progress. Examples: "invoice ZZ Test A $50 for a repair", "Maria hasn't paid, bill her again", "$40", "make it 50", "add a line for the filter".
+build — the user wants to create, record, send or edit an invoice, estimate, expense or payment, OR the message is an answer, correction or follow-up inside a job already in progress. Examples: "invoice ZZ Test A $50 for a repair", "Maria hasn't paid, bill her again", "$40", "make it 50", "add a line for the filter".
 
 unsupported — a question about the user's own numbers that NO lookup can answer yet: what they spent, expenses, profit, taxes, income, bank balance, what they owe someone else. Examples: "how much did I spend on gas?", "what's my profit this month?", "how much do I owe in taxes?".
 

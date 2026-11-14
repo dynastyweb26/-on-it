@@ -6,12 +6,13 @@
 // narrow deterministic gate in front of it. Delete it when the router lands.
 //
 // Rules it must keep:
-//  - Narrow: only unpaid / owed / outstanding / overdue phrasing, and only when
-//    the WHOLE message is question-shaped (anchored at both ends, short).
+//  - Narrow: unpaid / owed / outstanding / overdue phrasing, plus a lookup
+//    spoken as a command ("find Ruth", "show me my invoices"): short, anchored,
+//    and opening with a lookup verb.
 //  - Fail open: no match means today's /api/parse path, unchanged.
-//  - Never hijack invoice building: any digit or "$" means no match, and every
-//    pattern needs a question opener ("who", "any", "anything", "how much"...),
-//    so "Maria hasn't paid, bill her again" is not a match.
+//  - Never hijack invoice building: any digit or "$" means no match, and a
+//    command that carries a build word (create, make, record, send, new...) is
+//    never a lookup, so "record a payment from Ruth" stays a build.
 
 const MAX_CHARS = 80;
 
@@ -57,7 +58,34 @@ export function isUnpaidQuestion(text: string): boolean {
   return PATTERNS.some((p) => p.test(body));
 }
 
-/** Route to /api/ask only with the build flag on and an unpaid question. */
+/** The verbs a lookup opens with when it is spoken as a command. */
+const LOOKUP_LEAD = '(?:show|find|pull up|list|open|look up|what about|who|how much|when)';
+const LOOKUP_RE = new RegExp(`^${LOOKUP_LEAD}\\b`);
+
+/** Words that make a message a create / record / send / edit request, never a lookup. */
+const BUILD_WORD = /\b(?:create|make|new|add|log|record|send|resend|draft|write|charge|edit|change|update|delete|remove|cancel|start|bill)\b/;
+
+/**
+ * A lookup with no question mark: "find Ruth", "show me my invoices", "pull up
+ * the Smith estimate". People speak to the app, so the question mark cannot be
+ * the test. Same guarded shape as isUnpaidQuestion: short, no figure, opener at
+ * the start, and no build word anywhere.
+ */
+export function isCommandLookup(text: string): boolean {
+  const t = normalize(text);
+  if (!t || t.length > MAX_CHARS) return false;
+  if (/[\d$]/.test(t)) return false; // a figure is a job, even after "show"
+  const body = t.replace(LEAD_RE, '');
+  if (!LOOKUP_RE.test(body)) return false;
+  return !BUILD_WORD.test(body);
+}
+
+/** Anything that should be looked up rather than built: an unpaid question or a command lookup. */
+export function isLookupRequest(text: string): boolean {
+  return isUnpaidQuestion(text) || isCommandLookup(text);
+}
+
+/** Route to /api/ask only with the build flag on and a lookup request. */
 export function shouldRouteToAsk(input: { flagOn: boolean; text: string }): boolean {
-  return input.flagOn && isUnpaidQuestion(input.text);
+  return input.flagOn && isLookupRequest(input.text);
 }

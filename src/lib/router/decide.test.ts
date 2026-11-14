@@ -113,13 +113,25 @@ test('router timeout -> the regex gate, then parse', () => {
   );
 });
 
-test('router garbage -> parse (a dead router is the old path, not a guess)', () => {
+test('router garbage -> the regex fallback, which now asks for a lookup and builds a job', () => {
+  // The fallback used to know only unpaid phrasings, so "how much did I spend on
+  // gas?" fell through to /api/parse and no tool ran. A lookup verb is ask now;
+  // a job with no lookup verb is still build.
   assert.deepEqual(
     decideRoute({
       flagOn: true,
       bypass: null,
       classified: null,
       text: 'how much did I spend on gas?',
+    }),
+    { route: 'ask', via: 'regex' },
+  );
+  assert.deepEqual(
+    decideRoute({
+      flagOn: true,
+      bypass: null,
+      classified: null,
+      text: 'make an estimate for Ana',
     }),
     { route: 'build', via: 'regex' },
   );
