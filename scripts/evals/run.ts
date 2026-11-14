@@ -15,17 +15,18 @@
 // Usage:
 //   ANTHROPIC_API_KEY=… node --import ./scripts/test-register.mjs scripts/evals/run.ts
 //   node --import ./scripts/test-register.mjs scripts/evals/run.ts --file evals/unpaid.json
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { basename, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { REGISTRY } from '../../src/lib/tools/registry';
 import { fixtureDb, type FixtureRows } from '../../src/lib/tools/fixture-db';
 import { createTurnBudget } from '../../src/lib/tools/budget';
-import { runToolTurn, type ModelCall } from '../../src/lib/tools/turn';
+import { runToolTurn, systemForTurn, type ModelCall } from '../../src/lib/tools/turn';
 import { MODEL } from '../../src/lib/ai';
 
-type EvalCase = {
+export type EvalCase = {
   id: string;
   tags?: string[];
   request: string;
@@ -65,7 +66,7 @@ type EvalCase = {
   };
 };
 
-type Result = {
+export type Result = {
   id: string;
   tags: string[];
   pass: boolean;
@@ -202,6 +203,170 @@ function realCall(apiKey: string): ModelCall {
     client.messages.create({ model: MODEL, max_tokens: 512, system, tools, messages });
 }
 
+// ── Recorded runs: replay the model, run everything else for real ───────────
+//
+// A live run costs money and needs a key, so it cannot be the gate. Recording
+// saves every model response per case; replay feeds those responses back through
+// the SAME loop, so handlers, the client resolver, cards, money rules and
+// grading all run for real — only the model is a file.
+//
+// A recording only speaks for the prompt and tools it was made against: change
+// either and it says nothing about today's code, so it is reported STALE rather
+// than passing or failing. The date in the prompt is normalised out of the hash,
+// otherwise every recording would be stale by tomorrow morning.
+
+export const RECORDINGS_DIR = 'evals/recordings';
+
+export type Recording = {
+  version: 1;
+  caseId: string;
+  /** sha256 over the prompt and the tool definitions this was recorded against. */
+  hash: string;
+  /** Every model response, in the order the turn asked for one. */
+  responses: unknown[];
+};
+
+export type ReplayOutcome = {
+  id: string;
+  /** graded: the recording ran and was graded. stale/missing: reported, not run. */
+  state: 'graded' | 'stale' | 'missing';
+  result?: Result;
+};
+
+/** The prompt with its clock taken out, so a hash only moves when someon edits it. */
+export function stablePrompt(system: string): string {
+  return system
+    .replace(/Today is [^.]*?\(\d{4}-\d{2}-\d{2}\)\./g, 'Today is <today>.')
+    .replace(/The current month is [A-Z][a-z]+ \d{4}\./g, 'The current month is <month>.');
+}
+
+export function recordingHash(system: string, tools: readonly unknown[]): string {
+  return createHash('sha256')
+    .update(`${stablePrompt(system)}\n${JSON.stringify(tools)}`)
+    .digest('hex');
+}
+
+function recordingPath(dir: string, file: string, caseId: string): string {
+  return join(dir, file, `${caseId}.json`);
+}
+
+function readRecording(dir: string, file: string, caseId: string): Recording | null {
+  const path = recordingPath(dir, file, caseId);
+  if (!existsSync(path)) return null;
+  const parsed = JSON.parse(readFileSync(path, 'utf8')) as Recording;
+  if (parsed?.version !== 1 || parsed.caseId !== caseId || !Array.isArray(parsed.responses)) {
+    throw new Error(`${path} is not a recording for case ${caseId}`);
+  }
+  return parsed;
+}
+
+function writeRecording(dir: string, file: string, recording: Recording): void {
+  const path = recordingPath(dir, file, recording.caseId);
+  mkdirSync(join(dir, file), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(recording, null, 2)}\n`);
+}
+
+/** The model, as a file: the recorded response for each call, in order. */
+export function replayCall(responses: readonly unknown[]): ModelCall {
+  let index = 0;
+  return async () => {
+    const next = responses[index];
+    if (next === undefined) {
+      throw new Error(`the recording ran out after ${index} model call(s)`);
+    }
+    index += 1;
+    return next as Awaited<ReturnType<ModelCall>>;
+  };
+}
+
+/**
+ * No network, by force: any fetch during replay throws instead of reaching out.
+ * Returns the restore, so a caller can put the real fetch back.
+ */
+export function forbidNetwork(): () => void {
+  const original = globalThis.fetch;
+  globalThis.fetch = (() =>
+    Promise.reject(new Error('[evals] replay tried to reach the network'))) as unknown as typeof fetch;
+  return () => {
+    globalThis.fetch = original;
+  };
+}
+
+/**
+ * One case, replayed from its recording. Signed-out cases never call a model, so
+ * they need no recording. Stale and missing cases are NOT graded: they say
+ * nothing about today's code, so failing the gate on them would be a lie.
+ */
+export async function replayCase(input: {
+  testCase: EvalCase;
+  file: string;
+  recordingsDir?: string;
+}): Promise<ReplayOutcome> {
+  const { testCase } = input;
+  const dir = input.recordingsDir ?? RECORDINGS_DIR;
+  const restore = forbidNetwork();
+  try {
+    if (isSignedOut(testCase)) {
+      return { id: testCase.id, state: 'graded', result: await runCase(testCase, null) };
+    }
+
+    const db = fixtureDb(testCase.fixture);
+    const hash = recordingHash(await systemForTurn(db, OWNER), REGISTRY.modelTools());
+    const recording = readRecording(dir, input.file, testCase.id);
+    if (!recording) return { id: testCase.id, state: 'missing' };
+    if (recording.hash !== hash) return { id: testCase.id, state: 'stale' };
+
+    try {
+      const result = await runCase(testCase, replayCall(recording.responses));
+      return { id: testCase.id, state: 'graded', result };
+    } catch (e) {
+      // A recording that no longer fits the loop is a real failure, not stale:
+      // the prompt and tools are unchanged, so something else moved.
+      return {
+        id: testCase.id,
+        state: 'graded',
+        result: {
+          id: testCase.id,
+          tags: testCase.tags ?? [],
+          pass: false,
+          reasons: [(e as Error).message],
+        },
+      };
+    }
+  } finally {
+    restore();
+  }
+}
+
+/** A live call, recorded as it goes. Returns the graded result and the calls saved. */
+export async function recordCase(input: {
+  testCase: EvalCase;
+  call: ModelCall;
+  file: string;
+  recordingsDir?: string;
+}): Promise<{ result: Result; responses: number }> {
+  const dir = input.recordingsDir ?? RECORDINGS_DIR;
+  const responses: unknown[] = [];
+  let hash: string | null = null;
+  const recordingCall: ModelCall = async (request) => {
+    if (hash === null) hash = recordingHash(request.system, request.tools);
+    const message = await input.call(request);
+    responses.push(message);
+    return message;
+  };
+
+  const result = await runCase(input.testCase, recordingCall);
+  if (hash !== null) {
+    writeRecording(dir, input.file, {
+      version: 1,
+      caseId: input.testCase.id,
+      hash,
+      responses,
+    });
+  }
+  return { result, responses: responses.length };
+}
+
 /**
  * The two fields a case may use for the same thing: "signedOut": true is what
  * the cases declare, and the older "signedIn": false keeps working. Before
@@ -304,7 +469,90 @@ export async function runCase(testCase: EvalCase, call: ModelCall | null): Promi
   return { id: testCase.id, tags, pass: reasons.length === 0, reasons, sequence };
 }
 
+function printResult(result: Graded): void {
+  const state = result.gatePass ? 'PASS' : 'FAIL';
+  const note = result.pass !== result.gatePass ? '  (expected fail)' : '';
+  console.log(`${state}  ${result.id}${result.tags.length ? `  [${result.tags.join(', ')}]` : ''}${note}`);
+  // Always the whole sequence, so a wasted lookup stays visible on a pass.
+  console.log(`      tools: ${result.sequence?.length ? result.sequence.join(' -> ') : 'none'}`);
+  for (const reason of result.reasons) console.log(`      ${reason}`);
+}
+
+/** The gate, said once, so live and replay judge the same way. */
+function reportOverall(overall: ReturnType<typeof summarizeResults>): number {
+  console.log(
+    `\n[evals] overall: ${overall.passed}/${overall.total} passed (${(overall.rate * 100).toFixed(0)}%)`,
+  );
+  if (overall.rate < PASS_RATE) {
+    console.error(`[evals] below the ${(PASS_RATE * 100).toFixed(0)}% gate`);
+  }
+  if (overall.blocking.length) {
+    console.error(
+      `[evals] ${overall.blocking.length} money/send case(s) failed: ${overall.blocking.map((r) => r.id).join(', ')}`,
+    );
+  }
+  return overall.ok ? 0 : 1;
+}
+
+/** --replay: no key, no client, no network. Only recordings are graded. */
+async function replayRun(files: readonly string[]): Promise<number> {
+  const graded: Graded[] = [];
+  let stale = 0;
+  let missing = 0;
+
+  for (const file of files) {
+    let cases: EvalCase[];
+    try {
+      cases = load(file);
+    } catch (e) {
+      console.error(`[evals] ${(e as Error).message}`);
+      return 1;
+    }
+
+    const label = relative(process.cwd(), file);
+    console.log(`\n[evals] ${label}`);
+    const results: Graded[] = [];
+    for (const testCase of cases) {
+      const outcome = await replayCase({ testCase, file: basename(file, '.json') });
+      if (outcome.state === 'stale') {
+        stale += 1;
+        console.log(`STALE    ${testCase.id}  (the prompt or tools changed since it was recorded)`);
+        continue;
+      }
+      if (outcome.state === 'missing') {
+        missing += 1;
+        console.log(`MISSING  ${testCase.id}  (no recording yet)`);
+        continue;
+      }
+      const gradedResult = applyExpectedFail(testCase, outcome.result as Result);
+      graded.push(gradedResult);
+      results.push(gradedResult);
+      printResult(gradedResult);
+    }
+    const summary = summarizeResults(results);
+    console.log(
+      `[evals] ${label}: ${summary.passed}/${summary.total} graded passed (${(summary.rate * 100).toFixed(0)}%)`,
+    );
+  }
+
+  console.log(`\n[evals] replay: ${graded.length} graded, ${stale} stale, ${missing} missing`);
+  if (graded.length === 0) {
+    // Nothing recorded (a clean checkout, or the founder has not run --record
+    // yet): there is nothing to judge, so the gate has nothing to fail.
+    console.log('[evals] no recordings to replay: nothing was graded.');
+    return 0;
+  }
+  return reportOverall(summarizeResults(graded));
+}
+
 async function main(): Promise<number> {
+  const replay = process.argv.includes('--replay');
+  const record = process.argv.includes('--record');
+  if (replay && record) {
+    console.error('[evals] --record and --replay are different runs; choose one.');
+    return 1;
+  }
+
   const fileArg = process.argv.indexOf('--file');
   let files: string[];
   try {
@@ -320,9 +568,11 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  if (replay) return replayRun(files);
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.error('[evals] ANTHROPIC_API_KEY is not set: the eval gate needs one model key.');
+    console.error('[evals] ANTHROPIC_API_KEY is not set: a live or recording run needs one model key.');
     return 1;
   }
 
@@ -338,38 +588,25 @@ async function main(): Promise<number> {
     }
 
     const results: Graded[] = [];
-    for (const testCase of cases) results.push(applyExpectedFail(testCase, await runCase(testCase, call)));
+    for (const testCase of cases) {
+      const graded = record
+        ? await recordCase({ testCase, call, file: basename(file, '.json') })
+        : { result: await runCase(testCase, call) };
+      results.push(applyExpectedFail(testCase, graded.result));
+    }
     all.push(...results);
 
     const label = relative(process.cwd(), file);
     console.log(`\n[evals] ${label}`);
-    for (const result of results) {
-      const state = result.gatePass ? 'PASS' : 'FAIL';
-      const note = result.pass !== result.gatePass ? '  (expected fail)' : '';
-      console.log(`${state}  ${result.id}${result.tags.length ? `  [${result.tags.join(', ')}]` : ''}${note}`);
-      // Always the whole sequence, so a wasted lookup stays visible on a pass.
-      console.log(`      tools: ${result.sequence?.length ? result.sequence.join(' -> ') : 'none'}`);
-      for (const reason of result.reasons) console.log(`      ${reason}`);
-    }
+    for (const result of results) printResult(result);
     const summary = summarizeResults(results);
     console.log(
       `[evals] ${label}: ${summary.passed}/${summary.total} passed (${(summary.rate * 100).toFixed(0)}%)`,
     );
   }
 
-  const overall = summarizeResults(all);
-  console.log(
-    `\n[evals] overall: ${overall.passed}/${overall.total} passed (${(overall.rate * 100).toFixed(0)}%)`,
-  );
-  if (overall.rate < PASS_RATE) {
-    console.error(`[evals] below the ${(PASS_RATE * 100).toFixed(0)}% gate`);
-  }
-  if (overall.blocking.length) {
-    console.error(
-      `[evals] ${overall.blocking.length} money/send case(s) failed: ${overall.blocking.map((r) => r.id).join(', ')}`,
-    );
-  }
-  return overall.ok ? 0 : 1;
+  if (record) console.log(`\n[evals] recordings saved under ${RECORDINGS_DIR}/`);
+  return reportOverall(summarizeResults(all));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

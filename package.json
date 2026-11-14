@@ -14,7 +14,9 @@
     "design:diff": "node scripts/design-diff.mjs",
     "test": "node --import ./scripts/test-register.mjs --test \"src/**/*.test.ts\"",
     "copy:baseline": "node --import ./scripts/test-register.mjs scripts/ci/copy-baseline-cli.ts",
-    "test:guard": "node --import ./scripts/test-register.mjs scripts/ci/test-guard-cli.ts"
+    "test:guard": "node --import ./scripts/test-register.mjs scripts/ci/test-guard-cli.ts",
+    "evals:replay": "node --import ./scripts/test-register.mjs scripts/evals/run.ts --replay",
+    "evals:record": "node --import ./scripts/test-register.mjs scripts/evals/run.ts --record"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
