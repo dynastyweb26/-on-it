@@ -74,7 +74,7 @@ const line = (row: ExpenseRowType) =>
 export const getExpenseTool = defineTool({
   name: GET_EXPENSE,
   description:
-    'Read-only lookup of ONE logged expense by its id or by a description, vendor or category word (gas finds fuel). One match renders as a link, several as a ranked list of the matches, and no match is a plain-text answer rather than an invented expense.',
+    'Read-only lookup of ONE logged expense by its id or by a description, vendor or category word (gas finds fuel), returning its vendor, description, category label, date, amount and tax-deductible flag. One match renders as a link, several as a ranked list of the matches, and no match is a plain-text answer rather than an invented expense.',
   input: GetExpenseInput,
   output: GetExpenseOutput,
   type: 'read',

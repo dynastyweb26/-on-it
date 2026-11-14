@@ -53,7 +53,7 @@ const fixtureInvoice = {
 export const getInvoiceTool = defineTool({
   name: GET_INVOICE,
   description:
-    'Read-only lookup of ONE invoice by its number or id, returning its status, total, outstanding balance, due date and a link to the record. Use list_invoices when the user has not named a single invoice.',
+    'Read-only lookup of ONE invoice by its number or id, returning its client, status, total, outstanding balance, due date, how many line items it has and a link to the record. Use list_invoices when the user has not named a single invoice.',
   input: GetInvoiceInput,
   output: GetInvoiceOutput,
   type: 'read',
