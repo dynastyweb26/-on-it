@@ -67,7 +67,7 @@ const fixture = {
 export const getClientSummaryTool = defineTool({
   name: GET_CLIENT_SUMMARY,
   description:
-    'Read-only summary of ONE client: what they still owe, what they have paid and how many documents are open. If the name matches more than one client the tool returns the matches instead of guessing; use find_client to list them.',
+    'Read-only summary of ONE client: what they still owe right now, what they have paid all time, and how many documents (invoices and estimates) are still open. "Does Maria owe me anything?" and "how much has Ruth paid me?" are this tool. If the name matches more than one client the tool returns the matches instead of guessing; use find_client to list them.',
   input: GetClientSummaryInput,
   output: GetClientSummaryOutput,
   type: 'read',

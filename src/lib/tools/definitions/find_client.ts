@@ -52,7 +52,7 @@ const fixture = {
 export const findClientTool = defineTool({
   name: FIND_CLIENT,
   description:
-    'Read-only fuzzy client search by name. Returns every match with its contact details — never a single guess. One to three matches render as links, more as a ranked list; zero matches means the client is not on file.',
+    'Read-only fuzzy client search by name, and the first step before anything about one client: find_client, then list_invoices with that client or get_client_summary. Matches part of a name in any order, so "ruth l" finds Ruth Lawrence, and returns every match with the email and phone on file — never a single guess. One to three matches render as links, more as a ranked list; zero matches means the client is not on file.',
   input: FindClientInput,
   output: FindClientOutput,
   type: 'read',

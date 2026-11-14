@@ -135,9 +135,7 @@ export function unpaidCard(summary: UnpaidSummary, todayISO: string) {
 export const unpaidTool = defineTool({
   name: UNPAID_TOOL_NAME,
   description:
-    'List this owner\'s sent invoices that are still unpaid, oldest due date first, ' +
-    'with the number still owed on each. Read-only: it never changes, sends or saves ' +
-    'anything. Amounts come back for your reasoning only — the app prints every figure.',
+    'List this owner\'s own invoices that are still unpaid — status sent or overdue with something left on them, part-paid invoices included — oldest due date first, with the number still owed on each. Answers "who hasn\'t paid me?", "what is overdue?" and "who owes me more than 500?" (min_balance); at most 20 rows plus the full count. Read-only: it never changes, sends or saves anything. Amounts come back for your reasoning only — the app prints every figure.',
   input: UnpaidInput,
   output: UnpaidOutput,
   type: 'read',

@@ -61,7 +61,7 @@ export const ListEstimatesOutput = z.object({
 export const listEstimatesTool = defineTool({
   name: LIST_ESTIMATES,
   description:
-    'Read-only list of the user’s own estimates (called "estimates", numbered E-0007), newest first, with optional status, client name, date and amount filters. Returns at most 25 plus the full count; unknown filter values are reported in `ignored`, never an error. Use this when the user asks what they estimated for a job.',
+    'Read-only list of the user’s own estimates (called "estimates", numbered E-0007), newest first, with optional status (draft, sent, paid, overdue, void), client name, created-date and total-amount filters. Use this when the user asks what they estimated for a job, which estimates are still open, or what has not come back yet. from and to compare the date the estimate was created. Returns at most 25 plus the full count; unknown filter values are reported in `ignored`, never an error.',
   input: ListEstimatesInput,
   output: ListEstimatesOutput,
   type: 'read',
