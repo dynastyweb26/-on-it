@@ -429,3 +429,10 @@ test('an unknown word is answered in plain words, keeping what the user typed', 
     assert.match(line, /^No figures: /);
   }
 });
+
+test('the description names the rankings it can answer, not only slowest payers', () => {
+  const description = runReportTool.description;
+  for (const words of [/biggest clients/, /who pays me the most/, /who owes the most/, /where the money went/]) {
+    assert.match(description, words);
+  }
+});

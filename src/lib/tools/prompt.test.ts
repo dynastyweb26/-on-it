@@ -39,3 +39,8 @@ test("one client's invoices go through find_client then list_invoices, not get_i
   assert.match(TOOL_SYSTEM, /find_client for the name, then list_invoices with that client/);
   assert.match(TOOL_SYSTEM, /get_invoice needs an invoice number/);
 });
+
+test('a ranking question is a run_report call', () => {
+  assert.match(TOOL_SYSTEM, /biggest clients[^.]*run_report/);
+  assert.match(TOOL_SYSTEM, /sort "slowest" for who pays slowest/);
+});
