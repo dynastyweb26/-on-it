@@ -41,6 +41,8 @@ type EvalCase = {
   reason?: string;
   expect: {
     tools: string[];
+    /** Require the whole sequence, in order. Absent grades the last tool only. */
+    toolsExact?: boolean;
     templateId?: string | null;
     /** Other tool sequences that also satisfy this case, each with its template. */
     alternatives?: Array<{ tools: string[]; templateId?: string | null }>;
@@ -50,7 +52,14 @@ type EvalCase = {
   };
 };
 
-type Result = { id: string; tags: string[]; pass: boolean; reasons: string[] };
+type Result = {
+  id: string;
+  tags: string[];
+  pass: boolean;
+  reasons: string[];
+  /** Every tool the turn ran, with its status: printed even when the case passes. */
+  sequence?: string[];
+};
 type Graded = Result & { gatePass: boolean };
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
@@ -118,14 +127,24 @@ export function applyExpectedFail(testCase: EvalCase, result: Result): Graded {
   return { ...result, gatePass: true, reasons: result.reasons };
 }
 
-/** The first expected tool set the actual sequence matches, if any. */
+/**
+ * The first expected tool set the actual sequence matches, if any.
+ *
+ * Default: the LAST tool that ran is the answer, so a lookup the model did on
+ * the way (find_client before list_invoices) cannot fail a case. A case that
+ * wants the whole sequence says "toolsExact": true.
+ */
 export function matchingToolSet(
-  expect: Pick<EvalCase['expect'], 'tools' | 'templateId' | 'alternatives'>,
+  expect: Pick<EvalCase['expect'], 'tools' | 'templateId' | 'alternatives' | 'toolsExact'>,
   called: readonly string[],
 ): { tools: string[]; templateId?: string | null } | undefined {
-  return [expect, ...(expect.alternatives ?? [])].find(
-    (candidate) => JSON.stringify(called) === JSON.stringify(candidate.tools),
-  );
+  const exact = expect.toolsExact === true;
+  return [expect, ...(expect.alternatives ?? [])].find((candidate) => {
+    const tools = candidate.tools ?? [];
+    if (exact) return JSON.stringify(called) === JSON.stringify(tools);
+    if (tools.length === 0) return called.length === 0;
+    return called[called.length - 1] === tools[tools.length - 1];
+  });
 }
 
 /**
@@ -183,15 +202,15 @@ export async function runCase(testCase: EvalCase, call: ModelCall | null): Promi
   // graded turn is an empty one: the cases say that with "tools": [] and
   // "writes": 0. "refused": true still works for a case that spells it out.
   if (isSignedOut(testCase)) {
-    if (expect.refused) return { id: testCase.id, tags, pass: true, reasons: [] };
+    if (expect.refused) return { id: testCase.id, tags, pass: true, reasons: [], sequence: [] };
     if ((expect.tools ?? []).length > 0) reasons.push('a signed-out case cannot expect a tool');
     if ((expect.writes ?? 0) !== 0) reasons.push('a signed-out turn cannot write');
     if (expect.templateId) reasons.push('a signed-out case cannot expect a card');
-    return { id: testCase.id, tags, pass: reasons.length === 0, reasons };
+    return { id: testCase.id, tags, pass: reasons.length === 0, reasons, sequence: [] };
   }
 
   if (!call) {
-    return { id: testCase.id, tags, pass: false, reasons: ['ANTHROPIC_API_KEY is not set'] };
+    return { id: testCase.id, tags, pass: false, reasons: ['ANTHROPIC_API_KEY is not set'], sequence: [] };
   }
 
   const db = fixtureDb(testCase.fixture);
@@ -205,7 +224,11 @@ export async function runCase(testCase: EvalCase, call: ModelCall | null): Promi
     budget: createTurnBudget({ userId: OWNER }),
   });
 
-  const called = result.toolRuns.filter((run) => run.status === 'ok').map((run) => run.name);
+  const okRuns = result.toolRuns.filter((run) => run.status === 'ok');
+  const called = okRuns.map((run) => run.name);
+  const sequence = result.toolRuns.map((run) =>
+    run.status === 'ok' ? run.name : `${run.name} (${run.status})`,
+  );
   const matchedExpect = matchingToolSet(expect, called);
   if (!matchedExpect) {
     const expected = [expect, ...(expect.alternatives ?? [])].map((candidate) =>
@@ -214,17 +237,16 @@ export async function runCase(testCase: EvalCase, call: ModelCall | null): Promi
     reasons.push(`tools ${JSON.stringify(called)} != expected ${expected.join(' or ')}`);
   }
 
-  for (const run of result.toolRuns) {
-    const expectedArgs = expect.args?.[run.name];
-    if (expectedArgs && run.status === 'ok' && !argsMatch(expectedArgs, run.args)) {
-      reasons.push(`args for ${run.name} ${JSON.stringify(run.args)} != ${JSON.stringify(expectedArgs)}`);
+  // The answering call is the last ok run of that tool, the same one graded above.
+  for (const [name, expectedArgs] of Object.entries(expect.args ?? {})) {
+    const run = okRuns.filter((candidate) => candidate.name === name).pop();
+    if (run && !argsMatch(expectedArgs, run.args)) {
+      reasons.push(`args for ${name} ${JSON.stringify(run.args)} != ${JSON.stringify(expectedArgs)}`);
     }
   }
 
-  const templateId = result.toolRuns
-    .filter((run) => run.status === 'ok')
-    .map((run) => REGISTRY.find(run.name)?.defaultTemplate.id ?? null)
-    .find((id) => id != null) ?? null;
+  const answer = okRuns[okRuns.length - 1];
+  const templateId = answer ? REGISTRY.find(answer.name)?.defaultTemplate.id ?? null : null;
   if (matchedExpect) {
     const templateReason = templateMismatch(matchedExpect, templateId);
     if (templateReason) reasons.push(templateReason);
@@ -242,7 +264,7 @@ export async function runCase(testCase: EvalCase, call: ModelCall | null): Promi
     reasons.push('empty reply');
   }
 
-  return { id: testCase.id, tags, pass: reasons.length === 0, reasons };
+  return { id: testCase.id, tags, pass: reasons.length === 0, reasons, sequence };
 }
 
 async function main(): Promise<number> {
@@ -288,6 +310,8 @@ async function main(): Promise<number> {
       const state = result.gatePass ? 'PASS' : 'FAIL';
       const note = result.pass !== result.gatePass ? '  (expected fail)' : '';
       console.log(`${state}  ${result.id}${result.tags.length ? `  [${result.tags.join(', ')}]` : ''}${note}`);
+      // Always the whole sequence, so a wasted lookup stays visible on a pass.
+      console.log(`      tools: ${result.sequence?.length ? result.sequence.join(' -> ') : 'none'}`);
       for (const reason of result.reasons) console.log(`      ${reason}`);
     }
     const summary = summarizeResults(results);

@@ -93,3 +93,21 @@ test('a signed-out case passes when no tool ran and nothing was written', async 
   assert.equal((await runCase(signedOut({ expect: { tools: [], writes: 1 } }), null)).pass, false);
   assert.equal((await runCase(signedOut({ expect: { tools: [], templateId: 'stat.tiles' } }), null)).pass, false);
 });
+
+test('the last tool that ran is the answer; an earlier lookup does not fail a case', () => {
+  const expect = { tools: ['list_invoices'], templateId: 'list.ranked' };
+  assert.equal(matchingToolSet(expect, ['list_invoices'])?.templateId, 'list.ranked');
+  assert.equal(matchingToolSet(expect, ['find_client', 'list_invoices'])?.templateId, 'list.ranked');
+  // The answer is the last call, so a case cannot be satisfied by an old lookup.
+  assert.equal(matchingToolSet(expect, ['list_invoices', 'find_client']), undefined);
+  // Nothing expected means nothing may have run.
+  assert.equal(matchingToolSet({ tools: [] }, ['unpaid_invoices']), undefined);
+  assert.equal(matchingToolSet({ tools: [] }, [])?.tools.length, 0);
+});
+
+test('"toolsExact": true still requires the whole sequence, in order', () => {
+  const expect = { tools: ['find_client', 'list_invoices'], toolsExact: true };
+  assert.ok(matchingToolSet(expect, ['find_client', 'list_invoices']));
+  assert.equal(matchingToolSet(expect, ['find_client', 'get_invoice', 'list_invoices']), undefined);
+  assert.equal(matchingToolSet(expect, ['list_invoices']), undefined);
+});
