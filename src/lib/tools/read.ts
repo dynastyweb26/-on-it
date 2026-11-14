@@ -90,10 +90,7 @@ export function resolveClientName(
  * ever appears on an invoice (no clients row) still resolves, so every client
  * tool agrees about who "Ruth" is.
  */
-export async function resolveClient(
-  ctx: { db: ToolDb; userId: string },
-  nameText: string,
-): Promise<ClientResolution> {
+export async function clientNames(ctx: { db: ToolDb; userId: string }): Promise<string[]> {
   const [clients, docs, income] = await Promise.all([
     ctx.db.select<{ name: string }>('clients', {
       columns: 'name',
@@ -116,14 +113,18 @@ export async function resolveClient(
   if (docs.error) throw new Error(docs.error.message);
   if (income.error) throw new Error(income.error.message);
 
-  return resolveClientName(
-    [
-      ...(clients.data ?? []).map((row) => row.name),
-      ...(docs.data ?? []).map((row) => row.client_name),
-      ...(income.data ?? []).map((row) => row.client_name),
-    ],
-    nameText,
-  );
+  return [
+    ...(clients.data ?? []).map((row) => row.name),
+    ...(docs.data ?? []).map((row) => row.client_name),
+    ...(income.data ?? []).map((row) => row.client_name),
+  ].filter((name): name is string => Boolean(name?.trim()));
+}
+
+export async function resolveClient(
+  ctx: { db: ToolDb; userId: string },
+  nameText: string,
+): Promise<ClientResolution> {
+  return resolveClientName(await clientNames(ctx), nameText);
 }
 
 /** "A and B" / "A, B and C": the names in one ask-which-one sentence. */
