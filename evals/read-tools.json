@@ -110,11 +110,11 @@
       }
     },
     {
-      "id": "get-invoice-not-estimate",
+      "id": "get-estimate-number-74",
       "request": "show me estimate 74 as an invoice",
       "expect": {
         "tools": [
-          "get_invoice"
+          "get_estimate"
         ],
         "writes": 0
       }
