@@ -17,7 +17,7 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import { REGISTRY } from '@/lib/tools/registry';
-import { supabaseToolDb } from '@/lib/tools/db';
+import { supabaseWriteDb } from '@/lib/tools/write-db';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { confirmActions, type ConfirmFailure } from '@/lib/tools/confirm';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
@@ -38,6 +38,8 @@ const FAILURE: Record<ConfirmFailure, { status: number; reply: string }> = {
   expired_token: { status: 410, reply: 'That confirmation is too old. Ask me again and I will redo it.' },
   already_confirmed: { status: 409, reply: 'That one was already done.' },
   not_executable: { status: 400, reply: 'That action cannot be confirmed.' },
+  state_changed: { status: 409, reply: 'That changed since I looked. Ask me again and I will redo it.' },
+  execute_failed: { status: 500, reply: 'That may not have gone through. Check, then ask me again.' },
 };
 
 export async function POST(req: NextRequest) {
@@ -90,25 +92,41 @@ export async function POST(req: NextRequest) {
       idempotencyKey: parsed.data.idempotencyKey ?? null,
       store: supabasePendingStore(supabase, user.id),
       registry: REGISTRY,
-      db: supabaseToolDb(supabase),
+      // The one place a write context exists: the caller's session, after auth
+      // and a valid token. No model turn can reach this module (CI enforces it).
+      wctx: { db: supabaseWriteDb(supabase, user.id), userId: user.id },
     });
 
     if (!result.ok) {
       const failure = FAILURE[result.reason];
       return NextResponse.json(
-        { error: result.reason, reply: failure.reply },
+        // execute() can refuse with its own sentence (the row moved since
+        // prepare); that sentence is the real cause, so it wins.
+        { error: result.reason, reply: result.problem ?? failure.reply },
         { status: failure.status, ...NO_STORE },
       );
     }
+
+    // Per-row status is what the confirm card paints. A refused row keeps the
+    // rows before it saved and carries its own sentence; the batch is partial.
+    const rows = result.actions.map((action) => ({
+      actionId: action.actionId,
+      tool: action.tool,
+      status: action.status,
+      problem: action.status === 'failed' ? action.problem : null,
+    }));
 
     return NextResponse.json(
       {
         ok: true,
         replayed: result.replayed,
+        state: result.state,
+        rows,
         actions: result.actions.map((action) => ({
           actionId: action.actionId,
           tool: action.tool,
-          result: action.result,
+          status: action.status,
+          ...(action.status === 'saved' ? { result: action.result } : { problem: action.problem }),
         })),
       },
       NO_STORE,

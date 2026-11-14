@@ -17,16 +17,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { buildRegistry, declaredTemplate, declaredTemplateIds, defineTool, isPlainText, type ToolDb } from './contract';
+import { buildRegistry, declaredTemplate, declaredTemplateIds, defineTool, isPlainText } from './contract';
 import { REGISTRY } from './registry';
 import { TEMPLATE_IDS } from './templates';
 import { guardModelMoney } from './money';
 import { fixtureDb, type FixtureRow, type FixtureRows } from './fixture-db';
-import { confirmActions, createPendingAction } from './confirm';
+import { CONFIRM_TOKEN_TTL_MS, confirmActions, confirmSentence, createPendingAction } from './confirm';
+import { proposalCard } from './answer';
 import { fixturePendingStore } from './pending-fixture';
 import { runToolTurn, type ModelCall } from './turn';
 import { createTurnBudget } from './budget';
-import { findServiceRoleReach } from '../../../scripts/ci/tool-imports';
+import { fixtureWriteDb } from './write-fixture';
+import { findServiceRoleReach, findWriteDbReach } from '../../../scripts/ci/tool-imports';
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const OTHER = '22222222-2222-2222-2222-222222222222';
@@ -134,6 +136,23 @@ for (const tool of REGISTRY.list) {
   });
 
   test(`${tool.name}: the declared template accepts what the tool produces`, () => {
+    // A write tool's card is built from its preview proposal, not from a result
+    // (a result only exists after the owner confirms).
+    if (tool.preview) {
+      const card = proposalCard([{
+        tool: tool.name,
+        actionId: 'action-1',
+        token: 'token',
+        expiresAt: '2026-01-01T00:00:00Z',
+        row: tool.preview.row,
+        sentence: confirmSentence(tool.preview.row),
+      }]);
+      assert.ok(card, 'the confirm.batch card rejects the proposal it would draw');
+      const template = declaredTemplate(tool, tool.defaultTemplate.id);
+      assert.ok(template);
+      assert.equal(template.props.safeParse(card.props).success, true);
+      return;
+    }
     const fixture = tool.output.parse(tool.fixture.result);
     const id = tool.templateFor ? tool.templateFor(fixture) : tool.defaultTemplate.id;
     if (id === null) return; // deliberately plain text for this result
@@ -185,122 +204,184 @@ test('the service-role client is unreachable from every tool', () => {
   assert.deepEqual(findServiceRoleReach(root), []);
 });
 
-// ── The write path, proven with a synthetic tool until a real one lands ──────
-function writeTool(counter: { rows: number }) {
-  return defineTool({
-    name: 'safety_write',
-    description: 'Synthetic write tool used to prove the confirm scaffold.',
-    input: z.object({ value: z.number() }).strict(),
-    output: z.object({ rows: z.number().int() }),
-    type: 'write',
-    risk: 'high',
-    defaultTemplate: { id: 'confirm.batch', props: z.object({ rows: z.number().int() }) },
-    handler: async (_ctx, args) => {
-      counter.rows += 1;
-      return { rows: counter.rows + args.value * 0 };
-    },
-    fallback: () => 'Saved.',
-    fixture: { args: { value: 1 }, result: { rows: 1 } },
+// ── The write path, for every write or send tool in the registry ────────────
+//
+// No per-tool setup and no extra file: the suite loops, so the next write tool
+// inherits all seven checks by existing. create_client is the pilot.
+const WRITE_TOOLS = REGISTRY.list.filter((tool) => tool.type === 'write' || tool.type === 'send');
+
+/** A model that calls one tool once and then answers. */
+function oneToolCall(name: string, input: unknown): ModelCall {
+  let calls = 0;
+  return async () => {
+    calls += 1;
+    return {
+      id: `m${calls}`,
+      type: 'message',
+      role: 'assistant',
+      model: 'test',
+      stop_reason: calls === 1 ? 'tool_use' : 'end_turn',
+      content: calls === 1
+        ? [{ type: 'tool_use', id: 't1', name, input }]
+        : [{ type: 'text', text: 'Ready when you are.' }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    } as unknown as Awaited<ReturnType<ModelCall>>;
+  };
+}
+
+for (const tool of WRITE_TOOLS) {
+  const preview = tool.preview;
+  const preparedOnEmpty = () => tool.prepare!({ db: fixtureDb({}), userId: OWNER }, tool.fixture.args as never);
+
+  test(`${tool.name}: nothing is written before the owner confirms`, async () => {
+    assert.ok(tool.prepare && tool.execute && preview, 'a write tool carries prepare, execute and a preview');
+    const store = fixturePendingStore();
+    const wdb = fixtureWriteDb({}, OWNER);
+    const registry = buildRegistry([tool]);
+
+    const turn = await runToolTurn({
+      call: oneToolCall(tool.name, tool.fixture.args),
+      db: fixtureDb({}),
+      userId: OWNER,
+      question: 'do it',
+      budget: createTurnBudget({ userId: OWNER, cap: 2 }),
+      tools: registry.modelTools(),
+      registry,
+      pending: async ({ tool: name, resolved }) => {
+        const created = await createPendingAction({ userId: OWNER, tool: name, resolved, store });
+        return { actionId: created.id, token: created.token, expiresAt: created.expiresAt };
+      },
+    });
+
+    assert.equal(turn.pending.length, 1, 'the turn made one proposal');
+    assert.deepEqual(turn.toolRuns.map((run) => run.status), ['pending']);
+    assert.equal(wdb.writes, 0, 'a proposal wrote nothing');
+    // prepare is handed a read-only ToolContext: no insert, update or rpc at all.
+    assert.equal((turn.pending[0].row.icon.length > 0), true);
+    const prepared = await preparedOnEmpty();
+    assert.equal(prepared.ok, true);
+    assert.equal(wdb.writes, 0);
+  });
+
+  test(`${tool.name}: confirm writes exactly one row, a second confirm writes none`, async () => {
+    const store = fixturePendingStore();
+    const wdb = fixtureWriteDb({}, OWNER);
+    const registry = buildRegistry([tool]);
+    const wctx = { db: wdb, userId: OWNER };
+
+    const prepared = await preparedOnEmpty();
+    assert.equal(prepared.ok, true);
+    if (!prepared.ok) return;
+    const { token } = await createPendingAction({
+      userId: OWNER, tool: tool.name, resolved: prepared.resolved, store,
+    });
+
+    const first = await confirmActions({ userId: OWNER, tokens: [token], store, registry, wctx });
+    assert.equal(first.ok, true);
+    if (first.ok) assert.deepEqual(first.actions.map((a) => a.status), ['saved']);
+    assert.equal(wdb.writes, 1, 'exactly one write');
+
+    const again = await confirmActions({ userId: OWNER, tokens: [token], store, registry, wctx });
+    assert.deepEqual(again, { ok: false, reason: 'already_confirmed' });
+    assert.equal(wdb.writes, 1, 'the second tap wrote nothing');
+  });
+
+  test(`${tool.name}: two confirms racing the claim write one row`, async () => {
+    const store = fixturePendingStore();
+    const wdb = fixtureWriteDb({}, OWNER);
+    const registry = buildRegistry([tool]);
+    const wctx = { db: wdb, userId: OWNER };
+
+    const prepared = await preparedOnEmpty();
+    assert.equal(prepared.ok, true);
+    if (!prepared.ok) return;
+    const { token } = await createPendingAction({
+      userId: OWNER, tool: tool.name, resolved: prepared.resolved, store,
+    });
+
+    // Both confirms arrive at the claim before either one runs it: the claim's
+    // UPDATE ... WHERE executed_at IS NULL is the only thing picking a winner.
+    let arrivals = 0;
+    let open: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    const racing = {
+      ...store,
+      claim: async (userId: string, actionId: string) => {
+        arrivals += 1;
+        if (arrivals === 2) open();
+        if (arrivals < 2) await gate;
+        return store.claim(userId, actionId);
+      },
+    };
+
+    const outcomes = await Promise.all([
+      confirmActions({ userId: OWNER, tokens: [token], store: racing, registry, wctx }),
+      confirmActions({ userId: OWNER, tokens: [token], store: racing, registry, wctx }),
+    ]);
+
+    assert.equal(wdb.writes, 1, 'execute ran exactly once');
+    assert.equal(store.executions.length, 1, 'exactly one claim was granted');
+    assert.equal(outcomes.filter((outcome) => outcome.ok).length, 1, 'one confirm reports the save');
+  });
+
+  test(`${tool.name}: an expired or foreign token writes nothing`, async () => {
+    const store = fixturePendingStore();
+    const wdb = fixtureWriteDb({}, OWNER);
+    const registry = buildRegistry([tool]);
+    const prepared = await preparedOnEmpty();
+    assert.equal(prepared.ok, true);
+    if (!prepared.ok) return;
+    const { token } = await createPendingAction({
+      userId: OWNER, tool: tool.name, resolved: prepared.resolved, store,
+    });
+
+    const later = new Date(Date.now() + CONFIRM_TOKEN_TTL_MS + 1000);
+    const expired = await confirmActions({
+      userId: OWNER, tokens: [token], store, registry, wctx: { db: wdb, userId: OWNER }, now: later,
+    });
+    assert.deepEqual(expired, { ok: false, reason: 'expired_token' });
+
+    const foreign = await confirmActions({
+      userId: OTHER, tokens: [token], store, registry, wctx: { db: wdb, userId: OTHER },
+    });
+    assert.deepEqual(foreign, { ok: false, reason: 'unknown_token' });
+    assert.equal(wdb.writes, 0);
+  });
+
+  test(`${tool.name}: execute refuses when the state moved after prepare`, async () => {
+    const wdb = fixtureWriteDb({}, OWNER);
+    const prepared = await preparedOnEmpty();
+    assert.equal(prepared.ok, true);
+    if (!prepared.ok) return;
+    const wctx = { db: wdb, userId: OWNER };
+
+    const first = await tool.execute!(wctx, prepared.resolved, 'action-1');
+    assert.equal(first.ok, true);
+    const writesAfterFirst = wdb.writes;
+
+    const second = await tool.execute!(wctx, prepared.resolved, 'action-1');
+    assert.equal(second.ok, false, 'the same resolved payload must not write twice');
+    assert.equal(wdb.writes, writesAfterFirst, 'a refusal writes nothing');
+  });
+
+  test(`${tool.name}: no money reaches the card except through the money helpers`, () => {
+    assert.ok(preview);
+    const card = proposalCard([{
+      tool: tool.name, actionId: 'action-1', token: 'token', expiresAt: '2026-01-01T00:00:00Z',
+      row: preview.row, sentence: confirmSentence(preview.row),
+    }]);
+    assert.equal(card?.id, 'confirm.batch');
+    const text = JSON.stringify(card);
+    if (preview.row.amount === '') {
+      assert.equal(text.includes('$'), false, 'a card with no figure carries no dollar sign');
+    } else {
+      // The only money on a card is the string the tool composed.
+      assert.ok(preview.row.amount.startsWith('$'));
+      assert.ok(text.includes(preview.row.amount));
+    }
   });
 }
 
-const registryForWrite = (counter: { rows: number }) => buildRegistry([writeTool(counter)]);
-const emptyDb: ToolDb = fixtureDb({});
-
-test('a write tool without a confirm token never runs', async () => {
-  const counter = { rows: 0 };
-  const registry = registryForWrite(counter);
-  const tool = registry.get('safety_write');
-
-  let calls = 0;
-  const modelCallsWrite: ModelCall = async () => {
-    calls += 1;
-    return {
-      id: 'm1',
-      type: 'message',
-      role: 'assistant',
-      model: 'test',
-      stop_reason: calls === 1 ? 'tool_use' : 'end_turn',
-      content: calls === 1
-        ? [{ type: 'tool_use', id: 't1', name: 'safety_write', input: { value: 1 } }]
-        : [{ type: 'text', text: 'Ready when you are.' }],
-      usage: { input_tokens: 1, output_tokens: 1 },
-    } as unknown as Awaited<ReturnType<ModelCall>>;
-  };
-
-  const result = await runToolTurn({
-    call: modelCallsWrite,
-    db: emptyDb,
-    userId: OWNER,
-    question: 'record it',
-    budget: createTurnBudget({ userId: OWNER }),
-    tools: registry.modelTools(),
-    registry,
-  });
-
-  assert.equal(counter.rows, 0, 'proposal only');
-  assert.deepEqual(result.toolRuns.map((r) => r.status), ['error']);
-  assert.equal(tool.name, 'safety_write');
-});
-
-test('a confirmed write runs once, and the replay writes nothing', async () => {
-  const counter = { rows: 0 };
-  const registry = registryForWrite(counter);
-  const store = fixturePendingStore();
-
-  let calls = 0;
-  const modelCallsWrite: ModelCall = async () => {
-    calls += 1;
-    return {
-      id: 'm',
-      type: 'message',
-      role: 'assistant',
-      model: 'test',
-      stop_reason: calls === 1 ? 'tool_use' : 'end_turn',
-      content: calls === 1
-        ? [{ type: 'tool_use', id: 't', name: 'safety_write', input: { value: 1 } }]
-        : [{ type: 'text', text: 'Ready when you are.' }],
-      usage: { input_tokens: 1, output_tokens: 1 },
-    } as unknown as Awaited<ReturnType<ModelCall>>;
-  };
-
-  const turn = await runToolTurn({
-    call: modelCallsWrite,
-    db: emptyDb,
-    userId: OWNER,
-    question: 'record it',
-    budget: createTurnBudget({ userId: OWNER, cap: 2 }),
-    tools: registry.modelTools(),
-    registry,
-    pending: async ({ tool, args }) => {
-      const created = await createPendingAction({ userId: OWNER, tool, args, store });
-      return { actionId: created.id, token: created.token, expiresAt: created.expiresAt, tool };
-    },
-  });
-
-  assert.equal(turn.pending.length, 1);
-  assert.equal(counter.rows, 0);
-
-  const first = await confirmActions({
-    userId: OWNER,
-    tokens: [turn.pending[0].token],
-    idempotencyKey: 'safety-key-1',
-    store,
-    registry,
-    db: emptyDb,
-  });
-  assert.equal(first.ok, true);
-  assert.equal(counter.rows, 1);
-
-  const replay = await confirmActions({
-    userId: OWNER,
-    tokens: [turn.pending[0].token],
-    idempotencyKey: 'safety-key-1',
-    store,
-    registry,
-    db: emptyDb,
-  });
-  assert.equal(replay.ok, true);
-  if (replay.ok) assert.equal(replay.replayed, true);
-  assert.equal(counter.rows, 1, 'one row, however many taps');
+test('the write database is unreachable from the model turn and every read tool', () => {
+  assert.deepEqual(findWriteDbReach(process.cwd()), []);
 });

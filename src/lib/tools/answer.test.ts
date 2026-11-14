@@ -76,3 +76,74 @@ test('a spent budget still uses the tool sentence when one was composed', () => 
   });
   assert.equal(none.reply, TURN_BUDGET_REPLY);
 });
+
+test('a proposal leads with its server sentence and one confirm row', () => {
+  const row = { icon: 'person', summary: 'Add client Maria Santos', amount: '', tone: 'neutral' as const };
+  const answer = answerFor({
+    modelText: 'Done, Maria is on the list.',
+    toolRuns: [{ name: 'create_client', status: 'pending' }],
+    registry: REGISTRY,
+    pending: [{
+      tool: 'create_client',
+      actionId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      token: 'token',
+      expiresAt: '2026-01-01T00:00:00Z',
+      row,
+      sentence: 'Ready to confirm: Add client Maria Santos.',
+    }],
+  });
+  assert.equal(answer.sentence, 'Ready to confirm: Add client Maria Santos.');
+  assert.ok(answer.reply.startsWith('Ready to confirm: Add client Maria Santos.'));
+  assert.equal(answer.card?.id, 'confirm.batch');
+  const actions = (answer.card?.props as { actions: Array<{ summary: string; status: string }> }).actions;
+  assert.deepEqual(actions.map((action) => [action.summary, action.status]), [['Add client Maria Santos', 'pending']]);
+});
+
+test('a proposal the model claimed as done still reads as ready, never saved', () => {
+  const answer = answerFor({
+    modelText: 'Saved Maria Santos for you.',
+    toolRuns: [{ name: 'create_client', status: 'pending' }],
+    registry: REGISTRY,
+    pending: [{
+      tool: 'create_client',
+      actionId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      token: 'token',
+      expiresAt: '2026-01-01T00:00:00Z',
+      row: { icon: 'person', summary: 'Add client Maria Santos', amount: '', tone: 'neutral' },
+      sentence: 'Ready to confirm: Add client Maria Santos.',
+    }],
+  });
+  assert.equal(/saved/i.test(answer.reply), false);
+});
+
+test('a prepare problem is its own sentence and draws no card', () => {
+  const problem = 'You already have a client named Maria Santos.';
+  const answer = answerFor({
+    modelText: 'Added her.',
+    toolRuns: [{ name: 'create_client', status: 'problem', output: { problem } }],
+    registry: REGISTRY,
+  });
+  assert.equal(answer.reply, problem);
+  assert.equal(answer.sentence, problem);
+  assert.equal(answer.card, null);
+  assert.equal(answer.tool?.name, 'create_client');
+});
+
+test('a proposal made with the budget spent still says ready to confirm', () => {
+  const answer = answerFor({
+    modelText: TURN_BUDGET_REPLY,
+    toolRuns: [{ name: 'create_client', status: 'pending' }],
+    registry: REGISTRY,
+    budgetExhausted: true,
+    pending: [{
+      tool: 'create_client',
+      actionId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      token: 'token',
+      expiresAt: '2026-01-01T00:00:00Z',
+      row: { icon: 'person', summary: 'Add client Maria Santos', amount: '', tone: 'neutral' },
+      sentence: 'Ready to confirm: Add client Maria Santos.',
+    }],
+  });
+  assert.equal(answer.reply, 'Ready to confirm: Add client Maria Santos.');
+  assert.equal(answer.card?.id, 'confirm.batch');
+});

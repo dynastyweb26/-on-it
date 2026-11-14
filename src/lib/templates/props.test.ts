@@ -144,8 +144,12 @@ test('the caps the design declares are enforced', () => {
   };
   assert.equal(parseTemplateProps('nav.link', fourItems).success, false);
 
+  // One row is a real batch: the AI write path proposes a single action and the
+  // same card shows it. Empty is still not a card.
   const oneAction = { ...CONFIRM_BATCH_FIXTURE, actions: [CONFIRM_BATCH_FIXTURE.actions[0]] };
-  assert.equal(parseTemplateProps('confirm.batch', oneAction).success, false);
+  assert.equal(parseTemplateProps('confirm.batch', oneAction).success, true);
+  const noActions = { ...CONFIRM_BATCH_FIXTURE, actions: [] };
+  assert.equal(parseTemplateProps('confirm.batch', noActions).success, false);
 
   const fiveActions = {
     ...CONFIRM_BATCH_FIXTURE,

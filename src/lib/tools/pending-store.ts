@@ -11,7 +11,9 @@ export function supabasePendingStore(client: SupabaseClient, userId: string): Pe
         id: action.id,
         user_id: userId,
         tool: action.tool,
-        args: action.args,
+        // The column predates this write path and is simply a jsonb payload:
+        // what it holds now is prepare()'s resolved ids, never model args.
+        args: action.resolved,
         token_hash: action.tokenHash,
         created_at: action.createdAt,
         expires_at: action.expiresAt,
@@ -32,7 +34,7 @@ export function supabasePendingStore(client: SupabaseClient, userId: string): Pe
         id: data.id as string,
         userId: data.user_id as string,
         tool: data.tool as string,
-        args: data.args,
+        resolved: data.args,
         tokenHash: data.token_hash as string,
         createdAt: data.created_at as string,
         expiresAt: data.expires_at as string,
@@ -40,13 +42,26 @@ export function supabasePendingStore(client: SupabaseClient, userId: string): Pe
       };
     },
 
-    async markExecuted(ownerId: string, actionId: string) {
-      const { error } = await client
+    async claim(ownerId: string, actionId: string) {
+      // The whole race is decided by this one statement: executed_at is only set
+      // where it is still null, and only the caller that sets it gets a row back.
+      const { data, error } = await client
         .from('tool_pending_actions')
         .update({ executed_at: new Date().toISOString() })
         .eq('user_id', ownerId)
         .eq('id', actionId)
-        .is('executed_at', null);
+        .is('executed_at', null)
+        .select('id');
+      if (error) throw new Error(error.message);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async release(ownerId: string, actionId: string) {
+      const { error } = await client
+        .from('tool_pending_actions')
+        .update({ executed_at: null })
+        .eq('user_id', ownerId)
+        .eq('id', actionId);
       if (error) throw new Error(error.message);
     },
 

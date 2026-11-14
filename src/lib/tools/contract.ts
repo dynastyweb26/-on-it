@@ -54,6 +54,63 @@ export interface ToolDb {
 export type ToolContext = { db: ToolDb; userId: string };
 
 /**
+ * The one row a confirm.batch card shows for a proposal. Every field is
+ * server-composed: the icon and summary by the tool, the amount by the money
+ * helpers, never by the model.
+ */
+export type ProposalRow = {
+  icon: string;
+  summary: string;
+  /** A second line naming what exactly will be saved, when there is more to say. */
+  detail?: string;
+  /** A finished money string, or '' when the action moves no money. */
+  amount: string;
+  tone: 'in' | 'out' | 'neutral';
+};
+
+/**
+ * What prepare() answers. A problem is a sentence for the user, composed by the
+ * server: several clients, none, record not found, amount above the balance.
+ * A problem never becomes a card and never becomes a write.
+ */
+export type PreparedProposal =
+  | { ok: true; resolved: unknown; row: ProposalRow }
+  | { ok: false; problem: string };
+
+/** What execute() answers: the confirmed result, or why it refuses to write now. */
+export type ExecuteOutcome =
+  | { ok: true; result: unknown }
+  | { ok: false; problem: string };
+
+/** The rows an update is allowed to touch: exact equality, plus IS NULL. */
+export type WriteMatch = {
+  eq?: Record<string, string | number | boolean>;
+  is?: Record<string, null>;
+};
+
+/**
+ * The only database surface a WRITE may use: the caller's own session, RLS only.
+ * Constructed by /api/ai/confirm and nowhere else. The CI check
+ * (scripts/ci/tool-imports.ts) fails the build if the model turn or a read tool
+ * can reach the module that builds it.
+ */
+export interface WriteDb extends ToolDb {
+  insert(table: string, values: Record<string, unknown>): Promise<{ error: { message: string } | null }>;
+  update(
+    table: string,
+    values: Record<string, unknown>,
+    match: WriteMatch,
+  ): Promise<{ error: { message: string } | null }>;
+  rpc<T = unknown>(
+    fn: string,
+    args: Record<string, unknown>,
+  ): Promise<{ data: T | null; error: { message: string } | null }>;
+}
+
+/** What execute() gets. Only /api/ai/confirm can build one. */
+export type WriteContext = { db: WriteDb; userId: string };
+
+/**
  * The chat card a tool's result renders into. `id` is one of the ten ids in
  * ./templates (RULES.md §2) and `props` is validated by the safety suite, so a
  * tool can never claim a template that cannot render its own result.
@@ -93,7 +150,29 @@ export type ToolDefinition = {
   alternateTemplate?: ToolTemplate;
   /** Chooses between the default and the alternate for one result. */
   templateFor?: (result: unknown) => TemplateId | null;
+  /**
+   * The read-only half. A read tool's one lookup; for a write or send tool this
+   * is its own prepare(), so nothing can call a write through it.
+   */
   handler: (ctx: ToolContext, args: unknown) => Promise<unknown>;
+  /**
+   * A write or send tool's first half: READ-ONLY. Resolves names, looks up the
+   * records, validates, and returns the exact ids to write plus the card row —
+   * or a server-composed problem sentence. Never writes.
+   */
+  prepare?: (ctx: ToolContext, args: unknown) => Promise<PreparedProposal>;
+  /**
+   * A write or send tool's second half. Runs only from /api/ai/confirm, with a
+   * WriteContext. Re-validates the state prepare saw and refuses if it moved.
+   * actionId is the pending action's id, for a tool that needs an idempotency
+   * key of its own when it calls out.
+   */
+  execute?: (ctx: WriteContext, resolved: unknown, actionId: string) => Promise<ExecuteOutcome>;
+  /**
+   * A real prepare() answer for the fixture args, so the shared suite can prove
+   * the card, the money rule and the confirm path without a database.
+   */
+  preview?: { resolved: unknown; row: ProposalRow };
   /**
    * The plain-text answer shown when the template's component is not built yet
    * (or its props do not fit). Pure, composed by the server, never a card.
@@ -215,7 +294,19 @@ export function assertComplete(tool: Partial<ToolDefinition> | null | undefined)
   } else if (alternate !== undefined || (templates !== undefined && templates.length > 1)) {
     problems.push('templateFor: required when more than one template is declared');
   }
-  if (typeof tool?.handler !== 'function') problems.push('handler: a function');
+  const writable = tool?.type === 'write' || tool?.type === 'send';
+  if (writable) {
+    if (typeof tool?.prepare !== 'function') problems.push('prepare: a function for a write or send tool');
+    if (typeof tool?.execute !== 'function') problems.push('execute: a function for a write or send tool');
+    if (tool?.preview == null || !('row' in tool.preview)) {
+      problems.push('preview: { resolved, row } for a write or send tool');
+    }
+  } else {
+    if (typeof tool?.handler !== 'function') problems.push('handler: a function');
+    if (tool?.prepare !== undefined || tool?.execute !== undefined) {
+      problems.push('prepare/execute: only for a write or send tool');
+    }
+  }
   if (typeof tool?.fallback !== 'function') {
     problems.push('fallback: a function returning the plain-text answer');
   }
@@ -272,7 +363,7 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   description: string;
   input: In;
   output: Out;
-  type: ToolType;
+  type: Exclude<ToolType, 'write' | 'send'>;
   risk: ToolRisk;
   defaultTemplate: ToolTemplate;
   templates?: readonly ToolTemplate[];
@@ -286,6 +377,33 @@ export function defineTool<In extends z.ZodType, Out extends z.ZodType>(definiti
   modelPayload?: (result: z.infer<Out>) => unknown;
 }): ToolDefinition {
   const tool = definition as unknown as ToolDefinition;
+  assertComplete(tool);
+  return tool;
+}
+
+/**
+ * The one way to describe a write or send tool. prepare is read-only and returns
+ * the exact ids; execute runs only from /api/ai/confirm. There is no handler: a
+ * model turn can only ever produce a proposal.
+ */
+export function defineWriteTool<In extends z.ZodType, Out extends z.ZodType>(definition: {
+  name: string;
+  description: string;
+  input: In;
+  output: Out;
+  type: 'write' | 'send';
+  risk: ToolRisk;
+  defaultTemplate: ToolTemplate;
+  destination?: { screen: string; path: string };
+  prepare: (ctx: ToolContext, args: z.infer<In>) => Promise<PreparedProposal>;
+  execute: (ctx: WriteContext, resolved: unknown, actionId: string) => Promise<ExecuteOutcome>;
+  fallback: (result: z.infer<Out>) => string;
+  fixture: { args: z.input<In>; result: z.infer<Out> };
+  preview: { resolved: unknown; row: ProposalRow };
+}): ToolDefinition {
+  // A write tool's handler is its prepare: read-only by construction, so no
+  // code path can reach a write by calling handler.
+  const tool = { ...definition, handler: definition.prepare } as unknown as ToolDefinition;
   assertComplete(tool);
   return tool;
 }

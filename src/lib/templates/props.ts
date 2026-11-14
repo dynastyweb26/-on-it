@@ -198,6 +198,8 @@ export const ConfirmBatchProps = z.object({
         kind: BatchActionKind,
         icon: z.string().min(1),
         summary: z.string().min(1),
+        /** A second line of server-composed detail about what will be saved. */
+        detail: z.string().optional(),
         /** A finished money string, sign included when it moves money. */
         amount: z.string(),
         tone: Tone,
@@ -205,7 +207,9 @@ export const ConfirmBatchProps = z.object({
         status: BatchActionStatus,
       }),
     )
-    .min(2)
+    // One row is a legitimate batch: a single proposal the owner confirms. The
+    // founder approved the one-row card for the AI write path.
+    .min(1)
     .max(4),
 });
 export type ConfirmBatchProps = z.infer<typeof ConfirmBatchProps>;

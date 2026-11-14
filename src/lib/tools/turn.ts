@@ -8,7 +8,8 @@
 // so a model that keeps calling tools stops with a plain reply instead of
 // throwing, looping forever or spending another call.
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Registry, ToolDb } from './contract';
+import type { ProposalRow, Registry, ToolDb } from './contract';
+import { confirmSentence } from './confirm';
 import { REGISTRY, parseCall, TOOLS } from './registry';
 import { toolSystem } from './prompt';
 import { localYmd, resolveTimeZone } from '@/lib/recap/dates';
@@ -23,8 +24,11 @@ export type ModelCall = (request: {
 export type ToolRun = {
   name: string;
   args: unknown;
-  /** pending: a write/send proposal waiting for the owner's confirm token. */
-  status: 'ok' | 'error' | 'invalid' | 'unknown' | 'pending';
+  /**
+   * pending: a write/send proposal waiting for the owner's confirm token.
+   * problem: prepare() refused and composed the sentence the user should hear.
+   */
+  status: 'ok' | 'error' | 'invalid' | 'unknown' | 'pending' | 'problem';
   output?: unknown;
 };
 
@@ -34,9 +38,21 @@ export type PendingProposal = {
   actionId: string;
   token: string;
   expiresAt: string;
+  /** The server-composed card row for this one proposal. */
+  row: ProposalRow;
+  /** The sentence the reply leads with: ready to confirm, never saved. */
+  sentence: string;
 };
 
-export type PendingCreator = (input: { tool: string; args: unknown }) => Promise<PendingProposal>;
+/**
+ * Persists the proposal. It receives prepare()'s resolved ids, never the model's
+ * raw arguments, so the pending action cannot be rewritten into another write.
+ */
+export type PendingCreator = (input: {
+  tool: string;
+  resolved: unknown;
+  row: ProposalRow;
+}) => Promise<{ actionId: string; token: string; expiresAt: string }>;
 
 export type TurnResult = {
   /** What the model said last, or the reserve reply for an exhausted turn. */
@@ -167,9 +183,55 @@ export async function runToolTurn(input: {
         continue;
       }
 
-      // A write or send tool NEVER runs inside the model turn: it becomes a
-      // pending action with a confirm token, and /api/ai/confirm executes it.
+      // A write or send tool NEVER runs inside the model turn. prepare() is a
+      // read-only check that either composes the card row and the sentence, or
+      // refuses with a sentence; only /api/ai/confirm can execute.
       if (parsed.tool.type === 'write' || parsed.tool.type === 'send') {
+        if (!parsed.tool.prepare) {
+          toolRuns.push({ name: parsed.tool.name, args: parsed.args, status: 'error' });
+          results.push({
+            type: 'tool_result',
+            tool_use_id: use.id,
+            is_error: true,
+            content: 'confirmation_unavailable',
+          });
+          continue;
+        }
+
+        let prepared;
+        try {
+          prepared = await parsed.tool.prepare({ db, userId }, parsed.args as never);
+        } catch (error) {
+          console.error('[tools] prepare failed', parsed.tool.name, (error as Error)?.message);
+          toolRuns.push({ name: parsed.tool.name, args: parsed.args, status: 'error' });
+          results.push({
+            type: 'tool_result',
+            tool_use_id: use.id,
+            is_error: true,
+            content: 'lookup_failed',
+          });
+          continue;
+        }
+
+        if (!prepared.ok) {
+          toolRuns.push({
+            name: parsed.tool.name,
+            args: parsed.args,
+            status: 'problem',
+            output: { problem: prepared.problem },
+          });
+          results.push({
+            type: 'tool_result',
+            tool_use_id: use.id,
+            content: JSON.stringify({
+              status: 'problem',
+              problem: prepared.problem,
+              note: 'Say this and stop. Nothing was changed.',
+            }),
+          });
+          continue;
+        }
+
         if (!input.pending) {
           toolRuns.push({ name: parsed.tool.name, args: parsed.args, status: 'error' });
           results.push({
@@ -180,8 +242,18 @@ export async function runToolTurn(input: {
           });
           continue;
         }
-        const proposal = await input.pending({ tool: parsed.tool.name, args: parsed.args });
-        pending.push({ ...proposal, tool: parsed.tool.name });
+
+        const proposal = await input.pending({
+          tool: parsed.tool.name,
+          resolved: prepared.resolved,
+          row: prepared.row,
+        });
+        pending.push({
+          ...proposal,
+          tool: parsed.tool.name,
+          row: prepared.row,
+          sentence: confirmSentence(prepared.row),
+        });
         toolRuns.push({ name: parsed.tool.name, args: parsed.args, status: 'pending' });
         results.push({
           type: 'tool_result',

@@ -1,5 +1,6 @@
-// The registry is data plus validation: one read-only tool, a bounded turn, and
-// an argument schema that refuses anything it was not designed for.
+// The registry is data plus validation: the read-only lookups plus the pilot
+// write tool, a bounded turn, and an argument schema that refuses anything it
+// was not designed for.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { REGISTRY, TOOLS, cardFor, findTool, parseCall } from './registry';
@@ -11,11 +12,16 @@ import { UNPAID_ROW_CAP } from './unpaid';
 import { UNPAID_TOOL_NAME } from './definitions/unpaid';
 import { TOOL_SYSTEM } from './prompt';
 
-test('the registry holds the read-only lookups and nothing else yet', () => {
+test('the registry holds the read-only lookups plus the one pilot write', () => {
   const tool = REGISTRY.get(UNPAID_TOOL_NAME);
   assert.ok(tool, 'the unpaid lookup is registered');
-  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense', 'list_payments', 'list_saved_items', 'run_report'].sort());
-  assert.ok(REGISTRY.list.every((t) => t.type === 'read'), 'every registered tool is read-only');
+  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense', 'list_payments', 'list_saved_items', 'run_report', 'create_client'].sort());
+  // Everything is read-only except the write path's one pilot, which the safety
+  // suite loops over instead of trusting this list.
+  assert.deepEqual(
+    REGISTRY.list.filter((t) => t.type !== 'read').map((t) => t.name),
+    ['create_client'],
+  );
   assert.equal(REGISTRY.get(UNPAID_TOOL_NAME).type, 'read');
   const modelTool = TOOLS.find((t) => t.name === UNPAID_TOOL_NAME);
   assert.ok(modelTool, 'the unpaid lookup is offered to the model');
@@ -80,11 +86,15 @@ test('the system prompt forbids money and emoji and names the right document wor
   assert.equal(/quote/i.test(TOOL_SYSTEM), false);
   assert.match(TOOL_SYSTEM, /estimate/);
   assert.match(TOOL_SYSTEM, /NEVER write a dollar figure/);
-  assert.match(TOOL_SYSTEM, /READ-ONLY/);
+  // The prompt no longer calls tools read-only: a write is proposed, then the
+  // owner confirms it. The model never claims something was saved.
+  assert.equal(/READ-ONLY/.test(TOOL_SYSTEM), false);
+  assert.match(TOOL_SYSTEM, /the app shows a card and the user confirms/);
+  assert.match(TOOL_SYSTEM, /Never say something was saved/);
 });
 
 test('the template a tool renders into is declared in the registry', () => {
-  assert.deepEqual(REGISTRY.templates().slice().sort(), ['chart.breakdown', 'chart.trend', 'list.ranked', 'nav.link', 'stat.tiles']);
+  assert.deepEqual(REGISTRY.templates().slice().sort(), ['chart.breakdown', 'chart.trend', 'confirm.batch', 'list.ranked', 'nav.link', 'stat.tiles']);
 });
 
 test('a card is handed over only when the template accepts the result', () => {
@@ -116,6 +126,9 @@ test('a card is handed over only when the template accepts the result', () => {
 
 test('every tool\'s sample card parses against its central template props', () => {
   for (const tool of REGISTRY.list) {
+    // A write tool renders its card from a proposal, never from a result: a
+    // result only exists after the owner confirms. safety.test covers it.
+    if (tool.preview) continue;
     const result = tool.output.parse(tool.fixture.result);
     const card = cardFor(tool, result);
     assert.ok(card, `${tool.name} has a sample card`);

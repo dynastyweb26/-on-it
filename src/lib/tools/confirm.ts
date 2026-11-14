@@ -11,7 +11,7 @@
 // request are confirmed together, atomically: if one is unknown, expired or
 // already used, nothing executes.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { Registry, ToolDb } from './contract';
+import type { ProposalRow, Registry, WriteContext } from './contract';
 
 /** How long a proposed action stays confirmable. */
 export const CONFIRM_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -23,14 +23,37 @@ export type PendingAction = {
   id: string;
   userId: string;
   tool: string;
-  args: unknown;
+  /** What prepare() validated: exact ids and values, never the model's args. */
+  resolved: unknown;
   tokenHash: string;
   createdAt: string;
   expiresAt: string;
   executedAt: string | null;
 };
 
-export type ExecutedAction = { actionId: string; tool: string; result: unknown };
+export type ExecutedAction =
+  | {
+    actionId: string;
+    tool: string;
+    /** Per-row state the confirm card paints. */
+    status: 'saved';
+    result: unknown;
+  }
+  | {
+    actionId: string;
+    tool: string;
+    /** This row refused; the sentence says why, composed by the server. */
+    status: 'failed';
+    problem: string;
+  };
+
+/**
+ * The sentence a proposal is read with. Server-composed from the row prepare
+ * built, so it says what is READY, never what was saved.
+ */
+export function confirmSentence(row: ProposalRow): string {
+  return `Ready to confirm: ${row.summary}.`;
+}
 
 export type RecordedCommit = { actions: ExecutedAction[] };
 
@@ -41,10 +64,27 @@ export type RecordedCommit = { actions: ExecutedAction[] };
 export interface PendingStore {
   insert(action: PendingAction): Promise<void>;
   findByTokenHash(userId: string, tokenHash: string): Promise<PendingAction | null>;
-  markExecuted(userId: string, actionId: string): Promise<void>;
+  /**
+   * Claim the action for execution, atomically: an UPDATE that sets executed_at
+   * only where it is still null. True means this caller won and may execute;
+   * false means someone else already did.
+   */
+  claim(userId: string, actionId: string): Promise<boolean>;
+  /** Hand a won claim back (executed_at to null) so the owner can retry. */
+  release(userId: string, actionId: string): Promise<void>;
   findCommit(userId: string, idempotencyKey: string): Promise<RecordedCommit | null>;
   insertCommit(userId: string, idempotencyKey: string, commit: RecordedCommit): Promise<void>;
 }
+
+/** A batch is done when every row saved, partial once any row refused. */
+function stateOf(actions: readonly ExecutedAction[]): 'done' | 'partial' {
+  return actions.every((action) => action.status === 'saved') ? 'done' : 'partial';
+}
+
+/** The sentence for a token another confirm already claimed. */
+export const ALREADY_CONFIRMED_PROBLEM = 'That one was already done.';
+/** The sentence for an execute that threw: it may have written, so look first. */
+export const EXECUTE_FAILED_PROBLEM = 'That may not have gone through. Check, then ask me again.';
 
 const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
 
@@ -64,7 +104,7 @@ export type CreatedAction = { id: string; token: string; expiresAt: string };
 export async function createPendingAction(input: {
   userId: string;
   tool: string;
-  args: unknown;
+  resolved: unknown;
   store: PendingStore;
   now?: Date;
 }): Promise<CreatedAction> {
@@ -74,7 +114,7 @@ export async function createPendingAction(input: {
     id: randomUUID(),
     userId: input.userId,
     tool: input.tool,
-    args: input.args,
+    resolved: input.resolved,
     tokenHash: sha256(token),
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + CONFIRM_TOKEN_TTL_MS).toISOString(),
@@ -84,11 +124,38 @@ export async function createPendingAction(input: {
   return { id: action.id, token, expiresAt: action.expiresAt };
 }
 
-export type ConfirmFailure = 'unknown_token' | 'expired_token' | 'already_confirmed' | 'not_executable';
+export type ConfirmFailure =
+  | 'unknown_token'
+  | 'expired_token'
+  | 'already_confirmed'
+  | 'not_executable'
+  /** execute() re-validated and the world moved: nothing was written. */
+  | 'state_changed'
+  /** execute() threw: the claim was released and nothing was saved. */
+  | 'execute_failed';
 
 export type ConfirmResult =
-  | { ok: true; actions: ExecutedAction[]; replayed: boolean }
-  | { ok: false; reason: ConfirmFailure };
+  | {
+    ok: true;
+    actions: ExecutedAction[];
+    replayed: boolean;
+    /** Every row saved, or some saved and at least one refused. */
+    state: 'done' | 'partial';
+  }
+  | { ok: false; reason: ConfirmFailure; problem?: string };
+
+/**
+ * Give a claim back after a refused or failed execute. A release that itself
+ * fails leaves the token claimed, which needs a person to notice, so it is
+ * logged loudly and never silently swallowed.
+ */
+async function releaseClaim(store: PendingStore, userId: string, actionId: string): Promise<void> {
+  try {
+    await store.release(userId, actionId);
+  } catch (error) {
+    console.error('[confirm] could not release a claim', actionId, (error as Error)?.message);
+  }
+}
 
 /**
  * Execute one or more confirmed actions under the caller's own session.
@@ -102,7 +169,8 @@ export async function confirmActions(input: {
   idempotencyKey?: string | null;
   store: PendingStore;
   registry: Registry;
-  db: ToolDb;
+  /** Built by /api/ai/confirm only; a model turn can never obtain one. */
+  wctx: WriteContext;
   now?: Date;
 }): Promise<ConfirmResult> {
   const now = input.now ?? new Date();
@@ -111,7 +179,7 @@ export async function confirmActions(input: {
   // Replay first: the key is the promise that this request already happened.
   if (key) {
     const recorded = await input.store.findCommit(input.userId, key);
-    if (recorded) return { ok: true, actions: recorded.actions, replayed: true };
+    if (recorded) return { ok: true, actions: recorded.actions, replayed: true, state: stateOf(recorded.actions) };
   }
 
   const tokens = [...new Set(input.tokens.map((t) => t.trim()).filter(Boolean))];
@@ -137,13 +205,59 @@ export async function confirmActions(input: {
   }
 
   const actions: ExecutedAction[] = [];
+  /** The first refusal, so a request that saved nothing can fail as a whole. */
+  let refusal: { reason: ConfirmFailure; problem: string } | null = null;
+
   for (const { action, tool } of resolved) {
-    const result = tool.output.parse(
-      await tool.handler({ db: input.db, userId: input.userId }, action.args as never),
-    );
-    await input.store.markExecuted(input.userId, action.id);
-    actions.push({ actionId: action.id, tool: tool.name, result });
+    if (!tool.execute) return { ok: false, reason: 'not_executable' };
+
+    // Claim FIRST, atomically. Two confirms with one token can both get past the
+    // check above and land here together; the single UPDATE ... WHERE
+    // executed_at IS NULL picks exactly one winner, and only that one executes.
+    if (!(await input.store.claim(input.userId, action.id))) {
+      actions.push({
+        actionId: action.id, tool: tool.name, status: 'failed', problem: ALREADY_CONFIRMED_PROBLEM,
+      });
+      refusal ??= { reason: 'already_confirmed', problem: ALREADY_CONFIRMED_PROBLEM };
+      continue;
+    }
+
+    // execute re-validates what prepare saw. One refused row does not undo the
+    // rows already saved: each is reported on its own and the card goes partial.
+    let outcome;
+    try {
+      outcome = await tool.execute(input.wctx, action.resolved, action.id);
+    } catch (error) {
+      // A throw is not a refusal: it can land after the write did. Keep the claim
+      // so a retry cannot write twice, and tell the owner to check first.
+      console.error('[confirm] execute threw', tool.name, (error as Error)?.message);
+      actions.push({
+        actionId: action.id, tool: tool.name, status: 'failed', problem: EXECUTE_FAILED_PROBLEM,
+      });
+      refusal ??= { reason: 'execute_failed', problem: EXECUTE_FAILED_PROBLEM };
+      continue;
+    }
+
+    if (!outcome.ok) {
+      // Refused before writing: release so the owner can confirm again once the
+      // state is fixed, instead of being told it was already done.
+      await releaseClaim(input.store, input.userId, action.id);
+      actions.push({ actionId: action.id, tool: tool.name, status: 'failed', problem: outcome.problem });
+      refusal ??= { reason: 'state_changed', problem: outcome.problem };
+      continue;
+    }
+
+    const result = tool.output.parse(outcome.result);
+    actions.push({ actionId: action.id, tool: tool.name, status: 'saved', result });
   }
+
+  // Nothing was written, so the request failed: the route answers with the real
+  // cause and the tool's own sentence, exactly as a single-row confirm would.
+  const saved = actions.filter((action) => action.status === 'saved');
+  if (saved.length === 0 && refusal) {
+    return { ok: false, reason: refusal.reason, problem: refusal.problem };
+  }
+  const state = stateOf(actions);
 
   if (key) {
     try {
@@ -152,10 +266,10 @@ export async function confirmActions(input: {
       // Two confirms raced on the same key. The first write stands; return it so
       // the caller sees one outcome, not an error and not a second row.
       const recorded = await input.store.findCommit(input.userId, key);
-      if (recorded) return { ok: true, actions: recorded.actions, replayed: true };
+      if (recorded) return { ok: true, actions: recorded.actions, replayed: true, state: stateOf(recorded.actions) };
       throw new Error('confirm commit failed');
     }
   }
 
-  return { ok: true, actions, replayed: false };
+  return { ok: true, actions, replayed: false, state };
 }
