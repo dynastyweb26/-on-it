@@ -271,6 +271,9 @@
       "tags": ["money"],
       "request": "does Maria still owe me anything?",
       "fixture": {
+        "clients": [
+          { "id": "cli-maria", "user_id": "11111111-1111-1111-1111-111111111111", "name": "Maria Santos", "email": "maria@example.com", "phone": null, "address": null, "created_at": "2026-09-01T00:00:00Z" }
+        ],
         "invoices": [
           {
             "id": "inv-paid",

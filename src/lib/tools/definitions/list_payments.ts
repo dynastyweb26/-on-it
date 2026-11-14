@@ -14,6 +14,7 @@ import { booksTotals } from '@/lib/books-totals';
 import { localYmd, resolveTimeZone } from '@/lib/recap/dates';
 import {
   READ_CAP,
+  ambiguousClientNames,
   forgivingFilters,
   matchOf,
   moneyText,
@@ -59,6 +60,8 @@ export const ListPaymentsOutput = z.object({
   rows: RankedListProps.shape.rows,
   total: RankedListProps.shape.total,
   payments: z.array(Payment),
+  /** Rows of more than one client under one name filter: ask which client. */
+  clientMatches: z.array(z.string()),
   /** A from/to that was given but is not a date: the list is empty, not wide. */
   dateProblem: z.string().optional(),
 });
@@ -116,7 +119,11 @@ export const listPaymentsTool = defineTool({
   defaultTemplate: { id: 'list.ranked', props: RankedListProps },
   destination: { screen: 'Income', path: '/income' },
   handler: async (ctx, args) => {
+    // client belongs in the shared filters: without it the rows kept every
+    // client while `filters.client` stayed undefined, so the filter below never
+    // removed anyone and a two-Ruth name could not be reported as ambiguous.
     const { filters, ignored, badDates } = forgivingFilters({
+      client: args.client,
       from: args.from,
       to: args.to,
       min_amount: args.min_amount,
@@ -137,6 +144,7 @@ export const listPaymentsTool = defineTool({
         rows: [],
         total: { label: '0 payments', amount: moneyText(0) },
         payments: [],
+        clientMatches: [],
         dateProblem: badDates[0],
       };
     }
@@ -279,6 +287,7 @@ export const listPaymentsTool = defineTool({
         label: `${count} ${count === 1 ? 'payment' : 'payments'}`,
         amount: moneyText(totals.collected),
       },
+      clientMatches: ambiguousClientNames(lines.map((line) => line.clientName), filters.client),
       payments: shown.map((line) => ({
         id: line.id,
         kind: line.kind,
@@ -311,6 +320,7 @@ export const listPaymentsTool = defineTool({
         { name: 'Ruth Lawrence', secondary: 'INV-0008 · Refund · 2026-11-02', amount: '\u2212$20.00', tone: 'out' },
       ],
       total: { label: '3 payments', amount: '$405.00' },
+      clientMatches: [],
       payments: [
         { id: 'p1', kind: 'invoice_payment', clientName: 'Maria Santos', invoiceNumber: 'INV-0007', method: 'Zelle', day: '2026-11-06', amount: '+$120.00' },
         { id: 'o1', kind: 'other_income', clientName: 'Other income', invoiceNumber: null, method: 'Other income', day: '2026-11-04', amount: '+$300.00' },

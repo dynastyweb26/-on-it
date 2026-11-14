@@ -25,6 +25,7 @@ const run = (rows: ReturnType<typeof fixture>, args: unknown = {}) =>
     rows: Array<{ name: string; secondary: string; amount: string; tone?: string }>;
     total: { amount: string };
     payments: Array<{ kind: string; amount: string }>;
+    clientMatches: string[];
   }>;
 
 test('the list carries invoice payments, a signed refund and other income', async () => {
@@ -35,6 +36,27 @@ test('the list carries invoice payments, a signed refund and other income', asyn
   assert.equal(out.rows[1].secondary, 'Not tied to an invoice · Other income · 2026-11-04');
   assert.equal(out.rows[2].amount, '\u2212$20.00');
   assert.equal(out.rows[2].tone, 'out');
+});
+
+test('two clients behind one name filter are named, not merged into one answer', async () => {
+  const rows = fixture();
+  rows.invoices = [
+    { id: 'inv-a', kind: 'invoice', invoice_number: 1, client_name: 'Ruth Chen', deleted_at: null, user_id: OWNER },
+    { id: 'inv-b', kind: 'invoice', invoice_number: 2, client_name: 'Ruth Lawrence', deleted_at: null, user_id: OWNER },
+  ];
+  rows.invoice_payments = [
+    { id: 'p-a', invoice_id: 'inv-a', amount: 50, method: 'cash', paid_at: '2026-11-01T12:00:00Z', created_at: '2026-11-01T12:00:00Z', entry_type: 'payment', stripe_checkout_session_id: null, user_id: OWNER },
+    { id: 'p-b', invoice_id: 'inv-b', amount: 60, method: 'cash', paid_at: '2026-11-02T12:00:00Z', created_at: '2026-11-02T12:00:00Z', entry_type: 'payment', stripe_checkout_session_id: null, user_id: OWNER },
+  ];
+  rows.other_income = [];
+
+  const both = await run(rows, { client: 'ruth' });
+  assert.equal(both.count, 2);
+  assert.deepEqual(both.clientMatches, ['Ruth Chen', 'Ruth Lawrence']);
+
+  const one = await run(rows, { client: 'ruth chen' });
+  assert.equal(one.count, 1, 'the client filter narrows the list');
+  assert.deepEqual(one.clientMatches, []);
 });
 
 test('the list total is the Books Collected figure for the same rows', async () => {

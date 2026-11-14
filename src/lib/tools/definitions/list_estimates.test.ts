@@ -30,6 +30,15 @@ test('filters narrow by client and stay forgiving about status', async () => {
   assert.deepEqual(out.ignored, ['banana']);
 });
 
+test('two clients behind one name filter are named, not merged into one answer', async () => {
+  const rows = [row(3, { client_name: 'Ruth Chen' }), row(4, { client_name: 'Ruth Lawrence' })];
+  const both = (await run(rows, { client: 'ruth' })) as never as { clientMatches: string[] };
+  assert.deepEqual(both.clientMatches, ['Ruth Chen', 'Ruth Lawrence']);
+
+  const one = (await run(rows, { client: 'ruth chen' })) as never as { clientMatches: string[] };
+  assert.deepEqual(one.clientMatches, []);
+});
+
 test('a from that is not a real day returns no rows instead of widening to all time', async () => {
   const out = (await run([row(3), row(4)], { from: '2026-13-01' })) as never as {
     count: number;
