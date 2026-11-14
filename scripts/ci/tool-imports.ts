@@ -10,18 +10,23 @@
 // Usage:
 //   node --import ./scripts/test-register.mjs scripts/ci/tool-imports.ts
 //   node --import ./scripts/test-register.mjs scripts/ci/tool-imports.ts <root>
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const ADMIN_MODULE = 'src/lib/supabase/admin';
 export const TOOLS_DIR = 'src/lib/tools';
+/** The module that builds a WriteDb. Only /api/ai/confirm may import it. */
+export const WRITE_DB_MODULE = 'src/lib/tools/write-db';
 
 export type Reach = { from: string; via: string[] };
 
 const IMPORT_RE = /(?:^|\n)\s*(?:import|export)[^;]*?from\s+['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g;
 
 function walk(dir: string, out: string[] = []): string[] {
+  // A start directory can be absent in a small fixture; that is nothing to scan,
+  // not a crash.
+  if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) walk(full, out);
@@ -64,17 +69,17 @@ export function resolveImport(root: string, fromFile: string, specifier: string)
   return null;
 }
 
-/**
- * Walk the import graph from each file under src/lib/tools and report every
- * path that reaches the service-role module.
- */
-export function findServiceRoleReach(root: string): Reach[] {
-  const toolsRoot = join(root, TOOLS_DIR);
-  const adminFile = join(root, `${ADMIN_MODULE}.ts`);
+/** Walk the import graph from each start file to one forbidden module. */
+export function findReach(
+  root: string,
+  starts: readonly string[],
+  target: string,
+): Reach[] {
+  const targetFile = join(root, `${target}.ts`);
   const reaches: Reach[] = [];
 
   const visit = (file: string, trail: string[], seen: Set<string>): string[] | null => {
-    if (resolve(file) === resolve(adminFile)) return [...trail, file];
+    if (resolve(file) === resolve(targetFile)) return [...trail, file];
     if (seen.has(file)) return null;
     seen.add(file);
 
@@ -87,7 +92,7 @@ export function findServiceRoleReach(root: string): Reach[] {
     return null;
   };
 
-  for (const file of walk(toolsRoot)) {
+  for (const file of starts) {
     const trail = visit(file, [], new Set());
     if (trail) {
       reaches.push({
@@ -99,18 +104,52 @@ export function findServiceRoleReach(root: string): Reach[] {
   return reaches;
 }
 
-function main(root: string): number {
-  const reaches = findServiceRoleReach(root);
+/**
+ * Walk the import graph from each file under src/lib/tools and report every
+ * path that reaches the service-role module.
+ */
+export function findServiceRoleReach(root: string): Reach[] {
+  return findReach(root, walk(join(root, TOOLS_DIR)), ADMIN_MODULE);
+}
+
+/**
+ * The write database is a privilege, not a building block: only /api/ai/confirm
+ * constructs one. This fails if the model turn or any read tool can even import
+ * the module that builds it, so "execute" can never be reached from a turn.
+ */
+export function findWriteDbReach(root: string): Reach[] {
+  const starts = [
+    join(root, TOOLS_DIR, 'turn.ts'),
+    ...walk(join(root, TOOLS_DIR, 'definitions')),
+  ];
+  return findReach(root, starts, WRITE_DB_MODULE);
+}
+
+function report(label: string, reaches: readonly Reach[], ok: string): number {
   if (reaches.length === 0) {
-    console.log('[tools-safety] no tool reaches adminClient');
+    console.log(`[tools-safety] ${ok}`);
     return 0;
   }
-  console.error('[tools-safety] a tool can reach the service-role client:');
+  console.error(`[tools-safety] ${label}`);
   for (const reach of reaches) {
     console.error(`  ${reach.from}`);
     for (const hop of reach.via) console.error(`    -> ${hop}`);
   }
   return 1;
+}
+
+function main(root: string): number {
+  const admin = report(
+    'a tool can reach the service-role client:',
+    findServiceRoleReach(root),
+    'no tool reaches adminClient',
+  );
+  const write = report(
+    'the model turn or a read tool can reach the write database:',
+    findWriteDbReach(root),
+    'no turn or read tool reaches the write database',
+  );
+  return Math.max(admin, write);
 }
 
 const invokedDirectly =

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { findServiceRoleReach } from '../../../scripts/ci/tool-imports';
+import { findServiceRoleReach, findWriteDbReach } from '../../../scripts/ci/tool-imports';
 
 function project(files: Record<string, string>): string {
   const root = mkdtempSync(join(tmpdir(), 'tools-imports-'));
@@ -73,6 +73,55 @@ test('package imports are not mistaken for project files', () => {
   });
   try {
     assert.deepEqual(findServiceRoleReach(root), []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the write database is unreachable from the turn and from a read tool', () => {
+  const root = project({
+    'src/lib/tools/turn.ts': "import { supabaseWriteDb } from './write-db';\nexport const x = supabaseWriteDb;\n",
+    'src/lib/tools/write-db.ts': 'export const supabaseWriteDb = () => null;\n',
+  });
+  try {
+    const reaches = findWriteDbReach(root);
+    assert.deepEqual(reaches.map((reach) => reach.from), ['src/lib/tools/turn.ts']);
+    assert.deepEqual(reaches[0].via, ['src/lib/tools/turn.ts', 'src/lib/tools/write-db.ts']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a read tool that reaches the write database, directly or through a helper', () => {
+  const root = project({
+    'src/lib/tools/turn.ts': 'export const turn = () => null;\n',
+    'src/lib/tools/definitions/tool.ts': "import { writeHandle } from '../helper';\nexport const x = writeHandle;\n",
+    'src/lib/tools/helper.ts': "import { supabaseWriteDb } from './write-db';\nexport const writeHandle = supabaseWriteDb;\n",
+    'src/lib/tools/write-db.ts': 'export const supabaseWriteDb = () => null;\n',
+  });
+  try {
+    const reaches = findWriteDbReach(root);
+    const fromTool = reaches.find((reach) => reach.from === 'src/lib/tools/definitions/tool.ts');
+    assert.ok(fromTool, 'a read tool reaching the write db through a helper is reported');
+    assert.deepEqual(fromTool.via, [
+      'src/lib/tools/definitions/tool.ts',
+      'src/lib/tools/helper.ts',
+      'src/lib/tools/write-db.ts',
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the confirm route may build a write context: only tools are scanned for it', () => {
+  const root = project({
+    'src/lib/tools/turn.ts': 'export const turn = () => null;\n',
+    'src/lib/tools/write-db.ts': 'export const supabaseWriteDb = () => null;\n',
+    'src/app/api/ai/confirm/route.ts':
+      "import { supabaseWriteDb } from '@/lib/tools/write-db';\nexport const route = supabaseWriteDb;\n",
+  });
+  try {
+    assert.deepEqual(findWriteDbReach(root), []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

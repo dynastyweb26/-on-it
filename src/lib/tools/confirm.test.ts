@@ -1,18 +1,21 @@
 // The confirm scaffold is the difference between "the model proposed a write"
 // and "a write happened". These tests are the proof: no token, no write; one
-// key, one row; several tokens, one request.
+// key, one row; several tokens, one request; an execute that finds the world
+// changed refuses instead of writing anyway.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { buildRegistry, defineTool, type ToolDb } from './contract';
+import { buildRegistry, defineTool, defineWriteTool, type WriteContext } from './contract';
 import {
   CONFIRM_TOKEN_TTL_MS,
   confirmActions,
+  confirmSentence,
   createPendingAction,
   sameTokenHash,
 } from './confirm';
 import { fixturePendingStore } from './pending-fixture';
-import { fixtureDb } from './fixture-db';
+import { fixtureWriteDb } from './write-fixture';
+import { ConfirmBatchProps } from '@/lib/templates/props';
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const OTHER = '22222222-2222-2222-2222-222222222222';
@@ -22,26 +25,43 @@ function writeCount() {
   return { rows: 0 };
 }
 
-function writeTool(rows: { rows: number }) {
-  return defineTool({
+function writeTool(counter: { rows: number }) {
+  return defineWriteTool({
     name: 'record_payment',
     description: 'Record a payment against an invoice. Writes one row.',
     input: z.object({ invoice_id: z.string().min(1), amount: z.number().positive() }).strict(),
     output: z.object({ invoice_id: z.string(), recorded: z.number().int() }),
     type: 'write',
     risk: 'high',
-    defaultTemplate: { id: 'confirm.batch', props: z.object({ invoice_id: z.string() }) },
-    handler: async (_ctx, args) => {
-      rows.rows += 1;
-      return { invoice_id: args.invoice_id, recorded: rows.rows };
+    defaultTemplate: { id: 'confirm.batch', props: ConfirmBatchProps },
+    prepare: async (_ctx, args) => ({
+      ok: true,
+      resolved: { invoice_id: args.invoice_id, amount: args.amount },
+      row: { icon: 'card', summary: `Record a payment for ${args.invoice_id}`, amount: '', tone: 'in' },
+    }),
+    execute: async (ctx, resolved) => {
+      const { invoice_id, amount } = resolved as { invoice_id: string; amount: number };
+      const { error } = await ctx.db.insert('invoice_payments', {
+        id: `pay-${counter.rows + 1}`,
+        invoice_id,
+        amount,
+        user_id: ctx.userId,
+      });
+      if (error) return { ok: false, problem: 'I could not record that payment.' };
+      counter.rows += 1;
+      return { ok: true, result: { invoice_id, recorded: counter.rows } };
     },
     fallback: () => 'Payment recorded.',
     fixture: { args: { invoice_id: 'inv-1', amount: 50 }, result: { invoice_id: 'inv-1', recorded: 1 } },
+    preview: {
+      resolved: { invoice_id: 'inv-1', amount: 50 },
+      row: { icon: 'card', summary: 'Record a payment for inv-1', amount: '', tone: 'in' },
+    },
   });
 }
 
-const registryFor = (rows: { rows: number }) => buildRegistry([writeTool(rows)]);
-const db: ToolDb = fixtureDb({});
+const registryFor = (counter: { rows: number }) => buildRegistry([writeTool(counter)]);
+const wctxFor = (userId = OWNER): WriteContext => ({ db: fixtureWriteDb({}, userId), userId });
 
 test('a write tool cannot run without a token: the proposal only records an action', async () => {
   const rows = writeCount();
@@ -49,7 +69,7 @@ test('a write tool cannot run without a token: the proposal only records an acti
   const created = await createPendingAction({
     userId: OWNER,
     tool: 'record_payment',
-    args: { invoice_id: 'inv-1', amount: 50 },
+    resolved: { invoice_id: 'inv-1', amount: 50 },
     store,
   });
 
@@ -60,25 +80,24 @@ test('a write tool cannot run without a token: the proposal only records an acti
   const stored = [...store.actions.values()][0];
   assert.equal(stored.tokenHash.length, 64);
   assert.notEqual(stored.tokenHash, created.token);
+  // What is stored is resolved ids, never the model's raw arguments.
+  assert.deepEqual(stored.resolved, { invoice_id: 'inv-1', amount: 50 });
 });
 
 test('a confirmed action executes once and replaying its token is refused', async () => {
   const rows = writeCount();
   const store = fixturePendingStore();
   const registry = registryFor(rows);
+  const wctx = wctxFor();
   const { token } = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-1', amount: 50 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
   });
 
-  const first = await confirmActions({
-    userId: OWNER, tokens: [token], store, registry, db,
-  });
+  const first = await confirmActions({ userId: OWNER, tokens: [token], store, registry, wctx });
   assert.equal(first.ok, true);
   assert.equal(rows.rows, 1);
 
-  const second = await confirmActions({
-    userId: OWNER, tokens: [token], store, registry, db,
-  });
+  const second = await confirmActions({ userId: OWNER, tokens: [token], store, registry, wctx });
   assert.deepEqual(second, { ok: false, reason: 'already_confirmed' });
   assert.equal(rows.rows, 1, 'still one row');
 });
@@ -87,12 +106,13 @@ test('a replayed idempotency key writes one row and returns the first result', a
   const rows = writeCount();
   const store = fixturePendingStore();
   const registry = registryFor(rows);
+  const wctx = wctxFor();
   const { token } = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-1', amount: 50 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
   });
 
   const first = await confirmActions({
-    userId: OWNER, tokens: [token], idempotencyKey: 'tap-abc-123', store, registry, db,
+    userId: OWNER, tokens: [token], idempotencyKey: 'tap-abc-123', store, registry, wctx,
   });
   assert.equal(first.ok, true);
   if (first.ok) assert.equal(first.replayed, false);
@@ -100,10 +120,10 @@ test('a replayed idempotency key writes one row and returns the first result', a
   // A second request with a NEW token but the same key (a retry after a
   // timeout) must not write again.
   const again = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-1', amount: 50 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
   });
   const replay = await confirmActions({
-    userId: OWNER, tokens: [again.token], idempotencyKey: 'tap-abc-123', store, registry, db,
+    userId: OWNER, tokens: [again.token], idempotencyKey: 'tap-abc-123', store, registry, wctx,
   });
 
   assert.equal(replay.ok, true);
@@ -118,16 +138,17 @@ test('several pending actions are confirmed together in one request', async () =
   const rows = writeCount();
   const store = fixturePendingStore();
   const registry = registryFor(rows);
+  const wctx = wctxFor();
 
   const a = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-a', amount: 25 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-a', amount: 25 }, store,
   });
   const b = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-b', amount: 30 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-b', amount: 30 }, store,
   });
 
   const result = await confirmActions({
-    userId: OWNER, tokens: [a.token, b.token], idempotencyKey: 'batch-1', store, registry, db,
+    userId: OWNER, tokens: [a.token, b.token], idempotencyKey: 'batch-1', store, registry, wctx,
   });
   assert.equal(result.ok, true);
   if (result.ok) {
@@ -141,12 +162,13 @@ test('one bad token in a batch executes nothing', async () => {
   const rows = writeCount();
   const store = fixturePendingStore();
   const registry = registryFor(rows);
+  const wctx = wctxFor();
   const good = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-a', amount: 25 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-a', amount: 25 }, store,
   });
 
   const result = await confirmActions({
-    userId: OWNER, tokens: [good.token, 'not-a-real-token'], store, registry, db,
+    userId: OWNER, tokens: [good.token, 'not-a-real-token'], store, registry, wctx,
   });
   assert.deepEqual(result, { ok: false, reason: 'unknown_token' });
   assert.equal(rows.rows, 0, 'all-or-nothing: the good action did not run');
@@ -157,12 +179,12 @@ test('an expired token is refused', async () => {
   const store = fixturePendingStore();
   const registry = registryFor(rows);
   const created = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-1', amount: 50 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
   });
 
   const later = new Date(Date.now() + CONFIRM_TOKEN_TTL_MS + 1000);
   const result = await confirmActions({
-    userId: OWNER, tokens: [created.token], store, registry, db, now: later,
+    userId: OWNER, tokens: [created.token], store, registry, wctx: wctxFor(), now: later,
   });
   assert.deepEqual(result, { ok: false, reason: 'expired_token' });
   assert.equal(rows.rows, 0);
@@ -173,14 +195,43 @@ test("another user's token is unknown, not theirs to confirm", async () => {
   const store = fixturePendingStore();
   const registry = registryFor(rows);
   const created = await createPendingAction({
-    userId: OWNER, tool: 'record_payment', args: { invoice_id: 'inv-1', amount: 50 }, store,
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
   });
 
   const result = await confirmActions({
-    userId: OTHER, tokens: [created.token], store, registry, db,
+    userId: OTHER, tokens: [created.token], store, registry, wctx: wctxFor(OTHER),
   });
   assert.deepEqual(result, { ok: false, reason: 'unknown_token' });
   assert.equal(rows.rows, 0);
+});
+
+test('execute refuses when the state moved after prepare, and writes nothing', async () => {
+  const rows = writeCount();
+  const store = fixturePendingStore();
+  const registry = registryFor(rows);
+  const wctx = wctxFor();
+  const created = await createPendingAction({
+    userId: OWNER, tool: 'record_payment', resolved: { invoice_id: 'inv-1', amount: 50 }, store,
+  });
+
+  // The world changes between the proposal and the confirm.
+  const tool = registry.get('record_payment');
+  const changed = { ...tool, execute: async () => ({ ok: false as const, problem: 'That invoice was deleted.' }) };
+  const changedRegistry = buildRegistry([changed as never]);
+
+  const result = await confirmActions({
+    userId: OWNER, tokens: [created.token], store, registry: changedRegistry, wctx,
+  });
+  assert.deepEqual(result, { ok: false, reason: 'state_changed', problem: 'That invoice was deleted.' });
+  assert.equal(rows.rows, 0);
+  assert.equal(store.executions.length, 0, 'nothing was marked executed');
+});
+
+test('the confirm sentence is composed by the server and says "ready"', () => {
+  assert.equal(
+    confirmSentence({ icon: 'person', summary: 'Add client Maria Santos', amount: '', tone: 'neutral' }),
+    'Ready to confirm: Add client Maria Santos.',
+  );
 });
 
 test('a read tool can never be confirmed into a write path', async () => {
@@ -200,11 +251,11 @@ test('a read tool can never be confirmed into a write path', async () => {
   });
   const registry = buildRegistry([readOnly]);
   const created = await createPendingAction({
-    userId: OWNER, tool: 'lookup', args: {}, store,
+    userId: OWNER, tool: 'lookup', resolved: {}, store,
   });
 
   const result = await confirmActions({
-    userId: OWNER, tokens: [created.token], store, registry, db,
+    userId: OWNER, tokens: [created.token], store, registry, wctx: wctxFor(),
   });
   assert.deepEqual(result, { ok: false, reason: 'not_executable' });
   assert.equal(rows.rows, 0);
