@@ -6,7 +6,7 @@
 // Books tab shows for the same range — it uses booksTotals(), not a second sum.
 import { z } from 'zod';
 import { defineTool } from '../contract';
-import { RankedListProps } from '@/lib/templates/props';
+import { NavLinkProps, RankedListProps } from '@/lib/templates/props';
 import { formatDocNumber } from '@/lib/documents';
 import { METHOD_LABELS, ledgerEntryLabel } from '@/lib/payment-methods';
 import { countsAsIncome, type OtherIncomeRow } from '@/lib/other-income';
@@ -14,13 +14,13 @@ import { booksTotals } from '@/lib/books-totals';
 import { localYmd, resolveTimeZone } from '@/lib/recap/dates';
 import {
   READ_CAP,
-  ambiguousClientNames,
   forgivingFilters,
+  joinNames,
   matchOf,
   moneyText,
-  nameMatches,
   normName,
   num,
+  resolveClient,
   toIso,
 } from '../read';
 import { moneyIn, moneyOut } from '../money';
@@ -51,17 +51,21 @@ const Payment = z.object({
 });
 
 export const ListPaymentsOutput = z.object({
-  match: z.enum(['none', 'one', 'many']),
+  /** ambiguous: the name matched several clients; none: nobody is called that. */
+  match: z.enum(['none', 'one', 'many', 'ambiguous']),
   count: z.number().int().nonnegative(),
   ignored: z.array(z.string()),
   eyebrow: z.string().min(1),
   title: z.string(),
   totalCount: z.number().int().nonnegative(),
   rows: RankedListProps.shape.rows,
-  total: RankedListProps.shape.total,
+  /** Null when there is no answer to total: several clients, or none on file. */
+  total: RankedListProps.shape.total.nullable(),
   payments: z.array(Payment),
-  /** Rows of more than one client under one name filter: ask which client. */
-  clientMatches: z.array(z.string()),
+  /** The client names to ask about when `match` is ambiguous, sorted. */
+  clientChoices: z.array(z.string()),
+  /** The name the user said, as it reached the tool. */
+  clientQuery: z.string(),
   /** A from/to that was given but is not a date: the list is empty, not wide. */
   dateProblem: z.string().optional(),
 });
@@ -117,13 +121,18 @@ export const listPaymentsTool = defineTool({
   type: 'read',
   risk: 'low',
   defaultTemplate: { id: 'list.ranked', props: RankedListProps },
+  // Declared so templateFor may return null: several clients is a sentence to
+  // read, never a card of somebody else's money.
+  alternateTemplate: { id: 'nav.link', props: NavLinkProps },
+  templateFor: (result) =>
+    result.match === 'ambiguous' || (result.clientQuery !== '' && result.match === 'none')
+      ? null
+      : 'list.ranked',
   destination: { screen: 'Income', path: '/income' },
   handler: async (ctx, args) => {
-    // client belongs in the shared filters: without it the rows kept every
-    // client while `filters.client` stayed undefined, so the filter below never
-    // removed anyone and a two-Ruth name could not be reported as ambiguous.
+    // The client name is resolved here, in code, and the rows are then filtered
+    // by that exact name: the model never decides who "Ruth" is.
     const { filters, ignored, badDates } = forgivingFilters({
-      client: args.client,
       from: args.from,
       to: args.to,
       min_amount: args.min_amount,
@@ -131,6 +140,10 @@ export const listPaymentsTool = defineTool({
     });
     const method = forgivingMethod(args.method);
     ignored.push(...method.ignored);
+    const clientQuery = args.client?.trim() ?? '';
+    const resolved = clientQuery ? await resolveClient(ctx, clientQuery) : null;
+    const clientKey = resolved?.kind === 'one' ? normName(resolved.name) : null;
+    const matchesClient = (name: string) => clientKey === null || normName(name) === clientKey;
 
     if (badDates.length) {
       // A date we cannot read must never widen the answer to all time.
@@ -142,10 +155,42 @@ export const listPaymentsTool = defineTool({
         title: '',
         totalCount: 0,
         rows: [],
-        total: { label: '0 payments', amount: moneyText(0) },
+        total: null,
         payments: [],
-        clientMatches: [],
+        clientChoices: [],
+        clientQuery,
         dateProblem: badDates[0],
+      };
+    }
+
+    if (resolved?.kind === 'many') {
+      return {
+        match: 'ambiguous' as const,
+        count: 0,
+        ignored,
+        eyebrow: 'Payments received',
+        title: 'Which one?',
+        totalCount: 0,
+        rows: [],
+        total: null,
+        payments: [],
+        clientChoices: resolved.names,
+        clientQuery,
+      };
+    }
+    if (resolved?.kind === 'none') {
+      return {
+        match: 'none' as const,
+        count: 0,
+        ignored,
+        eyebrow: 'Payments received',
+        title: '',
+        totalCount: 0,
+        rows: [],
+        total: null,
+        payments: [],
+        clientChoices: [],
+        clientQuery,
       };
     }
 
@@ -207,7 +252,7 @@ export const listPaymentsTool = defineTool({
       const clientName = inv.client_name ?? 'Client';
       const methodKey = (p.method ?? 'other').toLowerCase();
       if (!inRange(day) || !inAmount(amount)) continue;
-      if (filters.client && !nameMatches(filters.client, clientName)) continue;
+      if (!matchesClient(clientName)) continue;
       if (method.method && methodKey !== method.method) continue;
       lines.push({
         id: p.id,
@@ -230,7 +275,7 @@ export const listPaymentsTool = defineTool({
       const day = (toIso(o.received_on) ?? '').slice(0, 10);
       const clientName = (o.client_name ?? '').trim() || (o.title ?? '').trim() || 'Other income';
       if (!inRange(day)) continue;
-      if (filters.client && !nameMatches(filters.client, clientName)) continue;
+      if (!matchesClient(clientName)) continue;
       // Other income has no payment method; a method filter excludes it, and the
       // ignored list says why the row is absent.
       if (method.method && method.method !== 'other') continue;
@@ -258,7 +303,7 @@ export const listPaymentsTool = defineTool({
         countsAsIncome(row.classification)
         && inRange((toIso(row.received_on) ?? '').slice(0, 10))
         && inAmount(num(row.amount))
-        && (!filters.client || nameMatches(filters.client, (row.client_name ?? '').trim() || (row.title ?? '').trim() || 'Other income'))
+        && matchesClient((row.client_name ?? '').trim() || (row.title ?? '').trim() || 'Other income')
         && (!method.method || method.method === 'other'),
       ),
       expenses: [],
@@ -287,7 +332,8 @@ export const listPaymentsTool = defineTool({
         label: `${count} ${count === 1 ? 'payment' : 'payments'}`,
         amount: moneyText(totals.collected),
       },
-      clientMatches: ambiguousClientNames(lines.map((line) => line.clientName), filters.client),
+      clientChoices: [],
+      clientQuery,
       payments: shown.map((line) => ({
         id: line.id,
         kind: line.kind,
@@ -300,11 +346,15 @@ export const listPaymentsTool = defineTool({
     };
   },
   fallback: (result) =>
-    result.dateProblem
-      ? `No rows: I did not understand the date "${result.dateProblem}".`
-      : result.count === 0
-        ? 'No payments match that.'
-        : `${result.count} ${result.count === 1 ? 'payment' : 'payments'}, ${result.total.amount} collected.`,
+    result.match === 'ambiguous'
+      ? `${result.clientChoices.length} clients match ${result.clientQuery}: ${joinNames(result.clientChoices)}. Ask again with the full name.`
+      : result.clientQuery && result.match === 'none'
+        ? `No client named ${result.clientQuery} on file.`
+        : result.dateProblem
+          ? `No rows: I did not understand the date "${result.dateProblem}".`
+          : result.count === 0
+            ? 'No payments match that.'
+            : `${result.count} ${result.count === 1 ? 'payment' : 'payments'}, ${result.total?.amount ?? ''} collected.`,
   fixture: {
     args: { from: '2026-11-01', to: '2026-11-30' },
     result: {
@@ -320,7 +370,8 @@ export const listPaymentsTool = defineTool({
         { name: 'Ruth Lawrence', secondary: 'INV-0008 · Refund · 2026-11-02', amount: '\u2212$20.00', tone: 'out' },
       ],
       total: { label: '3 payments', amount: '$405.00' },
-      clientMatches: [],
+      clientChoices: [],
+      clientQuery: '',
       payments: [
         { id: 'p1', kind: 'invoice_payment', clientName: 'Maria Santos', invoiceNumber: 'INV-0007', method: 'Zelle', day: '2026-11-06', amount: '+$120.00' },
         { id: 'o1', kind: 'other_income', clientName: 'Other income', invoiceNumber: null, method: 'Other income', day: '2026-11-04', amount: '+$300.00' },

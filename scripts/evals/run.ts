@@ -56,6 +56,12 @@ type EvalCase = {
      * wording at all, which is the rule for every other case.
      */
     replyIncludes?: string | string[];
+    /**
+     * Every one of these phrases must appear. A name that matches two clients is
+     * only a complete answer when the reply names both, so an ambiguous case
+     * grades all of them, not any one.
+     */
+    replyIncludesAll?: string[];
   };
 };
 
@@ -160,13 +166,16 @@ export function matchingToolSet(
  * and "Zebediah isn't on file" are both a complete answer for a name nobody has.
  */
 export function replyMismatch(
-  expect: Pick<EvalCase['expect'], 'replyIncludes'>,
+  expect: Pick<EvalCase['expect'], 'replyIncludes' | 'replyIncludesAll'>,
   reply: string,
 ): string | null {
+  const text = reply.toLowerCase();
+  const all = expect.replyIncludesAll ?? [];
+  const missing = all.filter((phrase) => !text.includes(phrase.toLowerCase()));
+  if (missing.length) return `reply does not name: ${missing.join(', ')}`;
   if (expect.replyIncludes === undefined) return null;
   const wanted = Array.isArray(expect.replyIncludes) ? expect.replyIncludes : [expect.replyIncludes];
   if (wanted.length === 0) return null;
-  const text = reply.toLowerCase();
   return wanted.some((phrase) => text.includes(phrase.toLowerCase()))
     ? null
     : `reply names none of: ${wanted.join(', ')}`;

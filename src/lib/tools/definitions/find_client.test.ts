@@ -50,6 +50,24 @@ test('a match still renders its declared card', async () => {
   assert.equal(cardFor(findClientTool, out)?.id, 'nav.link');
 });
 
+test('a client who only appears on an invoice is found here too', async () => {
+  const db = fixtureDb({
+    invoices: [{
+      id: 'inv-1', user_id: OWNER, kind: 'invoice', invoice_number: 5, client_name: 'Dwayne Carter',
+      status: 'sent', total: 200, amount_paid: 0, due_date: '2026-10-01',
+      created_at: '2026-09-01T12:00:00Z', deleted_at: null,
+    }] as never,
+  });
+  const out = (await findClientTool.handler(
+    { db, userId: OWNER },
+    findClientTool.input.parse({ name: 'dwayne' }),
+  )) as never as { match: string; clients: { id: string | null; name: string }[] };
+  assert.equal(out.match, 'one');
+  assert.equal(out.clients[0].name, 'Dwayne Carter');
+  // No clients row: the name comes from the invoice, so there is no id.
+  assert.equal(out.clients[0].id, null);
+});
+
 test("another owner's clients are invisible", async () => {
   const out = (await run([client('Ruth Lawrence', { user_id: '22222222-2222-2222-2222-222222222222' })], 'ruth')) as never as { count: number; match: string };
   assert.equal(out.count, 0);

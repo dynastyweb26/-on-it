@@ -23,9 +23,9 @@ const run = (rows: ReturnType<typeof fixture>, args: unknown = {}) =>
     match: string;
     count: number;
     rows: Array<{ name: string; secondary: string; amount: string; tone?: string }>;
-    total: { amount: string };
     payments: Array<{ kind: string; amount: string }>;
-    clientMatches: string[];
+    clientChoices: string[];
+    total: { amount: string } | null;
   }>;
 
 test('the list carries invoice payments, a signed refund and other income', async () => {
@@ -38,7 +38,7 @@ test('the list carries invoice payments, a signed refund and other income', asyn
   assert.equal(out.rows[2].tone, 'out');
 });
 
-test('two clients behind one name filter are named, not merged into one answer', async () => {
+test('two clients behind one name filter are named, with no rows and no figures', async () => {
   const rows = fixture();
   rows.invoices = [
     { id: 'inv-a', kind: 'invoice', invoice_number: 1, client_name: 'Ruth Chen', deleted_at: null, user_id: OWNER },
@@ -51,12 +51,17 @@ test('two clients behind one name filter are named, not merged into one answer',
   rows.other_income = [];
 
   const both = await run(rows, { client: 'ruth' });
-  assert.equal(both.count, 2);
-  assert.deepEqual(both.clientMatches, ['Ruth Chen', 'Ruth Lawrence']);
+  assert.equal(both.match, 'ambiguous');
+  assert.equal(both.count, 0);
+  assert.deepEqual(both.rows, []);
+  assert.equal(both.total, null);
+  assert.deepEqual(both.clientChoices, ['Ruth Chen', 'Ruth Lawrence']);
+  assert.equal(listPaymentsTool.templateFor?.(both as never), null);
+  assert.match(listPaymentsTool.fallback(both as never), /2 clients match ruth: Ruth Chen and Ruth Lawrence/);
 
   const one = await run(rows, { client: 'ruth chen' });
   assert.equal(one.count, 1, 'the client filter narrows the list');
-  assert.deepEqual(one.clientMatches, []);
+  assert.deepEqual(one.clientChoices, []);
 });
 
 test('the list total is the Books Collected figure for the same rows', async () => {
@@ -68,8 +73,8 @@ test('the list total is the Books Collected figure for the same rows', async () 
     expenses: [],
     invoices: [],
   });
-  assert.equal(out.total.amount, moneyText(books.collected));
-  assert.equal(out.total.amount, '$400.00');
+  assert.equal(out.total?.amount, moneyText(books.collected));
+  assert.equal(out.total?.amount, '$400.00');
 });
 
 test('another owner, a deleted invoice and a deleted other-income row never count', async () => {
@@ -101,7 +106,7 @@ test('another owner, a deleted invoice and a deleted other-income row never coun
 test('a period, client and method filter narrow the list and its total', async () => {
   const out = await run(fixture(), { from: '2026-11-05', to: '2026-11-30', client: 'maria', method: 'zelle' });
   assert.equal(out.count, 1);
-  assert.equal(out.total.amount, '$120.00');
+  assert.equal(out.total?.amount, '$120.00');
   assert.equal(out.payments[0].kind, 'invoice_payment');
 });
 

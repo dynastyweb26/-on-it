@@ -8,6 +8,7 @@
 // amount is IGNORED and named in `ignored`, never an error the model has to
 // explain away. The handler still scopes every select by the caller's session.
 import { money } from '@/lib/financials';
+import type { ToolDb } from './contract';
 import { docNoun, formatDocNumber } from '@/lib/documents';
 import { CATEGORY_LABEL, EXPENSE_CATEGORIES, isExpenseCategory, type ExpenseCategory } from '@/lib/expenses';
 import { z } from 'zod';
@@ -41,24 +42,94 @@ export function nameMatches(query: string, candidate: string): boolean {
 }
 
 /**
- * The client names behind a client filter, when the filter is ambiguous.
+ * Who a client name the user said actually is.
  *
- * One name is the ordinary case and returns nothing. Two or more mean the rows
- * of different people would otherwise be added together under one name, so no
- * money answer can come from them: the caller must ask which client instead.
- * Empty whenever no client filter was given.
+ * one: exactly one person is that name. An exact match wins even when other
+ * names also match ("ruth lawrence" is Ruth Lawrence, not both Ruths).
+ * many: several people match, so nothing about money may be answered under
+ * that name — the caller asks which one and stops.
+ * none: nobody on file is called that.
  */
-export function ambiguousClientNames(
-  names: readonly (string | null | undefined)[],
-  client: string | undefined,
-): string[] {
-  if (!client?.trim()) return [];
+export type ClientResolution =
+  | { kind: 'one'; name: string }
+  | { kind: 'many'; names: string[] }
+  | { kind: 'none' };
+
+/** Every distinct client name, first spelling wins, deduped by normName. */
+function distinctNames(names: readonly (string | null | undefined)[]): string[] {
   const seen = new Map<string, string>();
   for (const raw of names) {
     const name = raw?.trim();
-    if (name) seen.set(normName(name), name);
+    if (!name) continue;
+    const key = normName(name);
+    if (!seen.has(key)) seen.set(key, name);
   }
-  return seen.size > 1 ? [...seen.values()].sort((a, b) => a.localeCompare(b)) : [];
+  return [...seen.values()];
+}
+
+/**
+ * Pure: one name the user said, resolved against every client name on file.
+ * No database, no model: the same candidate list always gives the same answer.
+ */
+export function resolveClientName(
+  candidates: readonly (string | null | undefined)[],
+  query: string,
+): ClientResolution {
+  const matched = distinctNames(candidates).filter((name) => nameMatches(query, name));
+  if (matched.length === 0) return { kind: 'none' };
+  const key = normName(query);
+  const exact = matched.find((name) => normName(name) === key);
+  if (exact) return { kind: 'one', name: exact };
+  if (matched.length === 1) return { kind: 'one', name: matched[0] };
+  return { kind: 'many', names: [...matched].sort((a, b) => a.localeCompare(b)) };
+}
+
+/**
+ * The same resolution read from the caller's own rows: the clients table plus
+ * every client_name on a live invoice, estimate or payment. A client who only
+ * ever appears on an invoice (no clients row) still resolves, so every client
+ * tool agrees about who "Ruth" is.
+ */
+export async function resolveClient(
+  ctx: { db: ToolDb; userId: string },
+  nameText: string,
+): Promise<ClientResolution> {
+  const [clients, docs, income] = await Promise.all([
+    ctx.db.select<{ name: string }>('clients', {
+      columns: 'name',
+      eq: { user_id: ctx.userId },
+      is: { deleted_at: null },
+    }),
+    ctx.db.select<{ client_name: string | null }>('invoices', {
+      columns: 'client_name',
+      eq: { user_id: ctx.userId },
+      is: { deleted_at: null },
+    }),
+    // A payment carries its client on the invoice, or on the other-income row.
+    ctx.db.select<{ client_name: string | null }>('other_income', {
+      columns: 'client_name',
+      eq: { user_id: ctx.userId },
+      is: { deleted_at: null },
+    }),
+  ]);
+  if (clients.error) throw new Error(clients.error.message);
+  if (docs.error) throw new Error(docs.error.message);
+  if (income.error) throw new Error(income.error.message);
+
+  return resolveClientName(
+    [
+      ...(clients.data ?? []).map((row) => row.name),
+      ...(docs.data ?? []).map((row) => row.client_name),
+      ...(income.data ?? []).map((row) => row.client_name),
+    ],
+    nameText,
+  );
+}
+
+/** "A and B" / "A, B and C": the names in one ask-which-one sentence. */
+export function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 /** The statuses the invoices table accepts (001_init). */

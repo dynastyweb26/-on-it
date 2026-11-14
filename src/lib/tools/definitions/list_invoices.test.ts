@@ -55,17 +55,33 @@ test('client, date and amount filters narrow the list', async () => {
   assert.equal(out.count, 1);
 });
 
-test('two clients behind one name filter are named, not merged into one answer', async () => {
+test('two clients behind one name filter are named, with no rows and no figures', async () => {
   const rows = [inv(1, { client_name: 'Ruth Chen' }), inv(2, { client_name: 'Ruth Lawrence' })];
-  const both = (await run(rows, { client: 'ruth' })) as never as { count: number; clientMatches: string[] };
-  assert.equal(both.count, 2);
-  assert.deepEqual(both.clientMatches, ['Ruth Chen', 'Ruth Lawrence']);
+  const both = (await run(rows, { client: 'ruth' })) as never as {
+    match: string;
+    count: number;
+    rows: unknown[];
+    total: unknown;
+    clientChoices: string[];
+  };
+  assert.equal(both.match, 'ambiguous');
+  assert.equal(both.count, 0);
+  assert.deepEqual(both.rows, []);
+  assert.equal(both.total, null);
+  assert.deepEqual(both.clientChoices, ['Ruth Chen', 'Ruth Lawrence']);
+  assert.equal(listInvoicesTool.templateFor?.(both as never), null);
+  assert.match(listInvoicesTool.fallback(both as never), /2 clients match ruth: Ruth Chen and Ruth Lawrence/);
 
-  // One client is the ordinary case: nothing to ask about.
-  const one = (await run(rows, { client: 'ruth lawrence' })) as never as { clientMatches: string[] };
-  assert.deepEqual(one.clientMatches, []);
-  const none = (await run(rows)) as never as { clientMatches: string[] };
-  assert.deepEqual(none.clientMatches, []);
+  // The full name is one client, and only that client's rows.
+  const one = (await run(rows, { client: 'ruth lawrence' })) as never as { match: string; count: number };
+  assert.equal(one.match, 'one');
+  assert.equal(one.count, 1);
+
+  // A client nobody has is not an empty list of everybody's invoices.
+  const nobody = (await run(rows, { client: 'zebediah' })) as never as { match: string; total: unknown };
+  assert.equal(nobody.match, 'none');
+  assert.equal(nobody.total, null);
+  assert.match(listInvoicesTool.fallback(nobody as never), /No client named zebediah on file\./);
 });
 
 test('a to that does not parse returns no rows instead of widening to all time', async () => {

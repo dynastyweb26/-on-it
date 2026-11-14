@@ -30,13 +30,23 @@ test('filters narrow by client and stay forgiving about status', async () => {
   assert.deepEqual(out.ignored, ['banana']);
 });
 
-test('two clients behind one name filter are named, not merged into one answer', async () => {
+test('two clients behind one name filter are named, with no rows and no figures', async () => {
   const rows = [row(3, { client_name: 'Ruth Chen' }), row(4, { client_name: 'Ruth Lawrence' })];
-  const both = (await run(rows, { client: 'ruth' })) as never as { clientMatches: string[] };
-  assert.deepEqual(both.clientMatches, ['Ruth Chen', 'Ruth Lawrence']);
+  const both = (await run(rows, { client: 'ruth' })) as never as {
+    match: string;
+    rows: unknown[];
+    total: unknown;
+    clientChoices: string[];
+  };
+  assert.equal(both.match, 'ambiguous');
+  assert.deepEqual(both.rows, []);
+  assert.equal(both.total, null);
+  assert.deepEqual(both.clientChoices, ['Ruth Chen', 'Ruth Lawrence']);
+  assert.equal(listEstimatesTool.templateFor?.(both as never), null);
 
-  const one = (await run(rows, { client: 'ruth chen' })) as never as { clientMatches: string[] };
-  assert.deepEqual(one.clientMatches, []);
+  const one = (await run(rows, { client: 'ruth chen' })) as never as { match: string; count: number };
+  assert.equal(one.match, 'one');
+  assert.equal(one.count, 1);
 });
 
 test('a from that is not a real day returns no rows instead of widening to all time', async () => {
