@@ -7,14 +7,15 @@ import { z } from 'zod';
 import { defineTool } from '../contract';
 import { RankedListProps, StatTilesProps } from '@/lib/templates/props';
 import { booksTotals } from '@/lib/books-totals';
-import { ClientRow, asInvoiceRow, matchOf, moneyText, nameMatches, num } from '../read';
+import { ClientRow, asInvoiceRow, joinNames, moneyText, normName, num, resolveClient } from '../read';
 
 export const GET_CLIENT_SUMMARY = 'get_client_summary';
 
 export const GetClientSummaryInput = z.object({ name: z.string().min(1).max(120) }).strict();
 
 export const GetClientSummaryOutput = z.object({
-  match: z.enum(['none', 'one', 'many']),
+  /** ambiguous: the name matched several clients, so there are no figures. */
+  match: z.enum(['none', 'one', 'many', 'ambiguous']),
   count: z.number().int().nonnegative(),
   ignored: z.array(z.string()),
   eyebrow: z.string().min(1),
@@ -30,8 +31,14 @@ export const GetClientSummaryOutput = z.object({
   ),
   rows: RankedListProps.shape.rows,
   totalCount: z.number().int().nonnegative(),
-  total: RankedListProps.shape.total,
-  clients: z.array(z.object({ id: z.string(), name: z.string() })),
+  /** Null when there is no answer to total: several clients, or none on file. */
+  total: RankedListProps.shape.total.nullable(),
+  /** id is null for a client who only appears on documents (no clients row). */
+  clients: z.array(z.object({ id: z.string().nullable(), name: z.string() })),
+  /** The client names to ask about when `match` is ambiguous, sorted. */
+  clientChoices: z.array(z.string()),
+  /** The name the user said, as it reached the tool. */
+  clientQuery: z.string(),
   summary: z
     .object({
       clientName: z.string(),
@@ -60,6 +67,8 @@ const fixture = {
     totalCount: 1,
     total: { label: '1 client', amount: '$120.00', tone: 'neutral' as const },
     clients: [{ id: 'cli-1', name: 'Ruth Lawrence' }],
+    clientChoices: [] as string[],
+    clientQuery: 'Ruth Lawrence',
     summary: { clientName: 'Ruth Lawrence', owed: '$120.00', paid: '$0.00', open: 1, estimates: 0 },
   },
 };
@@ -67,7 +76,7 @@ const fixture = {
 export const getClientSummaryTool = defineTool({
   name: GET_CLIENT_SUMMARY,
   description:
-    'Read-only summary of ONE client: what they still owe, what they have paid all time, how many documents are open and how many estimates they have. Drafts, void rows and estimates never count toward owed; paid is money actually received, not the period. If the name matches more than one client the tool returns each match with what it owes instead of guessing; use find_client to list them.',
+    'Read-only summary of ONE client: what they still owe, what they have paid all time, how many documents are open and how many estimates they have. Drafts, void rows and estimates never count toward owed; paid is money actually received, not the period. The tool resolves the name itself; if it matches more than one client it returns their names instead of guessing, with no figures at all, and you must ask which one.',
   input: GetClientSummaryInput,
   output: GetClientSummaryOutput,
   type: 'read',
@@ -75,22 +84,20 @@ export const getClientSummaryTool = defineTool({
   defaultTemplate: { id: 'stat.tiles', props: StatTilesProps },
   alternateTemplate: { id: 'list.ranked', props: RankedListProps },
   templateFor: (result) => {
-    const count = (result as { count: number }).count;
-    // No client by that name: plain text, not an empty card.
-    if (count === 0) return null;
-    return count === 1 ? 'stat.tiles' : 'list.ranked';
+    // One client is three tiles. Several clients, or nobody, is the server's
+    // own sentence and no card: a card here would show somebody else's money
+    // under a name that is not theirs.
+    return result.match === 'one' ? 'stat.tiles' : null;
   },
   destination: { screen: 'Clients', path: '/clients' },
   handler: async (ctx, args) => {
-    const clients = await ctx.db.select<ClientRow>('clients', {
-      columns: '*',
-      eq: { user_id: ctx.userId },
-      order: { column: 'name', ascending: true },
-    });
-    if (clients.error) throw new Error(clients.error.message);
-
-    const matched = (clients.data ?? []).filter((c) => nameMatches(args.name, c.name));
-    const [docs, payments] = await Promise.all([
+    const [clients, docs, payments] = await Promise.all([
+      ctx.db.select<ClientRow>('clients', {
+        columns: '*',
+        eq: { user_id: ctx.userId },
+        is: { deleted_at: null },
+        order: { column: 'name', ascending: true },
+      }),
       ctx.db.select('invoices', {
         columns: '*',
         eq: { user_id: ctx.userId },
@@ -101,51 +108,47 @@ export const getClientSummaryTool = defineTool({
         eq: { user_id: ctx.userId },
       }),
     ]);
+    if (clients.error) throw new Error(clients.error.message);
     if (docs.error) throw new Error(docs.error.message);
     if (payments.error) throw new Error(payments.error.message);
 
-    // What each matched client still owes, from the caller's own documents.
-    // Nothing here is a literal: every figure is summed from rows.
-    const owed = new Map<string, number>();
-    for (const raw of docs.data ?? []) {
-      const doc = asInvoiceRow(raw);
-      if (doc.kind === 'quote' || doc.status === 'paid' || doc.status === 'void') continue;
-      const key = doc.client_name.trim().toLowerCase();
-      owed.set(key, (owed.get(key) ?? 0) + Math.max(0, num(doc.total) - num(doc.amount_paid)));
+    const clientQuery = args.name;
+    // The tool decides who the name is, from the clients table and from every
+    // live document: the model never guesses between people.
+    const resolved = await resolveClient(ctx, clientQuery);
+    if (resolved.kind !== 'one') {
+      const many = resolved.kind === 'many';
+      return {
+        match: many ? ('ambiguous' as const) : ('none' as const),
+        count: 0,
+        ignored: [],
+        eyebrow: 'Clients',
+        title: many ? 'Which one?' : '',
+        tiles: [],
+        rows: [],
+        totalCount: 0,
+        total: null,
+        clients: [],
+        clientChoices: many ? resolved.names : [],
+        clientQuery,
+        summary: null,
+      };
     }
-    const owedBy = (name: string) => moneyText(owed.get(name.trim().toLowerCase()) ?? 0);
-    const line = (c: ClientRow) => `${c.email ?? c.phone ?? 'Client'} · ${owedBy(c.name)}`;
 
-    const base = {
-      match: matchOf(matched.length),
-      count: matched.length,
-      ignored: [] as string[],
-      eyebrow: matched.length === 1 ? matched[0].name : 'Clients',
-      title: matched.length === 1 ? 'Since you started.' : 'Which one?',
-      rows: matched.map((c) => ({ name: c.name, secondary: line(c), amount: owedBy(c.name), tone: 'neutral' as const })),
-      totalCount: matched.length,
-      total: {
-        label: `${matched.length} ${matched.length === 1 ? 'client' : 'clients'}`,
-        amount: moneyText(matched.reduce((sum, c) => sum + (owed.get(c.name.trim().toLowerCase()) ?? 0), 0)),
-        tone: 'neutral' as const,
-      },
-      clients: matched.map((c) => ({ id: c.id, name: c.name })),
-    };
-    if (matched.length !== 1) return { ...base, tiles: [], summary: null };
+    const who = normName(resolved.name);
+    const clientRow = (clients.data ?? []).find((row) => normName(row.name) === who);
+    const clientName = clientRow?.name ?? resolved.name;
+    const live = (docs.data ?? []).map(asInvoiceRow).filter((doc) => normName(doc.client_name) === who);
 
-    const who = matched[0].name.trim().toLowerCase();
     let owedTotal = 0;
     let open = 0;
     let estimates = 0;
-    for (const raw of docs.data ?? []) {
-      const doc = asInvoiceRow(raw);
-      if (doc.client_name.trim().toLowerCase() !== who) continue;
+    for (const doc of live) {
       if (doc.kind === 'quote') {
         estimates += 1;
         continue;
       }
-      if (doc.status === 'paid') continue;
-      if (doc.status === 'void' || doc.status === 'draft') continue;
+      if (doc.status === 'paid' || doc.status === 'void' || doc.status === 'draft') continue;
       owedTotal += Math.max(0, num(doc.total) - num(doc.amount_paid));
       open += 1;
     }
@@ -155,19 +158,17 @@ export const getClientSummaryTool = defineTool({
     // invoice is money in the moment it arrives, a refund nets out as its
     // negative row, and an invoice's status never invents an amount. Only this
     // client's live invoices count, exactly as list_payments scopes its rows.
-    const invoiceClient = new Map<string, string>();
-    for (const raw of docs.data ?? []) {
-      const doc = asInvoiceRow(raw);
-      if (doc.kind === 'quote') continue;
-      invoiceClient.set(doc.id, doc.client_name.trim().toLowerCase());
-    }
-    const received = (payments.data ?? []).filter(
-      (row) => invoiceClient.get(row.invoice_id) === who,
-    );
+    const invoiceIds = new Set(live.filter((doc) => doc.kind !== 'quote').map((doc) => doc.id));
+    const received = (payments.data ?? []).filter((row) => invoiceIds.has(row.invoice_id));
     const paid = booksTotals({ payments: received, expenses: [], invoices: [] }).collected;
+    const contact = clientRow?.email ?? clientRow?.phone ?? 'Client';
 
     return {
-      ...base,
+      match: 'one' as const,
+      count: 1,
+      ignored: [],
+      eyebrow: clientName,
+      title: 'Since you started.',
       // Three tiles at 390 wide: each label and its sub must stay short enough
       // to print in full. 'Still owed' / 'Open documents' / 'invoices and
       // estimates' did not.
@@ -176,14 +177,22 @@ export const getClientSummaryTool = defineTool({
         { label: 'Paid', value: moneyText(paid), tone: 'in' as const, period: 'all time' },
         { label: 'Open', value: String(open), tone: 'neutral' as const, period: 'docs' },
       ],
-      summary: { clientName: matched[0].name, owed: moneyText(owedTotal), paid: moneyText(paid), open, estimates },
+      rows: [{ name: clientName, secondary: `${contact} · ${moneyText(owedTotal)}`, amount: moneyText(owedTotal), tone: 'neutral' as const }],
+      totalCount: 1,
+      total: { label: '1 client', amount: moneyText(owedTotal), tone: 'neutral' as const },
+      clients: [{ id: clientRow?.id ?? null, name: clientName }],
+      clientChoices: [],
+      clientQuery,
+      summary: { clientName, owed: moneyText(owedTotal), paid: moneyText(paid), open, estimates },
     };
   },
   fallback: (result) =>
-    result.summary
-      ? `${result.summary.clientName} owes ${result.summary.owed} across ${result.summary.open} open ${result.summary.open === 1 ? 'document' : 'documents'}.`
-      : result.count === 0
-        ? 'No client matches that name.'
-        : `${result.count} clients match; say which one you mean.`,
+    result.match === 'ambiguous'
+      ? `${result.clientChoices.length} clients match ${result.clientQuery}: ${joinNames(result.clientChoices)}. Ask again with the full name.`
+      : result.match === 'none'
+        ? `No client named ${result.clientQuery} on file.`
+        : result.summary
+          ? `${result.summary.clientName} owes ${result.summary.owed} across ${result.summary.open} open ${result.summary.open === 1 ? 'document' : 'documents'}.`
+          : 'No client named that on file.',
   fixture,
 });

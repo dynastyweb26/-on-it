@@ -102,45 +102,47 @@ test('three tiles fit a 390-wide phone: no label or sub truncates', async () => 
   assert.deepEqual(out.tiles.map((t) => t.label), ['Owed', 'Paid', 'Open']);
 });
 
-test('two Ruths are never guessed between', async () => {
-  const out = (await run('ruth', [client('Ruth Lawrence'), client('Ruth Chen')])) as never as {
-    match: string; tiles: unknown[]; summary: unknown; clients: unknown[];
-  };
-  assert.equal(out.match, 'many');
-  assert.equal(out.tiles.length, 0);
-  assert.equal(out.summary, null);
-  assert.equal(out.clients.length, 2);
-});
-
-test('two matches carry each client’s own owed balance, never a literal', async () => {
+test('two Ruths are never guessed between, and carry no money at all', async () => {
   const out = (await run('ruth', [client('Ruth Lawrence'), client('Ruth Chen')], [
     doc(1, { total: '120.00', amount_paid: 0 }),
     doc(2, { client_name: 'Ruth Chen', total: '80.00', amount_paid: '30.00' }),
-  ])) as never as { rows: { name: string; amount: string }[] };
-  const byName = new Map(out.rows.map((r) => [r.name, r.amount]));
-  assert.equal(byName.get('Ruth Lawrence'), '$120.00');
-  assert.equal(byName.get('Ruth Chen'), '$50.00');
-  // The computed figures, not one repeated stub, and no figure that the
-  // client's own documents do not support.
-  for (const row of out.rows) {
-    const expected = row.name === 'Ruth Lawrence' ? '$120.00' : '$50.00';
-    assert.equal(row.amount, expected, `${row.name} shows an amount its documents do not support`);
-  }
+  ])) as never as {
+    match: string;
+    tiles: unknown[];
+    summary: unknown;
+    clients: unknown[];
+    rows: unknown[];
+    total: unknown;
+    clientChoices: string[];
+  };
+  assert.equal(out.match, 'ambiguous');
+  assert.deepEqual(out.tiles, []);
+  assert.equal(out.summary, null);
+  assert.deepEqual(out.clients, []);
+  assert.deepEqual(out.rows, []);
+  assert.equal(out.total, null);
+  assert.deepEqual(out.clientChoices, ['Ruth Chen', 'Ruth Lawrence']);
+  assert.match(
+    getClientSummaryTool.fallback(out as never),
+    /2 clients match ruth: Ruth Chen and Ruth Lawrence\. Ask again with the full name\./,
+  );
 });
 
 test('no match invents nothing', async () => {
-  const out = (await run('zebediah', [])) as never as { match: string; summary: unknown; tiles: unknown[] };
+  const out = (await run('zebediah', [])) as never as { match: string; summary: unknown; tiles: unknown[]; total: unknown };
   assert.equal(out.match, 'none');
   assert.equal(out.summary, null);
   assert.deepEqual(out.tiles, []);
+  assert.equal(out.total, null);
 });
 
-test('zero matches render no card, and two matches render the ranked list', async () => {
-  const none = (await run('zebediah', [])) as never as { match: string };
+test('zero matches and two matches both render no card', async () => {
+  const none = (await run('zebediah', [])) as never as { match: string; clientQuery: string };
   assert.equal(none.match, 'none');
   assert.equal(cardFor(getClientSummaryTool, none), null);
+  assert.equal(getClientSummaryTool.fallback(none as never), 'No client named zebediah on file.');
   const many = (await run('ruth', [client('Ruth Lawrence'), client('Ruth Chen')])) as never as { count: number };
-  assert.equal(cardFor(getClientSummaryTool, many)?.id, 'list.ranked');
+  assert.equal(cardFor(getClientSummaryTool, many), null);
 });
 
 test("another owner's documents and payments do not count towards the summary", async () => {
