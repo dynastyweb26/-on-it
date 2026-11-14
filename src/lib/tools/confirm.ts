@@ -11,7 +11,7 @@
 // request are confirmed together, atomically: if one is unknown, expired or
 // already used, nothing executes.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { Registry, ToolDb } from './contract';
+import type { ProposalRow, Registry, WriteContext } from './contract';
 
 /** How long a proposed action stays confirmable. */
 export const CONFIRM_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -23,14 +23,29 @@ export type PendingAction = {
   id: string;
   userId: string;
   tool: string;
-  args: unknown;
+  /** What prepare() validated: exact ids and values, never the model's args. */
+  resolved: unknown;
   tokenHash: string;
   createdAt: string;
   expiresAt: string;
   executedAt: string | null;
 };
 
-export type ExecutedAction = { actionId: string; tool: string; result: unknown };
+export type ExecutedAction = {
+  actionId: string;
+  tool: string;
+  /** Per-row state the confirm card paints. One word: it was saved. */
+  status: 'saved';
+  result: unknown;
+};
+
+/**
+ * The sentence a proposal is read with. Server-composed from the row prepare
+ * built, so it says what is READY, never what was saved.
+ */
+export function confirmSentence(row: ProposalRow): string {
+  return `Ready to confirm: ${row.summary}.`;
+}
 
 export type RecordedCommit = { actions: ExecutedAction[] };
 
@@ -64,7 +79,7 @@ export type CreatedAction = { id: string; token: string; expiresAt: string };
 export async function createPendingAction(input: {
   userId: string;
   tool: string;
-  args: unknown;
+  resolved: unknown;
   store: PendingStore;
   now?: Date;
 }): Promise<CreatedAction> {
@@ -74,7 +89,7 @@ export async function createPendingAction(input: {
     id: randomUUID(),
     userId: input.userId,
     tool: input.tool,
-    args: input.args,
+    resolved: input.resolved,
     tokenHash: sha256(token),
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + CONFIRM_TOKEN_TTL_MS).toISOString(),
@@ -84,11 +99,17 @@ export async function createPendingAction(input: {
   return { id: action.id, token, expiresAt: action.expiresAt };
 }
 
-export type ConfirmFailure = 'unknown_token' | 'expired_token' | 'already_confirmed' | 'not_executable';
+export type ConfirmFailure =
+  | 'unknown_token'
+  | 'expired_token'
+  | 'already_confirmed'
+  | 'not_executable'
+  /** execute() re-validated and the world moved: nothing was written. */
+  | 'state_changed';
 
 export type ConfirmResult =
   | { ok: true; actions: ExecutedAction[]; replayed: boolean }
-  | { ok: false; reason: ConfirmFailure };
+  | { ok: false; reason: ConfirmFailure; problem?: string };
 
 /**
  * Execute one or more confirmed actions under the caller's own session.
@@ -102,7 +123,8 @@ export async function confirmActions(input: {
   idempotencyKey?: string | null;
   store: PendingStore;
   registry: Registry;
-  db: ToolDb;
+  /** Built by /api/ai/confirm only; a model turn can never obtain one. */
+  wctx: WriteContext;
   now?: Date;
 }): Promise<ConfirmResult> {
   const now = input.now ?? new Date();
@@ -138,11 +160,16 @@ export async function confirmActions(input: {
 
   const actions: ExecutedAction[] = [];
   for (const { action, tool } of resolved) {
-    const result = tool.output.parse(
-      await tool.handler({ db: input.db, userId: input.userId }, action.args as never),
-    );
+    if (!tool.execute) return { ok: false, reason: 'not_executable' };
+    // execute re-validates what prepare saw. A refusal writes nothing and says
+    // why, so the user can ask again instead of being told it half-worked.
+    const outcome = await tool.execute(input.wctx, action.resolved);
+    if (!outcome.ok) {
+      return { ok: false, reason: 'state_changed', problem: outcome.problem };
+    }
+    const result = tool.output.parse(outcome.result);
     await input.store.markExecuted(input.userId, action.id);
-    actions.push({ actionId: action.id, tool: tool.name, result });
+    actions.push({ actionId: action.id, tool: tool.name, status: 'saved', result });
   }
 
   if (key) {

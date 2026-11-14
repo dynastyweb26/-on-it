@@ -11,7 +11,9 @@ export function supabasePendingStore(client: SupabaseClient, userId: string): Pe
         id: action.id,
         user_id: userId,
         tool: action.tool,
-        args: action.args,
+        // The column predates this write path and is simply a jsonb payload:
+        // what it holds now is prepare()'s resolved ids, never model args.
+        args: action.resolved,
         token_hash: action.tokenHash,
         created_at: action.createdAt,
         expires_at: action.expiresAt,
@@ -32,7 +34,7 @@ export function supabasePendingStore(client: SupabaseClient, userId: string): Pe
         id: data.id as string,
         userId: data.user_id as string,
         tool: data.tool as string,
-        args: data.args,
+        resolved: data.args,
         tokenHash: data.token_hash as string,
         createdAt: data.created_at as string,
         expiresAt: data.expires_at as string,

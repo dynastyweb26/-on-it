@@ -24,6 +24,7 @@ export function fixturePendingStore(seed: readonly PendingAction[] = []): Fixtur
     executions,
     interrupts: 0,
     async insert(action: PendingAction) {
+      // The fixture stores the same field the table does: resolved ids only.
       const key = `${action.userId}:${action.tokenHash}`;
       if (actions.has(key)) throw new Error('duplicate confirm token');
       actions.set(key, { ...action });
