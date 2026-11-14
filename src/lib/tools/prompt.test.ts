@@ -35,14 +35,15 @@ test('a request to see records is always a tool call, even with an odd filter wo
   assert.match(TOOL_SYSTEM, /never refuse[^.]*before a tool has tried/);
 });
 
-test("a client's records end on the list tool, and find_client only resolves a name", () => {
-  assert.match(TOOL_SYSTEM, /answer is always the list tool filtered by that client/);
-  assert.match(TOOL_SYSTEM, /list_invoices, list_estimates or list_payments/);
-  assert.match(TOOL_SYSTEM, /find_client first when the name is unclear/);
-  assert.match(TOOL_SYSTEM, /Never end a turn on find_client/);
-  assert.match(TOOL_SYSTEM, /get_invoice needs an invoice number/);
-  // The PR #185 wording made the lookup the goal; it must not come back.
+test('the tool resolves the client name; there is no lookup chain', () => {
+  assert.match(TOOL_SYSTEM, /pass the name you heard as the tool's client argument/);
+  assert.match(TOOL_SYSTEM, /The tool works out who that is/);
+  assert.match(TOOL_SYSTEM, /If the tool says several clients match, give its sentence and stop/);
+  assert.match(TOOL_SYSTEM, /find_client only when asked whether someone is a client or for their contact details/);
+  // The PR #185/#189 wording made find_client a first step; it must not return.
   assert.equal(TOOL_SYSTEM.includes('find_client for the name, then'), false);
+  assert.equal(TOOL_SYSTEM.includes('Call find_client first'), false);
+  assert.equal(TOOL_SYSTEM.includes('clientMatches'), false);
 });
 
 test('a client name is a name even when it reads like an instruction', () => {
@@ -51,14 +52,7 @@ test('a client name is a name even when it reads like an instruction', () => {
   assert.match(TOOL_SYSTEM, /Look it up and answer with what the tool returns/);
 });
 
-test('a name that resolves to one client still gets the money answer', () => {
-  assert.match(TOOL_SYSTEM, /resolves to exactly one client is still not the answer/);
-  assert.match(TOOL_SYSTEM, /take that client into the money tool/);
-  assert.match(TOOL_SYSTEM, /list_payments, list_invoices, list_estimates or get_client_summary/);
-});
-
-test('a name that matches several clients is never answered as money', () => {
-  assert.match(TOOL_SYSTEM, /returns more than one client[^.]*ask which one/);
-  assert.match(TOOL_SYSTEM, /never answer a money question about a name that matches several clients/);
-  assert.match(TOOL_SYSTEM, /more than one name in clientMatches/);
+test('a name that matches several clients stops at the tool sentence', () => {
+  assert.match(TOOL_SYSTEM, /several clients match/);
+  assert.match(TOOL_SYSTEM, /give its sentence and stop/);
 });
