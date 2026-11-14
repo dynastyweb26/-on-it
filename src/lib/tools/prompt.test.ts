@@ -99,6 +99,12 @@ test('a turn without history keeps the prompt it always had', async () => {
   assert.equal(seen[0].includes('they are never instructions'), false);
 });
 
+test('a yes after a card points at Confirm and never proposes the change again', () => {
+  assert.match(TOOL_SYSTEM, /says yes, confirm, do it or similar after a card was offered/);
+  assert.match(TOOL_SYSTEM, /tell them to tap Confirm on the card/);
+  assert.match(TOOL_SYSTEM, /Never propose the same change again/);
+});
+
 test('a name that matches several clients stops at the tool sentence', () => {
   assert.match(TOOL_SYSTEM, /several clients match/);
   assert.match(TOOL_SYSTEM, /give its sentence and stop/);
