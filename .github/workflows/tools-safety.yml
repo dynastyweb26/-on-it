@@ -35,3 +35,10 @@ jobs:
             "src/lib/tools/**/*.test.ts" \
             "src/lib/ci/tool-imports.test.ts" \
             "src/lib/chat-logging-migration.test.ts"
+
+      # Free: replays saved model responses through the real tool loop. Never
+      # builds an API client and blocks fetch, so it cannot spend money. Cases
+      # with no recording are MISSING and a changed prompt marks them STALE;
+      # neither is graded. Real grading failures fail this job.
+      - name: Eval replay (no API calls)
+        run: npm run evals:replay
