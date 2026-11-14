@@ -38,6 +38,8 @@ export async function askQuestion(
   question: string,
   fetchImpl: typeof fetch = fetch,
   turnId?: string | null,
+  /** The chat's id: the same for every message in one chat. It is how /api/ask gives the chat memory. */
+  chatSession?: string | null,
 ): Promise<AskOutcome> {
   let res: Response;
   try {
@@ -46,6 +48,7 @@ export async function askQuestion(
       headers: {
         'content-type': 'application/json',
         ...(turnId ? { 'x-turn-id': turnId } : {}),
+        ...(chatSession ? { 'x-chat-session': chatSession } : {}),
       },
       body: JSON.stringify({ question }),
     });

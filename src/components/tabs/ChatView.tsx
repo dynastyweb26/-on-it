@@ -1560,7 +1560,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // 'ask' keeps the old block below: it owns the signed-out, rate-limited and
     // feature-off outcomes, and a 404 still falls through to the parse path.
     if (decision.route === 'ask') {
-      const out = await askQuestion(trimmed, fetch, turnId);
+      const out = await askQuestion(trimmed, fetch, turnId, convoId || null);
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
           // A card is kept only when it can be drawn; otherwise the server's plain

@@ -138,3 +138,17 @@ test('a proposal turn hands back its confirm token, once, apart from the card', 
   const none = await askQuestion('q', fake(200, { reply: 'r', pending: [] }));
   assert.equal(none.kind === 'ok' && 'confirmToken' in none, false);
 });
+
+test('sends the chat id as x-chat-session, and omits it when there is none', async () => {
+  const seen: Record<string, string>[] = [];
+  const spy = (async (_u: string, init: RequestInit) => {
+    seen.push(init.headers as Record<string, string>);
+    return new Response(JSON.stringify({ reply: 'ok' }), { status: 200 });
+  }) as unknown as typeof fetch;
+  await askQuestion('q', spy, 'turn-1', 'chat-abc');
+  await askQuestion('q', spy, 'turn-2', 'chat-abc');
+  await askQuestion('q', spy, 'turn-3', null);
+  assert.equal(seen[0]['x-chat-session'], 'chat-abc');
+  assert.equal(seen[1]['x-chat-session'], 'chat-abc');
+  assert.equal('x-chat-session' in seen[2], false);
+});
