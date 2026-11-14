@@ -81,10 +81,16 @@ export function manySentence(what: string, names: readonly string[]): string {
   return `${what}: ${list}${tail}. Which one?`;
 }
 
-/** Live documents of the caller, narrowed by number and/or exact client name. */
+/**
+ * Live documents of the caller, narrowed by number and/or exact client name.
+ * Kind is not a filter here: invoices and estimates number apart, so a number
+ * can name both, and the tools settle it with docByNumber (docNoun-based) or a
+ * client-side docNoun filter. Passing a stored kind in would let a caller pick
+ * one of two documents silently.
+ */
 export async function docsMatching(
   ctx: { db: ToolContext['db']; userId: string },
-  lookup: { kind?: 'invoice' | 'quote'; number?: number; clientName?: string },
+  lookup: { number?: number; clientName?: string },
 ): Promise<LiveDoc[]> {
   const { data, error } = await ctx.db.select<Record<string, unknown>>('invoices', {
     columns: '*',
@@ -99,7 +105,6 @@ export async function docsMatching(
     .map(asDoc)
     .filter((row) => {
       if (row.deleted_at) return false;
-      if (lookup.kind && row.kind !== lookup.kind) return false;
       if (lookup.number !== undefined && row.invoice_number !== lookup.number) return false;
       if (wanted !== null && normName(row.client_name) !== wanted) return false;
       return true;
