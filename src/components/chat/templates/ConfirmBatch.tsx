@@ -5,7 +5,7 @@
 // request (onPrimary) and moves the card on by changing `state`.
 import { useEffect, useRef, useState } from 'react';
 import { Sym, TONE, tap } from './shared';
-import { applyConfirmResult, batchFromProps, rowsFromActions } from './confirm-batch-view';
+import { applyConfirmResult, batchFromProps, partialLine, problemsOf, rowsFromActions } from './confirm-batch-view';
 import { batchHeadline, beginConfirm, cancelConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
 import type { ConfirmBatchProps } from '@/lib/templates/props';
 import type { ConfirmBatchCallbacks } from '@/lib/templates/callbacks';
@@ -19,6 +19,7 @@ export default function ConfirmBatch({
   state = 'pending', statuses, actions, onPrimary, onRemove, onUndo,
 }: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[] }) {
   const [batch, setBatch] = useState(() => batchFromProps(state, statuses, actions));
+  const [problems, setProblems] = useState<Record<string, string>>({}); // the server's sentence per refused row
   const busy = useRef(batch.phase === 'confirming'); // synchronous: a second tap never gets past it
   const loading = state === 'loading';
   const statusKey = (statuses ?? []).join(','); // a new array each render must not reset the card
@@ -55,6 +56,7 @@ export default function ConfirmBatch({
     setBatch(beginConfirm(batch));
     try {
       const out = await onPrimary();
+      setProblems(problemsOf(actions, out));
       setBatch((prev) => applyConfirmResult(prev, before, actions, out));
     } catch {
       setBatch((prev) => cancelConfirm(prev, before)); // every exit clears pending
@@ -146,7 +148,7 @@ export default function ConfirmBatch({
       {partial && (
         <div style={{ background: 'var(--tpl-red-soft)', padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14, lineHeight: 1.4, color: 'var(--tpl-fail-ink)', borderTop: '1px solid var(--tpl-fail-line)' }}>
           <Sym name="error" size={18} />
-          <span>{`"${failed?.summary}" didn't save. The connection dropped. The others are saved.`}</span>
+          <span>{partialLine(failed?.summary ?? '', failed ? problems[failed.id] : undefined, batch.rows.some((r) => batch.outcomes[r.id] === 'saved'))}</span>
         </div>
       )}
 

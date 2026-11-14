@@ -59,3 +59,20 @@ test('a failed retry returns to partial and keeps the rows already answered', ()
   assert.equal(back.phase, 'partial');
   assert.deepEqual(back.outcomes, partial.outcomes);
 });
+
+import { partialLine, problemsOf } from './confirm-batch-view';
+
+test('the partial strip names the server\'s cause, and says "others saved" only when some were', () => {
+  assert.equal(partialLine('Gas $40', 'That changed since I looked.', true), `"Gas $40" didn't save. That changed since I looked. The others are saved.`);
+  assert.equal(partialLine('Gas $40', 'That changed since I looked.', false), `"Gas $40" didn't save. That changed since I looked.`);
+  assert.match(partialLine('Gas $40', undefined, true), /The connection dropped\./);
+});
+
+test('problems are keyed by row and only for refused rows', () => {
+  const out = { kind: 'settled' as const, rows: [
+    { actionId: actions[0].id, outcome: 'saved' as const, problem: null },
+    { actionId: actions[1].id, outcome: 'failed' as const, problem: 'Nope.' },
+  ] };
+  assert.deepEqual(problemsOf(actions, out), { '1': 'Nope.' });
+  assert.deepEqual(problemsOf(actions, { kind: 'error', message: 'x' }), {});
+});

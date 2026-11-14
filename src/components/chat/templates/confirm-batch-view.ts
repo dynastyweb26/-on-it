@@ -61,3 +61,23 @@ export function applyConfirmResult(
   if (prev.attempting.some((id) => !results.some((r) => r.id === id))) return cancelConfirm(prev, before);
   return settle(prev, results);
 }
+
+/** The server's sentence for each refused row, keyed by the card's row id. */
+export function problemsOf(actions: ConfirmBatchProps['actions'], out: ConfirmBatchResult | void): Record<string, string> {
+  if (!out || out.kind !== 'settled') return {};
+  const found: Record<string, string> = {};
+  for (const r of out.rows) {
+    const i = actions.findIndex((a) => a.id === r.actionId);
+    if (i >= 0 && r.outcome === 'failed' && r.problem) found[String(i)] = r.problem;
+  }
+  return found;
+}
+
+/**
+ * The partial card's strip. The design's line names a dropped connection; the real
+ * cause is the server's own sentence, so it replaces that clause when there is one.
+ */
+export function partialLine(summary: string, problem: string | undefined, othersSaved: boolean): string {
+  const others = othersSaved ? ' The others are saved.' : '';
+  return `"${summary}" didn't save. ${problem ?? 'The connection dropped.'}${others}`;
+}
