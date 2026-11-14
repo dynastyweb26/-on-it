@@ -8,11 +8,13 @@
 import { z } from 'zod';
 import { defineWriteTool } from '../contract';
 import { ConfirmBatchProps } from '@/lib/templates/props';
+import { docNoun } from '@/lib/documents';
 import { resolveClient } from '../read';
 import {
   asDoc,
   changeLine,
   clip,
+  docByNumber,
   docLabelOf,
   docsMatching,
   formatDay,
@@ -27,6 +29,8 @@ export const EDIT_DOCUMENT_DETAILS = 'edit_document_details';
 export const EditDocumentDetailsInput = z
   .object({
     number: z.number().int().min(1).max(1_000_000).optional(),
+    /** Invoices and estimates number apart: kind settles a shared number. */
+    kind: z.enum(['invoice', 'estimate']).optional(),
     client: z.string().min(1).max(120).optional(),
     /** yyyy-mm-dd; an empty string clears the due date. */
     due_date: z.string().max(10).optional(),
@@ -75,7 +79,7 @@ async function detailsProblem(
 export const editDocumentDetailsTool = defineWriteTool({
   name: EDIT_DOCUMENT_DETAILS,
   description:
-    'Propose changing the due date and/or the customer-facing notes on ONE invoice or estimate, found by its number or by its client. Invoices are editable only while they are drafts; estimates until they are signed, revoked or converted. It cannot change line items, prices or amounts. It saves nothing: the app shows a card and the owner confirms.',
+    'Propose changing the due date and/or the customer-facing notes on ONE invoice or estimate, found by its number (with its kind when an invoice and an estimate share that number) or by its client. Invoices are editable only while they are drafts; estimates until they are signed, revoked or converted. It cannot change line items, prices or amounts. It saves nothing: the app shows a card and the owner confirms.',
   input: EditDocumentDetailsInput,
   output: EditDocumentDetailsOutput,
   type: 'write',
@@ -88,9 +92,9 @@ export const editDocumentDetailsTool = defineWriteTool({
 
     let row: LiveDoc | null = null;
     if (args.number !== undefined) {
-      const docs = await docsMatching(ctx, { number: args.number });
-      if (docs.length === 0) return { ok: false, problem: `No invoice or estimate is numbered ${args.number}.` };
-      row = docs[0];
+      const found = await docByNumber(ctx, args.number, args.kind);
+      if (!found.ok) return { ok: false, problem: found.problem };
+      row = found.doc;
     } else {
       const said = args.client!.trim();
       const resolution = await resolveClient(ctx, said);
@@ -98,7 +102,8 @@ export const editDocumentDetailsTool = defineWriteTool({
       if (resolution.kind === 'many') {
         return { ok: false, problem: manySentence(`More than one client matches "${said}"`, resolution.names) };
       }
-      const docs = await docsMatching(ctx, { clientName: resolution.name });
+      const docs = (await docsMatching(ctx, { clientName: resolution.name }))
+        .filter((doc) => !args.kind || docNoun(doc.kind).toLowerCase() === args.kind);
       if (docs.length === 0) return { ok: false, problem: `No invoice or estimate for ${resolution.name}.` };
       if (docs.length > 1) {
         return {

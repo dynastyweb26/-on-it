@@ -8,7 +8,7 @@
 //
 // Nothing here writes. A select plan is scoped to the caller, so RLS plus the
 // explicit user_id keep another owner's rows out of every candidate list.
-import { formatDocNumber } from '@/lib/documents';
+import { docNoun, formatDocNumber } from '@/lib/documents';
 import { normName, toIso } from './read';
 import type { ToolContext } from './contract';
 
@@ -104,6 +104,37 @@ export async function docsMatching(
       if (wanted !== null && normName(row.client_name) !== wanted) return false;
       return true;
     });
+}
+
+/**
+ * The sentence for a number that names two documents: invoices and estimates are
+ * numbered apart, so INV-0003 and E-0003 both exist. Never pick one silently.
+ */
+export function numberAmbiguity(docs: readonly LiveDoc[]): string | null {
+  const invoice = docs.find((doc) => docNoun(doc.kind).toLowerCase() === 'invoice');
+  const estimate = docs.find((doc) => docNoun(doc.kind).toLowerCase() === 'estimate');
+  if (!invoice || !estimate || docs.length !== 2) return null;
+  return `There is an invoice ${invoice.invoice_number} and an estimate ${invoice.invoice_number}. Which one?`;
+}
+
+/**
+ * The ONE document a number names, narrowed by kind when the user said which.
+ * Returns a sentence instead of a document whenever the number is not unique.
+ */
+export async function docByNumber(
+  ctx: { db: ToolContext['db']; userId: string },
+  number: number,
+  kind?: 'invoice' | 'estimate',
+): Promise<{ ok: true; doc: LiveDoc } | { ok: false; problem: string }> {
+  const docs = (await docsMatching(ctx, { number }))
+    .filter((doc) => !kind || docNoun(doc.kind).toLowerCase() === kind);
+  if (docs.length === 0) return { ok: false, problem: `No invoice or estimate is numbered ${number}.` };
+  if (docs.length === 1) return { ok: true, doc: docs[0] };
+  return {
+    ok: false,
+    problem: numberAmbiguity(docs)
+      ?? manySentence(`I found ${docs.length} documents numbered ${number}`, docs.map((doc) => docLabelOf(doc))),
+  };
 }
 
 /** True when another live document was made from this estimate. */

@@ -70,6 +70,42 @@ test('two documents for one client is a question naming both', async () => {
   assert.match(prepared.problem, /I found 2 documents for Maria Santos/);
 });
 
+// Invoices and estimates are numbered apart, so INV-0003 and E-0003 can both be
+// live. A number alone must never pick one of them.
+const sharedThree = () => [
+  doc({ id: 'inv-3', invoice_number: 3 }),
+  doc({ id: 'est-3', kind: 'quote', invoice_number: 3 }),
+];
+
+test('invoice 3 and estimate 3: a number alone asks which, never picks docs[0]', async () => {
+  const prepared = await prepare({ number: 3, notes: 'New' }, sharedThree());
+  assert.equal(prepared.ok, false);
+  if (prepared.ok) return;
+  assert.equal(prepared.problem, 'There is an invoice 3 and an estimate 3. Which one?');
+});
+
+test('kind settles a shared number', async () => {
+  const estimate = await prepare({ number: 3, kind: 'estimate', notes: 'New' }, sharedThree());
+  assert.equal(estimate.ok, true);
+  if (!estimate.ok) return;
+  assert.equal((estimate.resolved as { id: string }).id, 'est-3');
+  assert.equal((estimate.resolved as { label: string }).label, 'E-0003');
+
+  const invoice = await prepare({ number: 3, kind: 'invoice', notes: 'New' }, sharedThree());
+  assert.equal(invoice.ok, true);
+  if (!invoice.ok) return;
+  assert.equal((invoice.resolved as { id: string }).id, 'inv-3');
+});
+
+test('kind narrows a client lookup too', async () => {
+  const prepared = await prepare({ client: 'Maria', kind: 'estimate', notes: 'New' }, sharedThree(), {
+    clients: [{ id: 'cli-1', user_id: OWNER, name: 'Maria Santos', deleted_at: null }],
+  });
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal((prepared.resolved as { id: string }).id, 'est-3');
+});
+
 test('execute writes the due date and notes on the one row', async () => {
   const db = fixtureWriteDb({ invoices: [doc()] }, OWNER);
   const out = await editDocumentDetailsTool.execute!(

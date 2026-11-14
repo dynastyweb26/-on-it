@@ -10,9 +10,11 @@
 import { z } from 'zod';
 import { defineWriteTool, type ToolContext } from '../contract';
 import { ConfirmBatchProps } from '@/lib/templates/props';
+import { docNoun } from '@/lib/documents';
 import { resolveClient } from '../read';
 import {
   asDoc,
+  docByNumber,
   docLabelOf,
   docsMatching,
   hasPayment,
@@ -26,6 +28,8 @@ export const DELETE_DRAFT = 'delete_draft';
 export const DeleteDraftInput = z
   .object({
     number: z.number().int().min(1).max(1_000_000).optional(),
+    /** Invoices and estimates number apart: kind settles a shared number. */
+    kind: z.enum(['invoice', 'estimate']).optional(),
     client: z.string().min(1).max(120).optional(),
   })
   .strict()
@@ -53,7 +57,7 @@ async function draftProblem(ctx: ToolContext, row: LiveDoc): Promise<string | nu
 export const deleteDraftTool = defineWriteTool({
   name: DELETE_DRAFT,
   description:
-    'Propose deleting ONE draft invoice or estimate, found by its number or by its client. It refuses anything sent, paid, signed, converted or carrying a payment, and says why. Deleting is the app’s soft delete: the row is kept but hidden. It saves nothing: the app shows a card and the owner confirms.',
+    'Propose deleting ONE draft invoice or estimate, found by its number (with its kind when an invoice and an estimate share that number) or by its client. It refuses anything sent, paid, signed, converted or carrying a payment, and says why. Deleting is the app’s soft delete: the row is kept but hidden. It saves nothing: the app shows a card and the owner confirms.',
   input: DeleteDraftInput,
   output: DeleteDraftOutput,
   type: 'write',
@@ -63,9 +67,9 @@ export const deleteDraftTool = defineWriteTool({
     let row: LiveDoc | null = null;
 
     if (args.number !== undefined) {
-      const docs = await docsMatching(ctx, { number: args.number });
-      if (docs.length === 0) return { ok: false, problem: `No invoice or estimate is numbered ${args.number}.` };
-      row = docs[0];
+      const found = await docByNumber(ctx, args.number, args.kind);
+      if (!found.ok) return { ok: false, problem: found.problem };
+      row = found.doc;
       const problem = await draftProblem(ctx, row);
       if (problem) return { ok: false, problem };
     } else {
@@ -77,7 +81,8 @@ export const deleteDraftTool = defineWriteTool({
       }
 
       const drafts = (await docsMatching(ctx, { clientName: resolution.name }))
-        .filter((doc) => doc.status === 'draft');
+        .filter((doc) => doc.status === 'draft')
+        .filter((doc) => !args.kind || docNoun(doc.kind).toLowerCase() === args.kind);
       if (drafts.length === 0) return { ok: false, problem: `There is no draft for ${resolution.name}.` };
       if (drafts.length > 1) {
         return {
