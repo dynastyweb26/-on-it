@@ -10,7 +10,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { Registry, ToolDb } from './contract';
 import { REGISTRY, parseCall, TOOLS } from './registry';
-import { TOOL_SYSTEM } from './prompt';
+import { toolSystem } from './prompt';
+import { localYmd, resolveTimeZone } from '@/lib/recap/dates';
 import { TURN_BUDGET_REPLY, TURN_MODEL_CALL_CAP, type TurnBudget } from './budget';
 
 export type ModelCall = (request: {
@@ -71,6 +72,30 @@ function assistantTurn(content: Anthropic.ContentBlock[]): Anthropic.ContentBloc
   });
 }
 
+/**
+ * The system prompt for one turn: the shared rules with the owner's own today in
+ * front of it. The day comes from the same timezone helper the tools use, so the
+ * prompt and run_report can never disagree about what "today" is.
+ */
+export async function systemForTurn(
+  db: ToolDb,
+  userId: string,
+  now: Date = new Date(),
+): Promise<string> {
+  let tz = resolveTimeZone(null);
+  try {
+    const profile = await db.select<{ timezone: string | null }>('profiles', {
+      columns: 'timezone',
+      eq: { id: userId },
+      limit: 1,
+    });
+    if (!profile.error) tz = resolveTimeZone(profile.data?.[0]?.timezone);
+  } catch {
+    // No profile row is still a usable turn: the default zone, same as the tools.
+  }
+  return toolSystem(localYmd(tz, now));
+}
+
 export async function runToolTurn(input: {
   call: ModelCall;
   db: ToolDb;
@@ -92,6 +117,7 @@ export async function runToolTurn(input: {
   let calls = 0;
   let budgetExhausted = false;
   const usage = { inputTokens: 0, outputTokens: 0 };
+  const system = input.system ?? (await systemForTurn(db, userId));
 
   while (true) {
     // Hard wall first: even a reserver that never says no cannot loop forever.
@@ -106,7 +132,7 @@ export async function runToolTurn(input: {
     calls += 1;
 
     const message = await call({
-      system: input.system ?? TOOL_SYSTEM,
+      system,
       tools: input.tools ?? TOOLS,
       messages,
     });
