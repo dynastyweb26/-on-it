@@ -17,7 +17,7 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import { REGISTRY } from '@/lib/tools/registry';
-import { supabaseToolDb } from '@/lib/tools/db';
+import { supabaseWriteDb } from '@/lib/tools/write-db';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { confirmActions, type ConfirmFailure } from '@/lib/tools/confirm';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
@@ -38,6 +38,7 @@ const FAILURE: Record<ConfirmFailure, { status: number; reply: string }> = {
   expired_token: { status: 410, reply: 'That confirmation is too old. Ask me again and I will redo it.' },
   already_confirmed: { status: 409, reply: 'That one was already done.' },
   not_executable: { status: 400, reply: 'That action cannot be confirmed.' },
+  state_changed: { status: 409, reply: 'That changed since I looked. Ask me again and I will redo it.' },
 };
 
 export async function POST(req: NextRequest) {
@@ -90,24 +91,37 @@ export async function POST(req: NextRequest) {
       idempotencyKey: parsed.data.idempotencyKey ?? null,
       store: supabasePendingStore(supabase, user.id),
       registry: REGISTRY,
-      db: supabaseToolDb(supabase),
+      // The one place a write context exists: the caller's session, after auth
+      // and a valid token. No model turn can reach this module (CI enforces it).
+      wctx: { db: supabaseWriteDb(supabase), userId: user.id },
     });
 
     if (!result.ok) {
       const failure = FAILURE[result.reason];
       return NextResponse.json(
-        { error: result.reason, reply: failure.reply },
+        // execute() can refuse with its own sentence (the row moved since
+        // prepare); that sentence is the real cause, so it wins.
+        { error: result.reason, reply: result.problem ?? failure.reply },
         { status: failure.status, ...NO_STORE },
       );
     }
+
+    // Per-row status is what the confirm card paints: one row, one word.
+    const rows = result.actions.map((action) => ({
+      actionId: action.actionId,
+      tool: action.tool,
+      status: action.status,
+    }));
 
     return NextResponse.json(
       {
         ok: true,
         replayed: result.replayed,
+        rows,
         actions: result.actions.map((action) => ({
           actionId: action.actionId,
           tool: action.tool,
+          status: action.status,
           result: action.result,
         })),
       },
