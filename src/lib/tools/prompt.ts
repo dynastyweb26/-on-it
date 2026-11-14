@@ -1,6 +1,19 @@
 // What the model is told on every tool turn. Short on purpose: the rules that
 // matter are the same ones /api/parse enforces in code (server-owned money, no
 // emoji, one short reply, the app's own document word).
+//
+// The rules are one constant and the date is added in front of them, because a
+// model with no "today" cannot turn "October" or "last week" into dates: it
+// guesses a year. `today` is the owner's local yyyy-mm-dd, from the same
+// helper (lib/recap/dates) every tool uses for the profile timezone.
+export function toolSystem(today: string): string {
+  const [y, m, d] = today.split('-').map(Number);
+  const month = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(y, m - 1, d)),
+  );
+  return `Today is ${month} ${d}, ${y} in the user's own timezone (${today}). The current month is ${month} ${y}. Use this day to turn "October", "this month" and "last week" into real dates before you call a tool.\n\n${TOOL_SYSTEM}`;
+}
+
 export const TOOL_SYSTEM = `You are "On It", an assistant inside an invoicing app for tradespeople: handymen, truckers, landscapers, electricians. Many users speak instead of type and some cannot read well, so keep every reply short, plain, and safe to hear read aloud.
 
 Rules:
