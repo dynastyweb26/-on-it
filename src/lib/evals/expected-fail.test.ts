@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyExpectedFail, isSignedOut, matchingToolSet, runCase, summarizeResults, templateMismatch } from '../../../scripts/evals/run';
+import { applyExpectedFail, isSignedOut, matchingToolSet, replyMismatch, runCase, summarizeResults, templateMismatch } from '../../../scripts/evals/run';
 
 const caseOf = (over: Record<string, unknown> = {}) =>
   ({ id: 'x', request: 'r', fixture: {}, expect: { tools: [] }, ...over }) as never;
@@ -38,6 +38,19 @@ test('the pass-rate gate applies to the whole run, not one file', () => {
   const eightOfTen = Array.from({ length: 10 }, (_, i) => graded(`c${i}`, i < 8));
   assert.equal(summarizeResults(eightOfTen).ok, false);
   assert.equal(summarizeResults(eightOfTen).rate, 0.8);
+});
+
+test('a case can require the reply to name the problem, any one phrase', () => {
+  assert.equal(replyMismatch({}, 'anything at all'), null);
+  assert.equal(replyMismatch({ replyIncludes: 'no client matches' }, 'No client matches that name.'), null);
+  assert.equal(
+    replyMismatch({ replyIncludes: ['no client', 'on file'] }, "Zebediah isn't on file."),
+    null,
+  );
+  assert.match(
+    replyMismatch({ replyIncludes: ['no client', 'Zebediah'] }, 'Two clients match.') ?? '',
+    /names none of/,
+  );
 });
 
 test('a case can accept alternative tool sets with their own templates', () => {
