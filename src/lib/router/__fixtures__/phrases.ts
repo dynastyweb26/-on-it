@@ -41,6 +41,29 @@ export const COMMAND_BUILDS: Labelled[] = [
   { text: 'open a new invoice', route: 'build', note: 'lookup verb, build intent' },
 ];
 
+/**
+ * Changes a registered write tool already covers. Every one of these used to be
+ * a build: a phone number, a price or a date read as a job, and no write tool
+ * ever ran. They are ask now, with the router up and with it down.
+ */
+export const WRITE_COMMANDS: Labelled[] = [
+  { text: 'add Ruth Lawrence as a client, 555-0100', route: 'ask' },
+  { text: 'save service call at 95', route: 'ask' },
+  { text: 'delete the Home Depot expense', route: 'ask' },
+  { text: "change Smith's due date to the 12th", route: 'ask' },
+  { text: 'delete draft 6', route: 'ask' },
+  { text: "update Maria's email to m@x.com", route: 'ask' },
+];
+
+/** The builder's own shapes, figures and line items included. Never ask. */
+export const BUILD_COMMANDS: Labelled[] = [
+  { text: 'invoice Smith $50 for a repair', route: 'build' },
+  { text: 'add a line for the filter', route: 'build' },
+  { text: 'make it 50', route: 'build' },
+  { text: 'new estimate for Ana', route: 'build' },
+  { text: 'I spent $40 on gas', route: 'build' },
+];
+
 export const ROUTER_PHRASES: Labelled[] = [
   // ── ask: lookups, including commands with no question mark ───────────────
   ...COMMAND_LOOKUPS,
@@ -55,8 +78,12 @@ export const ROUTER_PHRASES: Labelled[] = [
   { text: "who still hasn't paid", route: 'ask' },
   { text: 'hey can you tell me who owes me', route: 'ask' },
 
+  // ── ask: changes a registered write tool covers ──────────────────────────
+  ...WRITE_COMMANDS,
+
   // ── build: create/edit, plus the traps that look like questions ──────────
   ...COMMAND_BUILDS,
+  ...BUILD_COMMANDS,
   { text: 'invoice ZZ Test A $50 for a repair', route: 'build' },
   { text: "Maria hasn't paid, bill her again", route: 'build', note: 'reads like an ask, is an instruction' },
   { text: 'invoice the client who hasn’t paid for the roof', route: 'build', note: 'unpaid words, building intent' },
