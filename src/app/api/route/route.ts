@@ -20,6 +20,7 @@ import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
 import { createTurnBudget } from '@/lib/tools/budget';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { anthropicRouteCall, classify } from '@/lib/router/classify';
+import { coveredByWriteTool } from '@/lib/router/covers-write';
 import { decideRoute, hasFigure } from '@/lib/router/decide';
 
 const NO_STORE = { headers: { 'Cache-Control': 'no-store' } };
@@ -66,14 +67,17 @@ export async function POST(req: NextRequest) {
   // A digit or a "$" is a job on its face, so it is decided without a call:
   // the same rule the regex gate has, applied before the model is asked.
   const { message } = parsed.data;
-  // This call comes out of the SAME per-turn budget /api/ask spends from: the
-  // client sends one x-turn-id on both requests. A turn out of calls falls back
-  // to the deterministic rules instead of spending another one.
+  // A change a registered write tool covers is decided here, without a call and
+  // without the figure rule: "add Ruth Lawrence as a client, 555-0100" is a
+  // contact to save, not a job. Uncovered messages spend the same budget as
+  // before — the client sends one x-turn-id on both requests, so a turn out of
+  // calls falls back to the deterministic rules instead of overspending.
+  const covered = coveredByWriteTool(message);
   const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
-  const classified = hasFigure(message) || !(await budget.spend())
+  const classified = covered || hasFigure(message) || !(await budget.spend())
     ? null
     : await classify(message, anthropicRouteCall());
-  const decision = decideRoute({ flagOn: true, bypass: null, classified, text: message });
+  const decision = decideRoute({ flagOn: true, bypass: null, classified, text: message, covered });
 
   return NextResponse.json(
     {

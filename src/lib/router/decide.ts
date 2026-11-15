@@ -86,8 +86,21 @@ export function decideRoute(input: {
   bypass: BypassReason | null;
   classified: RouterRoute | null;
   text: string;
+  /**
+   * A registered write tool covers this message (lib/router/covers-write). It is
+   * computed by the caller so this module stays free of the registry and runs
+   * unchanged in the browser's fallback.
+   */
+  covered?: boolean;
 }): Decision {
+  // A job already in progress owns the turn: an answer, a correction, "add a
+  // line", "make it 50". Even a covered change never interrupts it.
   if (input.bypass) return { route: 'build', via: 'bypass' };
+
+  // A change the app can already carry out is a question for /api/ask — and it
+  // stays one even with a phone number, a price or a date in it. A contact to
+  // save is not a job, so this runs BEFORE the figure rule.
+  if (input.flagOn && input.covered) return { route: 'ask', via: 'regex' };
 
   // Same rule the regex gate applies, and it runs before the model is consulted:
   // a figure or a price can never be classified into a question.
