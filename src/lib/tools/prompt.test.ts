@@ -106,6 +106,12 @@ test('the tap-Confirm rule is code now, not a prompt rule', () => {
   assert.equal(TOOL_SYSTEM.includes('Never propose the same change again'), false);
 });
 
+test('every request is its own change, even after a card was offered or cancelled', () => {
+  assert.match(TOOL_SYSTEM, /A request to add, change, save or delete something is a tool call/);
+  assert.match(TOOL_SYSTEM, /even right after a card was offered or cancelled/);
+  assert.match(TOOL_SYSTEM, /Each request is its own change/);
+});
+
 test('a name that matches several clients stops at the tool sentence', () => {
   assert.match(TOOL_SYSTEM, /several clients match/);
   assert.match(TOOL_SYSTEM, /give its sentence and stop/);
