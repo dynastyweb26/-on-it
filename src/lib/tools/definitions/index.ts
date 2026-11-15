@@ -18,4 +18,10 @@ import { listSavedItemsTool } from './list_saved_items';
 import { runReportTool } from './run_report';
 import { createClientTool } from './create_client';
 
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool, getClientSummaryTool, listExpensesTool, getExpenseTool, listPaymentsTool, listSavedItemsTool, runReportTool, createClientTool];
+import { editClientTool } from './edit_client';
+import { saveItemTool } from './save_item';
+import { editExpenseTool } from './edit_expense';
+import { deleteExpenseTool } from './delete_expense';
+import { deleteDraftTool } from './delete_draft';
+import { editDocumentDetailsTool } from './edit_document_details';
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool, getClientSummaryTool, listExpensesTool, getExpenseTool, listPaymentsTool, listSavedItemsTool, runReportTool, createClientTool, editClientTool, saveItemTool, editExpenseTool, deleteExpenseTool, deleteDraftTool, editDocumentDetailsTool];
