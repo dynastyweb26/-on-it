@@ -173,6 +173,7 @@ export async function POST(req: NextRequest) {
     modelText: moneyGuard.text,
     toolRuns: result.toolRuns,
     registry: REGISTRY,
+    question,
     budgetExhausted: result.budgetExhausted,
     pending: result.pending,
   });
