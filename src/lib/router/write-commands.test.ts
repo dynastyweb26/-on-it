@@ -12,6 +12,9 @@ const ASK = [
   "change Smith's due date to the 12th",
   'delete draft 6',
   "update Maria's email to m@x.com",
+  'Maria paid 200 on invoice 12',
+  'record a payment',
+  'got 150 cash, no invoice',
 ];
 
 /** The shapes the guard names outright: a document, a bill or an amount. */
@@ -23,6 +26,7 @@ const GUARDED = [
   "add a line for the client's filter",
   'new estimate for Ana',
   'I spent $40 on gas',
+  'I paid $40 for gas',
 ];
 
 /** Builder shapes the other rules already keep: never a write command either. */
@@ -54,6 +58,27 @@ test('a bare figure or a question is not a write command', () => {
   for (const text of ['$40', 'who owes me', "who hasn't paid me", 'add $40', '', '   ']) {
     assert.equal(isWriteCommand(text), false, text);
   }
+});
+
+test('money that came in is a payment to record, never a job to build', () => {
+  for (const text of [
+    'Maria paid 200 on invoice 12',
+    'Ruth paid in full',
+    'got paid',
+    'record a payment',
+    'got 150 cash, no invoice',
+  ]) {
+    assert.equal(isBuildRequest(text), false, text);
+    assert.equal(isWriteCommand(text), true, text);
+  }
+});
+
+test('a question about paying stays a question, and a bill stays a job', () => {
+  for (const text of ["who hasn't paid me", 'who paid me the most', 'what did Ruth pay?']) {
+    assert.equal(isWriteCommand(text), false, text);
+  }
+  assert.equal(isBuildRequest("Maria hasn't paid, bill her again"), false);
+  assert.equal(isWriteCommand("Maria hasn't paid, bill her again"), false);
 });
 
 test('a phone number or an email does not turn a change into a job', () => {

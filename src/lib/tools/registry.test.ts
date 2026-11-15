@@ -15,12 +15,12 @@ import { TOOL_SYSTEM } from './prompt';
 test('the registry holds the read-only lookups plus the write tools', () => {
   const tool = REGISTRY.get(UNPAID_TOOL_NAME);
   assert.ok(tool, 'the unpaid lookup is registered');
-  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense', 'list_payments', 'list_saved_items', 'run_report', 'create_client', 'edit_client', 'save_item', 'edit_expense', 'delete_expense', 'delete_draft', 'edit_document_details'].sort());
+  assert.deepEqual(TOOLS.map((t) => t.name).sort(), [UNPAID_TOOL_NAME, 'list_invoices', 'list_estimates', 'get_invoice', 'get_estimate', 'find_client', 'get_client_summary', 'list_expenses', 'get_expense', 'list_payments', 'list_saved_items', 'run_report', 'create_client', 'edit_client', 'save_item', 'edit_expense', 'delete_expense', 'delete_draft', 'edit_document_details', 'record_payment', 'record_other_income'].sort());
   // Everything that changes a row goes through prepare/execute, which the
   // safety suite loops over instead of trusting this list.
   assert.deepEqual(
     REGISTRY.list.filter((t) => t.type !== 'read').map((t) => t.name),
-    ['create_client', 'edit_client', 'save_item', 'edit_expense', 'delete_expense', 'delete_draft', 'edit_document_details'],
+    ['create_client', 'edit_client', 'save_item', 'edit_expense', 'delete_expense', 'delete_draft', 'edit_document_details', 'record_payment', 'record_other_income'],
   );
   assert.equal(REGISTRY.get(UNPAID_TOOL_NAME).type, 'read');
   const modelTool = TOOLS.find((t) => t.name === UNPAID_TOOL_NAME);

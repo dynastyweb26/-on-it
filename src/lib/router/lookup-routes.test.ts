@@ -18,7 +18,7 @@ test('at least six command-phrased lookups route to ask with the router down', (
   }
 });
 
-test('create, record and send commands still go to build', () => {
+test('create and send commands still go to build', () => {
   for (const { text } of COMMAND_BUILDS) {
     assert.deepEqual(viaFallback(text), { route: 'build', via: 'regex' }, text);
   }

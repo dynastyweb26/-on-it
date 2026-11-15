@@ -28,6 +28,23 @@ const FIGURE = /[$]?\d/;
 const SPEND = /\b(?:spent|spend|spending|paid|pay|bought|buy|purchased|expense|expenses)\b/;
 
 /**
+ * Money the owner RECEIVED, said as a record: "Maria paid 200", "Ruth paid in
+ * full", "got paid", "record a payment", "got 150 cash". It is a payment to
+ * record, never a job to build. A question about who has not paid is not one of
+ * these, and neither is "bill her again" — that one is still a job.
+ */
+function isPaymentRecord(t: string): boolean {
+  if (/^(?:who|what|when|which|how|has|have|did|does|do)\b/.test(t)) return false;
+  if (t.endsWith('?')) return false;
+  if (/\bbill\b/.test(t)) return false;
+  if (/\b(?:record|log|add|mark)\b[^.]*\b(?:payment|payments|paid)\b/.test(t)) return true;
+  if (/\bgot\s+paid\b/.test(t)) return true;
+  if (/\b(?:got|received)\b[^.]*\b(?:cash|check|zelle|venmo|paypal|money)\b/.test(t)) return true;
+  // "Maria paid 200": a person or job paid. "I paid 40 for gas" is a spend.
+  return /(?:^|\s)(?!i\b)[a-z]+\s+paid\b/.test(t);
+}
+
+/**
  * True when the message asks the builder to make something: a document plus a
  * create verb, a bill with a figure, or an expense with an amount. The fallback
  * never sends one of these to /api/ask.
@@ -37,6 +54,8 @@ export function isBuildRequest(text: string): boolean {
   if (!t) return false;
   if (DOC_NOUN.test(t) && CREATE_VERB.test(t)) return true;
   if (/\bbill\b/.test(t) && FIGURE.test(t)) return true;
+  // A payment that came in is a record (record_payment), not an expense.
+  if (isPaymentRecord(t)) return false;
   if (SPEND.test(t) && FIGURE.test(t)) return true;
   return false;
 }
@@ -64,5 +83,6 @@ const PATTERNS: RegExp[] = [
 export function isWriteCommand(text: string): boolean {
   const t = normalize(text);
   if (!t || isBuildRequest(t)) return false;
+  if (isPaymentRecord(t)) return true;
   return PATTERNS.some((pattern) => pattern.test(t));
 }

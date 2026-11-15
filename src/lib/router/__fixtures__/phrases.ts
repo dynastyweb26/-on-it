@@ -36,7 +36,6 @@ export const COMMAND_LOOKUPS: Labelled[] = [
 /** The same verb shapes with build intent: these must never become a lookup. */
 export const COMMAND_BUILDS: Labelled[] = [
   { text: 'create an invoice for Smith', route: 'build' },
-  { text: 'record a payment from Ruth', route: 'build' },
   { text: 'send the estimate to Smith', route: 'build' },
   { text: 'open a new invoice', route: 'build', note: 'lookup verb, build intent' },
   { text: 'create an estimate for my client Ana', route: 'build', note: 'client named, still a job' },
@@ -58,6 +57,9 @@ export const WRITE_COMMANDS: Labelled[] = [
   { text: "change Smith's due date to the 12th", route: 'ask' },
   { text: 'delete draft 6', route: 'ask' },
   { text: "update Maria's email to m@x.com", route: 'ask' },
+  // A payment is a record the owner confirms, not a builder job: the reason it
+  // appears in COMMAND_BUILDS is gone, and the fallback now routes it to ask.
+  { text: 'record a payment from Ruth', route: 'ask' },
 ];
 
 /** The builder's own shapes, figures and line items included. Never ask. */
