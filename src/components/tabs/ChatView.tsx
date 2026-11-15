@@ -116,6 +116,7 @@ import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
 import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
 import { askQuestion } from '@/lib/ask-client';
+import { bubbleTextFor } from '@/lib/chat/reply-text';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
@@ -1560,7 +1561,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
           // fallback is the answer (never a makeshift card). `reply` is what voice speaks.
           const card = out.kind === 'ok' && resolveTemplate(out.template) ? out.template : undefined;
           const replyMsg = out.kind === 'ok' && (card || out.fallback)
-            ? aMsg(card ? out.reply : (out.fallback as string), {
+            ? aMsg(card ? bubbleTextFor(out.reply, card.id) : (out.fallback as string), {
                 skipHistory: true,
                 ...(out.messageId ? { messageId: out.messageId } : {}),
                 ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
