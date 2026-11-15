@@ -36,6 +36,7 @@ import { supabaseToolDb } from '@/lib/tools/db';
 import { FALLBACK } from '@/lib/tools/reply';
 import { answerFor } from '@/lib/tools/answer';
 import { guardModelMoney } from '@/lib/tools/money';
+import { noToolLog } from '@/lib/tools/diagnose';
 import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
@@ -197,6 +198,15 @@ export async function POST(req: NextRequest) {
   const moneyGuard = guardModelMoney(result.replyText, result.toolResults);
   if (!moneyGuard.ok) {
     console.error('[ask] dropped model money with no tool source', moneyGuard.offending);
+  }
+
+  // Blind spot: a turn that ran no tool used to leave nothing in the log, so the
+  // "one call, no tool" reports could not be traced. A preview logs one line —
+  // the stop reason and the model's own prose, cut short, and never the user's
+  // message.
+  if (process.env.VERCEL_ENV === 'preview') {
+    const gap = noToolLog(result);
+    if (gap) console.log('[ask] no tool run', gap);
   }
 
   // What the user reads, whichever tool ran: the card (or the cant.do card when
