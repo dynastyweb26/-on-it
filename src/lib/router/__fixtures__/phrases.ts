@@ -39,6 +39,11 @@ export const COMMAND_BUILDS: Labelled[] = [
   { text: 'record a payment from Ruth', route: 'build' },
   { text: 'send the estimate to Smith', route: 'build' },
   { text: 'open a new invoice', route: 'build', note: 'lookup verb, build intent' },
+  { text: 'create an estimate for my client Ana', route: 'build', note: 'client named, still a job' },
+  { text: 'add an invoice for client Smith $50', route: 'build' },
+  { text: 'new invoice for my client', route: 'build' },
+  { text: 'bill my client Ruth 200', route: 'build' },
+  { text: "add a line for the client's filter", route: 'build' },
 ];
 
 /**
