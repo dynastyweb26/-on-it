@@ -9,6 +9,7 @@
 // That is the pre-Slice-2 behavior, unchanged, so a broken router can only cost
 // a question, never an invoice.
 import { shouldRouteToAsk } from '@/lib/ask-intent';
+import { isWriteCommand } from './write-commands';
 
 /** What the router may say a message is. */
 export type RouterRoute = 'ask' | 'build' | 'unsupported';
@@ -86,36 +87,30 @@ export function decideRoute(input: {
   bypass: BypassReason | null;
   classified: RouterRoute | null;
   text: string;
-  /**
-   * A registered write tool covers this message (lib/router/covers-write). It is
-   * computed by the caller so this module stays free of the registry and runs
-   * unchanged in the browser's fallback.
-   */
-  covered?: boolean;
 }): Decision {
   // A job already in progress owns the turn: an answer, a correction, "add a
-  // line", "make it 50". Even a covered change never interrupts it.
+  // line", "make it 50". Nothing else may claim it.
   if (input.bypass) return { route: 'build', via: 'bypass' };
 
-  // A change the app can already carry out is a question for /api/ask — and it
-  // stays one even with a phone number, a price or a date in it. A contact to
-  // save is not a job, so this runs BEFORE the figure rule.
-  if (input.flagOn && input.covered) return { route: 'ask', via: 'regex' };
+  // The router's label decides whenever there is one. Its prompt already lists
+  // every write tool the registry has, so it knows a change from a job; the
+  // fallback below only runs when the router is down or was skipped.
+  if (input.flagOn && input.classified) {
+    // Out-of-scope account questions are answered where the tools are: /api/ask
+    // composes the cant.do card rather than a canned refusal.
+    if (input.classified === 'unsupported') return { route: 'ask', via: 'router' };
+    return { route: input.classified, via: 'router' };
+  }
 
-  // Same rule the regex gate applies, and it runs before the model is consulted:
-  // a figure or a price can never be classified into a question.
+  // ── Router down or skipped: the deterministic rules, in order ─────────────
+  // 1. A change a write tool covers, even with a phone number or a price in it.
+  //    A contact to save is not a job (lib/router/write-commands).
+  if (input.flagOn && isWriteCommand(input.text)) return { route: 'ask', via: 'regex' };
+  // 2. A figure is a job on its face. /api/route never asks the model when it
+  //    sees one, so this is the rule that sees them.
   if (hasFigure(input.text)) return { route: 'build', via: 'regex' };
-
-  const oldPath: Decision = shouldRouteToAsk({ flagOn: input.flagOn, text: input.text })
+  // 3. The old regex gate, then /api/parse.
+  return shouldRouteToAsk({ flagOn: input.flagOn, text: input.text })
     ? { route: 'ask', via: 'regex' }
     : { route: 'build', via: 'regex' };
-
-  if (!input.flagOn) return oldPath;
-  if (!input.classified) return oldPath;
-  // Every question goes to /api/ask under the flag. The router still sends
-  // create/record requests (and anything with a figure) to build, but an
-  // out-of-scope account question is answered where the tools are, not refused
-  // here with a canned line.
-  if (input.classified === 'unsupported') return { route: 'ask', via: 'router' };
-  return { route: input.classified, via: 'router' };
 }
