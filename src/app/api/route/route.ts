@@ -66,9 +66,11 @@ export async function POST(req: NextRequest) {
   // A digit or a "$" is a job on its face, so it is decided without a call:
   // the same rule the regex gate has, applied before the model is asked.
   const { message } = parsed.data;
-  // This call comes out of the SAME per-turn budget /api/ask spends from: the
-  // client sends one x-turn-id on both requests. A turn out of calls falls back
-  // to the deterministic rules instead of spending another one.
+  // The model is asked for every message that does not carry a figure — a change
+  // included, because the prompt already lists every write tool and a proposal is
+  // a change, not a job. This call comes out of the SAME per-turn budget /api/ask
+  // spends from (one x-turn-id on both requests); a turn out of calls falls back
+  // to the deterministic rules instead of overspending.
   const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
   const classified = hasFigure(message) || !(await budget.spend())
     ? null

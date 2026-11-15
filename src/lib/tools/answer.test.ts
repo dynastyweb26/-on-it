@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { answerFor } from './answer';
 import { REGISTRY } from './registry';
-import { FALLBACK, NO_LOOKUP_REPLY } from './reply';
+import { BUILD_INSTEAD_REPLY, FALLBACK, NO_LOOKUP_REPLY } from './reply';
 import { TURN_BUDGET_REPLY } from './budget';
 import { getClientSummaryTool } from './definitions/get_client_summary';
 
@@ -47,6 +47,19 @@ test('no tool ran: the fixed line and the cant.do card', () => {
   assert.equal(answer.sentence, null);
   assert.equal(answer.card?.id, 'cant.do');
   assert.equal(answer.tool, null);
+});
+
+test('a create request that reached /api/ask names the builder, with no cant.do card', () => {
+  for (const question of [
+    'create an estimate for my client Ana',
+    'add an invoice for client Smith $50',
+    'I spent $40 on gas',
+  ]) {
+    const answer = answerFor({ modelText: 'Done!', toolRuns: [], registry: REGISTRY, question });
+    assert.equal(answer.reply, BUILD_INSTEAD_REPLY, question);
+    assert.equal(answer.card, null, question);
+    assert.equal(answer.sentence, null, question);
+  }
 });
 
 test('a tool that ran but failed guesses nothing and draws no card', () => {
