@@ -1,0 +1,62 @@
+// The fallback's fixtures, both directions. Without the builder guard first,
+// "create an estimate for my client Ana" and "add an invoice for client Smith
+// $50" matched create + "client" and were routed to /api/ask.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { isBuildRequest, isWriteCommand } from './write-commands';
+
+const ASK = [
+  'add Ruth Lawrence as a client, 555-0100',
+  'save service call at 95',
+  'delete the Home Depot expense',
+  "change Smith's due date to the 12th",
+  'delete draft 6',
+  "update Maria's email to m@x.com",
+];
+
+/** The shapes the guard names outright: a document, a bill or an amount. */
+const GUARDED = [
+  'create an estimate for my client Ana',
+  'add an invoice for client Smith $50',
+  'new invoice for my client',
+  'bill my client Ruth 200',
+  "add a line for the client's filter",
+  'new estimate for Ana',
+  'I spent $40 on gas',
+];
+
+/** Builder shapes the other rules already keep: never a write command either. */
+const BUILD = [
+  'invoice Smith $50 for a repair',
+  'add a line for the filter',
+  'make it 50',
+  'change the tax to 8 percent',
+];
+
+test('the six write commands are recognised as changes', () => {
+  for (const text of ASK) assert.equal(isWriteCommand(text), true, text);
+});
+
+test('the guard owns every document, bill and amount shape', () => {
+  for (const text of GUARDED) {
+    assert.equal(isBuildRequest(text), true, text);
+    assert.equal(isWriteCommand(text), false, text);
+  }
+});
+
+test('the rest of the builder never becomes a write command', () => {
+  for (const text of [...GUARDED, ...BUILD]) {
+    assert.equal(isWriteCommand(text), false, text);
+  }
+});
+
+test('a bare figure or a question is not a write command', () => {
+  for (const text of ['$40', 'who owes me', "who hasn't paid me", 'add $40', '', '   ']) {
+    assert.equal(isWriteCommand(text), false, text);
+  }
+});
+
+test('a phone number or an email does not turn a change into a job', () => {
+  assert.equal(isBuildRequest('add Ruth Lawrence as a client, 555-0100'), false);
+  assert.equal(isBuildRequest("update Maria's email to m@x.com"), false);
+});

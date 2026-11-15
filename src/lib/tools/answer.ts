@@ -9,7 +9,8 @@ import type { Registry, ToolDefinition } from './contract';
 import { cardFor, type ToolCard } from './registry';
 import { TURN_BUDGET_REPLY } from './budget';
 import { UNPAID_TOOL_NAME } from './definitions/unpaid';
-import { cantDoCard, replyFor } from './reply';
+import { BUILD_INSTEAD_REPLY, cantDoCard, replyFor } from './reply';
+import { isBuildRequest } from '@/lib/router/write-commands';
 import { ConfirmBatchProps } from '@/lib/templates/props';
 import type { PendingProposal, ToolRun } from './turn';
 
@@ -58,6 +59,8 @@ export function answerFor(input: {
   budgetExhausted?: boolean;
   /** Proposals this turn made, each with its server-composed card row. */
   pending?: readonly PendingProposal[];
+  /** The message this turn answers, when the caller has it. */
+  question?: string;
 }): AskAnswer {
   const okRun = input.toolRuns.find((run) => run.status === 'ok');
   if (okRun) {
@@ -113,6 +116,13 @@ export function answerFor(input: {
       card: proposalCard(input.pending ?? []),
       tool: input.registry.find(proposal.tool) ?? null,
     };
+  }
+
+  // A create-invoice/estimate/expense request that reached /api/ask by mistake:
+  // no tool can make it, so say how the builder wants it. No cant.do card — the
+  // offer belongs to a lookup, not to a job that went to the wrong door.
+  if (input.question && isBuildRequest(input.question)) {
+    return { reply: BUILD_INSTEAD_REPLY, sentence: null, card: null, tool: null };
   }
 
   return {

@@ -45,8 +45,8 @@ test('invoice ZZ Test A $50 for a repair -> build', () => {
       classified: 'build',
       text: 'invoice ZZ Test A $50 for a repair',
     }),
-    // The $50 is decided by the figure rule, before the model is asked.
-    { route: 'build', via: 'regex' },
+    // The router answered, so its label decides (its prompt knows the builder).
+    { route: 'build', via: 'router' },
   );
 });
 
@@ -62,9 +62,20 @@ test("Maria hasn't paid, bill her again -> build", () => {
   );
 });
 
-test("who owes me 50 for the fence -> build, and the model is never asked", () => {
-  // classified='ask' is here on purpose: the figure rule is deterministic and
-  // runs before the model call, so no answer can turn this into a lookup.
+test('a figure with no label is build; a label decides when there is one', () => {
+  // /api/route never asks the model when the message carries a figure, so this is
+  // the shape the figure rule really sees: no label at all.
+  assert.deepEqual(
+    decideRoute({
+      flagOn: true,
+      bypass: null,
+      classified: null,
+      text: 'who owes me 50 for the fence',
+    }),
+    { route: 'build', via: 'regex' },
+  );
+  // When /api/route does answer, its label decides; the prompt already carries
+  // every write tool and the shapes the builder owns.
   assert.deepEqual(
     decideRoute({
       flagOn: true,
@@ -72,12 +83,26 @@ test("who owes me 50 for the fence -> build, and the model is never asked", () =
       classified: 'ask',
       text: 'who owes me 50 for the fence',
     }),
-    { route: 'build', via: 'regex' },
+    { route: 'ask', via: 'router' },
   );
   for (const t of ['who owes me 50 for the fence', '500 or best offer', '$40', 'charge 8%']) {
     assert.equal(hasFigure(t), true, t);
   }
   assert.equal(hasFigure('who owes me'), false);
+});
+
+test('the label decides a write command; the fallback only when there is none', () => {
+  const text = 'add Ruth Lawrence as a client, 555-0100';
+  // The router's prompt lists create_client, so its word is final.
+  assert.deepEqual(
+    decideRoute({ flagOn: true, bypass: null, classified: 'build', text }),
+    { route: 'build', via: 'router' },
+  );
+  // Router down: the deterministic fallback knows the same change.
+  assert.deepEqual(
+    decideRoute({ flagOn: true, bypass: null, classified: null, text }),
+    { route: 'ask', via: 'regex' },
+  );
 });
 
 test('the same question with the flag off keeps the old path', () => {

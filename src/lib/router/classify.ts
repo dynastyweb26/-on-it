@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { MODEL } from '@/lib/ai';
 import { sanitizeForAI } from '@/lib/sanitize';
 import type { RouterRoute } from './decide';
+import type { Registry } from '@/lib/tools/contract';
+import { writeIntentLines } from './write-intents';
 
 /** The one place the router's model is named (Haiku-class, same as parse). */
 export const ROUTER_MODEL = MODEL;
@@ -39,16 +41,34 @@ export const ROUTER_TOOLS: Anthropic.Tool[] = [
  * safety property of the whole slice: a build mistaken for a question is a
  * broken invoice flow, while a question mistaken for a build just gets the old
  * "what was the amount?" answer. So every tie breaks toward build.
+ *
+ * The write tools are listed from the registry (write-intents), so the model is
+ * told what the app can already change without this file naming any of them.
  */
-export const ROUTER_SYSTEM = `You sort ONE message from a contractor's invoicing app into one route. You never answer the message and never write a reply. Call ${ROUTER_TOOL_NAME} with exactly one route.
+export const ROUTER_RULES = `You sort ONE message from a contractor's invoicing app into one route. You never answer the message and never write a reply. Call ${ROUTER_TOOL_NAME} with exactly one route.
 
 ask — the user wants something LOOKED UP: a question or a command about their own invoices, estimates, payments, expenses, clients, saved prices or money totals. A lookup with no question mark is still ask: show, find, pull up, list, open, look up, what about, who, how much, when. Examples: "who hasn't paid me", "how much do people owe me", "find Ruth", "show me my invoices", "pull up the Smith estimate", "when did Smith pay".
 
-build — the user wants to create, record, send or edit an invoice, estimate, expense or payment, OR the message is an answer, correction or follow-up inside a job already in progress. Examples: "invoice ZZ Test A $50 for a repair", "Maria hasn't paid, bill her again", "$40", "make it 50", "add a line for the filter".
+build — the user wants to create or edit an invoice or estimate and its line items, record an expense or a payment, or send a document, OR the message is an answer, correction or follow-up inside a builder job already in progress. Examples: "invoice ZZ Test A $50 for a repair", "Maria hasn't paid, bill her again", "$40", "make it 50", "add a line for the filter".
 
 unsupported — a question about the user's own numbers that NO lookup can answer yet: what they spent, expenses, profit, taxes, income, bank balance, what they owe someone else. Examples: "how much did I spend on gas?", "what's my profit this month?", "how much do I owe in taxes?".
 
-When you are unsure between ask and build, answer build. A wrong build is an invoice the user can fix; a missed question just gets the old answer. When a message carries a figure or a job detail and no clear account question, it is build. A bare figure is build.`;
+When you are unsure between ask and build, answer build. A wrong build is an invoice the user can fix; a missed question just gets the old answer. When a message carries a figure or a job detail and no clear account question, it is build. A bare figure is build.
+
+Changes the app ALREADY has a tool for are ask, not build: each write tool below proposes one change and the owner confirms it. A request that one of them covers is ask even when it carries a phone number, a price or a date — a contact to save is not a job. A request that NO tool below covers (a new invoice, a new estimate, recording an expense or a payment, a line item) is build.`;
+
+/**
+ * The router's rules plus the registry's write tools, in one string. The list is
+ * derived at call time so a newly registered write tool is routed immediately.
+ */
+export function routerSystem(registry?: Registry): string {
+  const listed = writeIntentLines(registry);
+  if (!listed) return ROUTER_RULES;
+  return `${ROUTER_RULES}\n\nWrite tools the app has (a request that changes ONE record one of these covers is ask):\n${listed}`;
+}
+
+/** The prompt the model is sent today. */
+export const ROUTER_SYSTEM = routerSystem();
 
 /** One model call, injected so tests can fake a timeout, garbage or an error. */
 export type RouteCall = (args: { message: string; signal: AbortSignal }) => Promise<unknown>;

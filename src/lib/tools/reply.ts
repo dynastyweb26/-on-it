@@ -10,6 +10,10 @@ import { CantDoProps } from '@/lib/templates/props';
 export const FALLBACK = "I couldn't look that up just now. Ask me again in a moment.";
 export const NO_LOOKUP_REPLY = "I can't look that up yet.";
 
+/** A create request that reached /api/ask by mistake: name the builder's shape. */
+export const BUILD_INSTEAD_REPLY =
+  'Say it as a job and I will build it, for example: invoice Smith 50 for a repair.';
+
 /**
  * The reply for an account question no tool can answer yet (spend, profit,
  * taxes). Kept for callers that still show the line as plain text; the live
