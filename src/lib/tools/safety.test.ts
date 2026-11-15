@@ -50,6 +50,22 @@ const ROWS: Record<string, (userId: string) => FixtureRow[]> = {
     due_date: '2026-10-01',
     status: 'sent',
     deleted_at: null,
+  }, {
+    // The write tools' draft: delete_draft and edit_document_details act on it.
+    id: userId === OTHER ? OTHER_MARKER : 'owner-draft',
+    user_id: userId,
+    kind: 'invoice',
+    invoice_number: 12,
+    client_name: userId === OTHER ? 'Other Owner Ltd' : 'Maria Santos',
+    total: 200,
+    amount_paid: 0,
+    due_date: '2026-12-05',
+    notes: 'Thanks',
+    status: 'draft',
+    approved_at: null,
+    converted_from: null,
+    revoked_at: null,
+    deleted_at: null,
   }],
   clients: (userId) => [{
     id: userId === OTHER ? OTHER_MARKER : 'owner-client',
@@ -210,6 +226,15 @@ test('the service-role client is unreachable from every tool', () => {
 // inherits all seven checks by existing. create_client is the pilot.
 const WRITE_TOOLS = REGISTRY.list.filter((tool) => tool.type === 'write' || tool.type === 'send');
 
+/**
+ * The shared rows, as a plain table set: a write tool is prepared and executed
+ * against real data, so "found the one record" is the same question the user
+ * asks. Both owners are present, so a proposal that leaked a foreign row shows.
+ */
+const fixtureRowSet = (): FixtureRows => Object.fromEntries(
+  tables.map((table) => [table, [...ROWS[table](OWNER), ...ROWS[table](OTHER)]]),
+);
+
 /** A model that calls one tool once and then answers. */
 function oneToolCall(name: string, input: unknown): ModelCall {
   let calls = 0;
@@ -231,17 +256,18 @@ function oneToolCall(name: string, input: unknown): ModelCall {
 
 for (const tool of WRITE_TOOLS) {
   const preview = tool.preview;
-  const preparedOnEmpty = () => tool.prepare!({ db: fixtureDb({}), userId: OWNER }, tool.fixture.args as never);
+  const preparedOnFixtures = () => tool.prepare!({ db: fixtureDb(fixtureRowSet()), userId: OWNER }, tool.fixture.args as never);
+  const writeDbOnFixtures = () => fixtureWriteDb(fixtureRowSet(), OWNER);
 
   test(`${tool.name}: nothing is written before the owner confirms`, async () => {
     assert.ok(tool.prepare && tool.execute && preview, 'a write tool carries prepare, execute and a preview');
     const store = fixturePendingStore();
-    const wdb = fixtureWriteDb({}, OWNER);
+    const wdb = writeDbOnFixtures();
     const registry = buildRegistry([tool]);
 
     const turn = await runToolTurn({
       call: oneToolCall(tool.name, tool.fixture.args),
-      db: fixtureDb({}),
+      db: fixtureDb(fixtureRowSet()),
       userId: OWNER,
       question: 'do it',
       budget: createTurnBudget({ userId: OWNER, cap: 2 }),
@@ -258,18 +284,18 @@ for (const tool of WRITE_TOOLS) {
     assert.equal(wdb.writes, 0, 'a proposal wrote nothing');
     // prepare is handed a read-only ToolContext: no insert, update or rpc at all.
     assert.equal((turn.pending[0].row.icon.length > 0), true);
-    const prepared = await preparedOnEmpty();
+    const prepared = await preparedOnFixtures();
     assert.equal(prepared.ok, true);
     assert.equal(wdb.writes, 0);
   });
 
   test(`${tool.name}: confirm writes exactly one row, a second confirm writes none`, async () => {
     const store = fixturePendingStore();
-    const wdb = fixtureWriteDb({}, OWNER);
+    const wdb = writeDbOnFixtures();
     const registry = buildRegistry([tool]);
     const wctx = { db: wdb, userId: OWNER };
 
-    const prepared = await preparedOnEmpty();
+    const prepared = await preparedOnFixtures();
     assert.equal(prepared.ok, true);
     if (!prepared.ok) return;
     const { token } = await createPendingAction({
@@ -288,11 +314,11 @@ for (const tool of WRITE_TOOLS) {
 
   test(`${tool.name}: two confirms racing the claim write one row`, async () => {
     const store = fixturePendingStore();
-    const wdb = fixtureWriteDb({}, OWNER);
+    const wdb = writeDbOnFixtures();
     const registry = buildRegistry([tool]);
     const wctx = { db: wdb, userId: OWNER };
 
-    const prepared = await preparedOnEmpty();
+    const prepared = await preparedOnFixtures();
     assert.equal(prepared.ok, true);
     if (!prepared.ok) return;
     const { token } = await createPendingAction({
@@ -326,9 +352,9 @@ for (const tool of WRITE_TOOLS) {
 
   test(`${tool.name}: an expired or foreign token writes nothing`, async () => {
     const store = fixturePendingStore();
-    const wdb = fixtureWriteDb({}, OWNER);
+    const wdb = writeDbOnFixtures();
     const registry = buildRegistry([tool]);
-    const prepared = await preparedOnEmpty();
+    const prepared = await preparedOnFixtures();
     assert.equal(prepared.ok, true);
     if (!prepared.ok) return;
     const { token } = await createPendingAction({
@@ -349,8 +375,8 @@ for (const tool of WRITE_TOOLS) {
   });
 
   test(`${tool.name}: execute refuses when the state moved after prepare`, async () => {
-    const wdb = fixtureWriteDb({}, OWNER);
-    const prepared = await preparedOnEmpty();
+    const wdb = writeDbOnFixtures();
+    const prepared = await preparedOnFixtures();
     assert.equal(prepared.ok, true);
     if (!prepared.ok) return;
     const wctx = { db: wdb, userId: OWNER };

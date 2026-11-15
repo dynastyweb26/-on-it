@@ -110,8 +110,10 @@ export const createClientTool = defineWriteTool({
   },
   fallback: (result) => `Saved ${result.name} as a client.`,
   fixture: {
-    args: { name: 'Maria Santos', phone: '555-0100', email: 'maria@example.com' },
-    result: { id: 'cli-1', name: 'Maria Santos', linked: 0 },
+    // A name nobody on file has, so the shared safety suite can prepare this
+    // proposal against the seeded rows without hitting an existing client.
+    args: { name: 'Dwayne Carter', phone: '555-0123', email: 'dwayne@example.com' },
+    result: { id: 'cli-2', name: 'Dwayne Carter', linked: 0 },
   },
   preview: {
     resolved: { name: 'Maria Santos', phone: '555-0100', email: 'maria@example.com' },
