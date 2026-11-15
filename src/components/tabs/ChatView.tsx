@@ -117,7 +117,6 @@ import { getSharedUser } from '@/lib/auth-client';
 import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
 import { askQuestion } from '@/lib/ask-client';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
-import { coveredByWriteTool } from '@/lib/router/covers-write';
 import { classifyTurn } from '@/lib/router/route-client';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
 import { openDestination } from '@/components/chat/templates/destination';
@@ -1528,19 +1527,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
       clarificationOpen: clientQuestionOpen || Boolean(draft && looksLikeAnswer(trimmed)),
       voiceFollowUp: source === 'voice' && Boolean(draft),
     });
-    // A change a registered write tool covers skips the model entirely: it is a
-    // change the app can carry out, so it goes to /api/ask like any lookup, and
-    // the same rule holds when /api/route is down (this is the fallback too).
-    const covered = AI_TOOLS && coveredByWriteTool(trimmed);
     // Phase already reads "thinking" from the top of send(), so the pending state
     // is on screen before this await; sendRef keeps a rage-tap to one request.
-    const asked = bypass || !AI_TOOLS || covered ? null : await classifyTurn(trimmed, turnId);
+    const asked = bypass || !AI_TOOLS ? null : await classifyTurn(trimmed, turnId);
     const decision = decideRoute({
       flagOn: AI_TOOLS,
       bypass,
       classified: asked?.route ?? null,
       text: trimmed,
-      covered,
     });
     if (decision.route === 'unsupported') {
       const reply = asked?.reply ?? UNSUPPORTED_REPLY;
