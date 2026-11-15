@@ -99,7 +99,16 @@ export function historyMessages(
     if (!asked) continue;
     messages.push({ role: 'user', content: asked });
     const said = row.reply_text?.trim().slice(0, HISTORY_TEXT_MAX);
-    if (said) messages.push({ role: 'assistant', content: said });
+    // A turn that offered a confirm card is not a pending instruction: say what
+    // it was and that nothing was saved, so the model cannot read it as "do it".
+    if (row.template_id === CONFIRM_CARD) {
+      messages.push({
+        role: 'assistant',
+        content: `(offered a card: ${said || 'a change'}; nothing was saved)`,
+      });
+    } else if (said) {
+      messages.push({ role: 'assistant', content: said });
+    }
   }
   return messages;
 }
