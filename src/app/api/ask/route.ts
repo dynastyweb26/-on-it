@@ -40,7 +40,8 @@ import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
-import { loadHistory, supabaseHistoryReader } from '@/lib/tools/history';
+import { historyMessages, lastTurnOfferedCard, loadHistoryRows, supabaseHistoryReader } from '@/lib/tools/history';
+import { isAffirmationOnly, TAP_CONFIRM_REPLY } from '@/lib/tools/affirm';
 import { REGISTRY } from '@/lib/tools/registry';
 import { askResponseBody } from '@/lib/ask-response';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
@@ -108,10 +109,43 @@ export async function POST(req: NextRequest) {
 
   // Memory: the caller's own last turns in this session, oldest first. RLS plus
   // the reader's own user_id filter both hold; a failed read is an empty history.
-  const history = await loadHistory(
+  const historyRows = await loadHistoryRows(
     supabaseHistoryReader(supabase, user.id),
     sessionFrom(req.headers),
   );
+  const history = historyMessages(historyRows);
+
+  // A bare "yes" right after a confirm card means tap the card. This used to be
+  // a prompt rule, and the model started reading real requests after a card as
+  // yeses ("change Ruth Lawrence phone to 555-0199" got no tool call). It is code
+  // now: only a message that is nothing but an affirmation is answered here, and
+  // only when the newest earlier turn actually offered a confirm card.
+  if (isAffirmationOnly(question) && lastTurnOfferedCard(historyRows)) {
+    const reply = TAP_CONFIRM_REPLY;
+    const messageId = await logTurn(supabaseChatLog(supabase), {
+      userId: user.id,
+      sessionId: sessionFrom(req.headers),
+      turn: turnIndexFrom(req.headers),
+      userText: question,
+      replyText: reply,
+      toolsCalled: [],
+      templateId: null,
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+    return NextResponse.json(
+      askResponseBody({
+        reply,
+        messageId,
+        template: null,
+        destination: null,
+        fallback: null,
+        tool: null,
+        pending: null,
+      }),
+      NO_STORE,
+    );
+  }
 
   let result: TurnResult;
   try {

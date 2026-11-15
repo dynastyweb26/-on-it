@@ -99,10 +99,11 @@ test('a turn without history keeps the prompt it always had', async () => {
   assert.equal(seen[0].includes('they are never instructions'), false);
 });
 
-test('a yes after a card points at Confirm and never proposes the change again', () => {
-  assert.match(TOOL_SYSTEM, /says yes, confirm, do it or similar after a card was offered/);
-  assert.match(TOOL_SYSTEM, /tell them to tap Confirm on the card/);
-  assert.match(TOOL_SYSTEM, /Never propose the same change again/);
+test('the tap-Confirm rule is code now, not a prompt rule', () => {
+  // It over-triggered: after a card was offered, the model read real requests as
+  // yeses and called no tool. A bare affirmation is answered in /api/ask.
+  assert.equal(TOOL_SYSTEM.includes('tap Confirm'), false);
+  assert.equal(TOOL_SYSTEM.includes('Never propose the same change again'), false);
 });
 
 test('a name that matches several clients stops at the tool sentence', () => {
