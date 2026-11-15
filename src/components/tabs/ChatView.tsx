@@ -115,7 +115,9 @@ import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
 import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
-import { askQuestion } from '@/lib/ask-client';
+import { askQuestion, type AskOutcome } from '@/lib/ask-client';
+import { isAskInFlight, pendingAsk, shouldApplyRestore, trackAsk } from '@/lib/chat/pending-ask';
+import { bubbleTextFor } from '@/lib/chat/reply-text';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
 import { classifyTurn } from '@/lib/router/route-client';
 import TemplateReply from '@/components/chat/templates/TemplateReply';
@@ -929,6 +931,13 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // turn. See src/lib/trace.ts — silent unless NEXT_PUBLIC_TRACE === 'true'.
   const turnIdRef = useRef<string>('');
 
+  // Mirrors the restore guard and the pending-ask attach read from event
+  // handlers and from an effect that can outlive a render. A tab switch is not
+  // a re-render, so state alone cannot answer "is something live?" there.
+  const convoIdRef = useRef<string>('');
+  const messagesRef = useRef<Msg[]>([]);
+  const thinkingRef = useRef(false);
+
   // Apply a restored conversation into state. Shared by the mount restore and
   // the visibilitychange restore. Only ever called with a payload that already
   // passed loadStoredChat's version/TTL/shape checks.
@@ -1058,6 +1067,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
     if (!ns) return false; // namespace unresolved — never read a guessed slot
     const stored = loadStoredChat(ns);
     if (!stored || stored.updatedAt === appliedUpdatedAtRef.current) return false;
+    // A live turn owns the screen: while a request is in flight (or its thinking
+    // row is up), applying the stored payload would drop the message being
+    // answered or the reply about to land.
+    if (!shouldApplyRestore({
+      storedIsNewer: true,
+      askInFlight: sendRef.current || isAskInFlight(convoIdRef.current),
+      hasThinkingMessage: thinkingRef.current,
+    })) return false;
     applyStoredChat(stored);
     return true;
   }
@@ -1169,6 +1186,57 @@ export default function Chat({ active = true }: { active?: boolean }) {
     const t = setTimeout(() => setSkeletonTimedOut(true), 4000);
     return () => clearTimeout(t);
   }, []);
+
+  // Keep the mirrors current for the restore guard and the attach below.
+  useEffect(() => { convoIdRef.current = convoId ?? ''; }, [convoId]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  /**
+   * Land an ask that finished while this chat was unmounted. The restored
+   * transcript may already hold the reply (a reload after it arrived), so a
+   * message id that is already on screen is skipped: the message shows once.
+   */
+  function applyAttachedAsk(out: AskOutcome, question: string) {
+    const markAsked = (list: Msg[]) => {
+      const at = list.map((x) => x.role === 'user' && x.content === question).lastIndexOf(true);
+      return at < 0 ? list : list.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
+    };
+    if (out.kind === 'ok') {
+      if (out.messageId && messagesRef.current.some((m) => m.messageId === out.messageId)) return;
+      const card = resolveTemplate(out.template) ? out.template : undefined;
+      const text = card ? bubbleTextFor(out.reply, card.id) : (out.fallback ?? out.reply);
+      setMessages((m) => markAsked([...m, aMsg(text, {
+        skipHistory: true,
+        ...(out.messageId ? { messageId: out.messageId } : {}),
+        ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
+      })]));
+      return;
+    }
+    // off and network compose nothing to show; the next send tries again.
+    if (out.kind === 'off' || out.kind === 'network') return;
+    setMessages((m) => markAsked([...m, aMsg(out.reply, { skipHistory: true })]));
+  }
+
+  // A tab switch unmounts this view; the ask keeps running in the module store.
+  // Back on the chat, the same thinking row shows and the reply lands once.
+  useEffect(() => {
+    if (!hydrated) return;
+    const entry = pendingAsk(convoIdRef.current);
+    if (!entry) return;
+    thinkingRef.current = true;
+    setPhase('thinking');
+    let gone = false;
+    entry.promise.then((out) => {
+      if (gone) return;
+      applyAttachedAsk(out, entry.question);
+    }).catch(() => {}).finally(() => {
+      if (gone) return;
+      thinkingRef.current = false;
+      setPhase(null);
+    });
+    return () => { gone = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, convoId]);
 
   // persist on every change so nothing is lost when the browser suspends us
   useEffect(() => {
@@ -1407,6 +1475,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // outer finally below.
     if (!trimmed || phase || sendRef.current) return null;
     sendRef.current = true;
+    thinkingRef.current = true;
     setPhase('thinking');
     // One turn_id per user message; finalize()/finishFinalize() read it from the
     // ref so all four trace points share it. Point 1: the user message — a
@@ -1553,14 +1622,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
     // 'ask' keeps the old block below: it owns the signed-out, rate-limited and
     // feature-off outcomes, and a 404 still falls through to the parse path.
     if (decision.route === 'ask') {
-      const out = await askQuestion(trimmed, fetch, turnId);
+      // Tracked by conversation, not by this component: a tab switch unmounts
+      // the view, and the reply still has somewhere to land (lib/chat/pending-ask).
+      const out = await trackAsk(convoIdRef.current, trimmed, askQuestion(trimmed, fetch, turnId));
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
           // A card is kept only when it can be drawn; otherwise the server's plain
           // fallback is the answer (never a makeshift card). `reply` is what voice speaks.
           const card = out.kind === 'ok' && resolveTemplate(out.template) ? out.template : undefined;
           const replyMsg = out.kind === 'ok' && (card || out.fallback)
-            ? aMsg(card ? out.reply : (out.fallback as string), {
+            ? aMsg(card ? bubbleTextFor(out.reply, card.id) : (out.fallback as string), {
                 skipHistory: true,
                 ...(out.messageId ? { messageId: out.messageId } : {}),
                 ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
@@ -1907,6 +1978,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     }
     } finally {
       sendRef.current = false;
+      thinkingRef.current = false;
       setPhase(null);
     }
   }
