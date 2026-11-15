@@ -70,11 +70,11 @@ export interface Decision {
 /**
  * The whole decision, with no I/O.
  *
- *  - bypass           → build (parse), and the model is never called
- *  - a figure         → build, before the model is consulted
- *  - flag off         → the old path (regex; off ⇒ parse, exactly as today)
- *  - a valid answer   → that answer
- *  - null             → the old path (regex, then parse)
+ *  - bypass        → build (parse); the model is never called
+ *  - a label       → that label decides; unsupported is still a question
+ *  - no label      → a covered write command is ask, a figure is build, then the
+ *                    old regex gate (regex, then parse)
+ *  - flag off      → the old path (regex; off ⇒ parse, exactly as today)
  *
  * `unsupported` is never downgraded into build: letting it fall through would
  * send "how much did I spend on gas?" to /api/parse as an expense — the exact
