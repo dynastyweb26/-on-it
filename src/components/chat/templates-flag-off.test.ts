@@ -24,13 +24,18 @@ test('flag off: a main-shaped /api/ask answer comes back with nothing extra', as
   assert.deepEqual(await askQuestion('who owes me', fetchMain), { kind: 'ok', reply: 'Two are unpaid.', messageId: null });
 });
 
-test('a template message exists only where the /api/ask answer is handled', () => {
+test('a template message is created only by an /api/ask answer', () => {
+  // Two places now: the live ask branch, and the re-attach path that lands a
+  // reply after a tab switch unmounted the view. Both require resolveTemplate.
   const sends = [...chat.matchAll(/template: card/g)];
-  assert.equal(sends.length, 1, 'exactly one place creates a template message');
+  assert.equal(sends.length, 2, 'the live branch and the re-attached one');
+  const guarded = [...chat.matchAll(/resolveTemplate\(out\.template\)/g)];
+  assert.equal(guarded.length, 2, 'both guarded by resolveTemplate');
   const ask = chat.indexOf("decision.route === 'ask'");
-  const at = chat.indexOf('template: card');
+  // The re-attach path sits above send(), so search from the ask branch on.
+  const at = chat.indexOf('template: card', ask);
   const end = chat.indexOf('A failure names its cause', ask);
-  assert.ok(ask > 0 && at > ask && end > at, 'inside the ask branch');
+  assert.ok(ask > 0 && at > ask && end > at, 'one inside the ask branch');
 });
 
 test('the template branch needs a stored template, which flag-off messages never have', () => {
