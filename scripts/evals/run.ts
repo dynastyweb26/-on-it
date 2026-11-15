@@ -24,6 +24,7 @@ import { REGISTRY } from '../../src/lib/tools/registry';
 import { fixtureDb, type FixtureRows } from '../../src/lib/tools/fixture-db';
 import { createTurnBudget } from '../../src/lib/tools/budget';
 import { runToolTurn, systemForTurn, type ModelCall } from '../../src/lib/tools/turn';
+import { historyMessages } from '../../src/lib/tools/history';
 import { MODEL } from '../../src/lib/ai';
 
 export type EvalCase = {
@@ -36,6 +37,17 @@ export type EvalCase = {
   signedIn?: boolean;
   /** No fixture means an empty account, never a crash. */
   fixture?: FixtureRows;
+  /**
+   * Earlier turns of this conversation, as chat_messages holds them. A
+   * template_id (confirm.batch) marks a turn that offered a card; it reaches the
+   * model through the same historyMessages the app uses.
+   */
+  history?: Array<{
+    user_text: string;
+    reply_text: string;
+    template_id?: string | null;
+    created_at?: string;
+  }>;
   /** Known bug this case documents: the gate expects it to fail. */
   expectedFail?: boolean;
   /** Why it is expected to fail. Required whenever expectedFail is true. */
@@ -420,6 +432,14 @@ export async function runCase(testCase: EvalCase, call: ModelCall | null): Promi
     db,
     userId: OWNER,
     question: testCase.request,
+    history: historyMessages(
+      (testCase.history ?? []).map((row) => ({
+        user_text: row.user_text,
+        reply_text: row.reply_text,
+        template_id: row.template_id ?? null,
+        created_at: row.created_at ?? new Date().toISOString(),
+      })),
+    ),
     budget: createTurnBudget({ userId: OWNER }),
   });
 
