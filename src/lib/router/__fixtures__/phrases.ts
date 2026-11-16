@@ -65,6 +65,13 @@ export const WRITE_COMMANDS: Labelled[] = [
 /** The builder's own shapes, figures and line items included. Never ask. */
 export const BUILD_COMMANDS: Labelled[] = [
   { text: 'invoice Smith $50 for a repair', route: 'build' },
+  // "Paid" shapes that are not a payment to record: a spend, someone else
+  // being paid, a job detail, or cash back. All of them stay builds.
+  { text: 'just paid 60 for lumber', route: 'build' },
+  { text: 'we paid 40 for gas', route: 'build' },
+  { text: 'my helper got paid 100', route: 'build' },
+  { text: 'invoice Maria 500 for the deck, she paid 200 deposit', route: 'build' },
+  { text: 'got 200 cash back from home depot return', route: 'build' },
   { text: 'add a line for the filter', route: 'build' },
   { text: 'make it 50', route: 'build' },
   { text: 'new estimate for Ana', route: 'build' },
