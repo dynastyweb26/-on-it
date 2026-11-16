@@ -44,6 +44,14 @@ export function tierFromStatus(status: string): SubscriptionTier {
   return 'canceled'; // canceled, unpaid, incomplete, incomplete_expired, paused
 }
 
+/** The paid plan a subscription tier buys: trialing and active are Pro (Pro is
+ *  the only paid plan Stripe sells today). past_due and canceled return null =
+ *  leave the stored plan alone: access_tier already decides access, and a
+ *  canceled user keeps the plan they had so a resubscribe restores it. */
+export function planFromTier(tier: SubscriptionTier): 'pro' | null {
+  return tier === 'trialing' || tier === 'active' ? 'pro' : null;
+}
+
 /** The access tier for a subscription at `now`. pause_collection leaves the
  *  Stripe status 'active', so a paused subscription is checked first. The
  *  pause starts at the end of the period already paid for: until then the
