@@ -13,7 +13,7 @@ import { iconStyle, s } from '@/components/recap/design/css';
 import Stage from '@/components/recap/design/Stage';
 import { AffDivider, AffText } from '@/components/recap/design/AffText';
 import { affLayout, type AffLayout } from '@/components/recap/design/aff-layout';
-import { pickMarkedAffirmation } from '@/components/recap/design/aff-line';
+import { affirmationFor } from '@/lib/recap/payload';
 import { approxMeasure, canvasMeasure } from '@/components/recap/design/aff-measure';
 import { renderShareImage, shareErrorMessage, shareImage } from '@/components/recap/design/share-image';
 
@@ -21,7 +21,7 @@ const SWOOSH = 'position:absolute;left:0;right:0;top:42%;display:flex;justify-co
 const FRAME_BG = 'radial-gradient(110% 50% at 50% -4%,#fff,rgba(255,255,255,0) 64%),radial-gradient(120% 50% at 50% 110%,rgba(212,175,55,.10),rgba(212,175,55,0) 60%),#fff8f0';
 
 export default function DesignAff({ payload: p, clock, reduced, userId = '' }: SlideProps) {
-  const marked = pickMarkedAffirmation(userId, p.recapIndex ?? 0);
+  const marked = affirmationFor(p, userId);
   const exportRef = useRef<HTMLDivElement>(null);
   const image = useRef<Promise<Blob> | null>(null);
   const busy = useRef(false);   // synchronous: a second tap in the same frame is ignored

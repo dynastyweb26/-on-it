@@ -20,6 +20,7 @@ import { roundCurrency } from '@/lib/financials';
 import { booksDay } from '@/lib/books-period';
 import { countsAsIncome } from '@/lib/other-income';
 import { isEntitledSlot } from './quota';
+import { pickAffirmationMark } from './ceo-affirmations';
 import { daysBetween, localYmd, type RecapKind, type RecapPeriod } from './dates';
 
 /** Stays 1. Every field this build added is optional when read, and net, daily
@@ -108,6 +109,10 @@ export type RecapPayload = {
    *  passes it to pickAffirmation as periodIndex, so a recap's line never changes.
    *  Optional on read: payloads stored before it fall back to 0. */
   recapIndex?: number;
+  /** The affirmation's [bracket] line, fixed when the row is built (the same
+   *  pick pickAffirmation makes, from CEO_AFFIRMATION_MARKS), so adding lines to
+   *  the list never changes a recap already seen. Optional on read. */
+  affirmationMark?: string;
   /** 1 or 2: which of the two free recaps this row is (quota.ts slots, rules
    *  unchanged). Only a free-plan row that owns a slot has it. Optional on read. */
   freeRecapNumber?: number;
@@ -205,21 +210,37 @@ export function recapRunNumbers(existing: number): { next: () => number; wrote: 
   };
 }
 
-/** The two numbers the player needs that are not in the story's own figures,
- *  stored beside the payload when the row is built:
+/** The fields the player needs that are not in the story's own figures, stored
+ *  beside the payload when the row is built:
  *    recapIndex      — how many of the owner's recaps came before this one (0-based),
  *                      which is pickAffirmation's periodIndex;
+ *    affirmationMark — the [bracket] line for that same pick, fixed with the row
+ *                      so growing the list never rewrites a stored recap;
  *    freeRecapNumber — which free recap this is (1..FREE_RECAPS) for a free-plan
  *                      row that owns a slot, straight from quota.ts's rule. */
 export function playerFields(input: {
+  userId: string;
   earlierRecaps: number;
   freeSlot?: number | null;
-}): { recapIndex: number; freeRecapNumber?: number } {
+}): { recapIndex: number; affirmationMark: string; freeRecapNumber?: number } {
   const earlier = Number.isFinite(input.earlierRecaps) ? Math.floor(input.earlierRecaps) : 0;
+  const recapIndex = Math.max(0, earlier);
   return {
-    recapIndex: Math.max(0, earlier),
+    recapIndex,
+    affirmationMark: pickAffirmationMark(input.userId, recapIndex),
     ...(isEntitledSlot(input.freeSlot) ? { freeRecapNumber: input.freeSlot as number } : {}),
   };
+}
+
+/** The affirmation line the slide shows: the one fixed with the row, or — for a
+ *  row stored before that was kept — today's pick at the row's recap number. A
+ *  stored line never changes, so growing the list cannot rewrite a recap the
+ *  owner has already seen. */
+export function affirmationFor(
+  p: Pick<RecapPayload, 'affirmationMark' | 'recapIndex'>,
+  userId: string,
+): string {
+  return p.affirmationMark ?? pickAffirmationMark(userId, p.recapIndex ?? 0);
 }
 
 /** The largest day of a daily series (earliest on a tie), or null when every

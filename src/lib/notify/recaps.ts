@@ -379,7 +379,7 @@ export async function buildOwnerRecaps(
     // (the affirmation index) and, for a free row with a slot, which free recap.
     const story = {
       ...payload,
-      ...playerFields({ earlierRecaps: numbering.next(), freeSlot: slot }),
+      ...playerFields({ userId, earlierRecaps: numbering.next(), freeSlot: slot }),
     };
 
     // Insert-once: an existing snapshot (an earlier run) is never rewritten.
