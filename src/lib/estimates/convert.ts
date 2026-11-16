@@ -10,6 +10,38 @@ export type ConvertedDepositColumns = {
   deposit_amount: number | null;
 };
 
+/** The two invoices columns that carry the skipped-photos note (migration
+ *  20261116140000). */
+export type AttachmentsSkippedColumns = {
+  attachments_skipped: number;
+  attachments_skipped_from: number | null;
+};
+
+/**
+ * What to store on a freshly copied document about the photos the plan did not
+ * copy. Null when there is nothing to say: the tiers flag is off (today's
+ * conversion writes no such columns) or nothing was skipped (an untouched row
+ * stays null, matching the migration's no-backfill rule).
+ *
+ * Pure: the flag is passed in, so both branches are tested without a database.
+ * A count always wins over a missing source number — the note can still say
+ * how many were left behind.
+ */
+export function attachmentsSkippedColumns(
+  enforced: boolean,
+  skipped: { count: number; sourceNumber: number | null | undefined },
+): AttachmentsSkippedColumns | null {
+  if (!enforced) return null;
+  const count = Number.isFinite(skipped.count) && skipped.count > 0 ? Math.floor(skipped.count) : 0;
+  if (count < 1) return null;
+  const from = typeof skipped.sourceNumber === 'number'
+    && Number.isInteger(skipped.sourceNumber)
+    && skipped.sourceNumber > 0
+    ? skipped.sourceNumber
+    : null;
+  return { attachments_skipped: count, attachments_skipped_from: from };
+}
+
 export function convertedDepositColumns(
   est: Pick<PublicModelInvoice, 'total' | 'deposit_type' | 'deposit_value' | 'deposit_amount'>,
 ): ConvertedDepositColumns {

@@ -9,7 +9,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { copyAttachmentsOutcome, type SkippedAttachments } from '@/lib/attachments-client';
 import { defaultDueDate } from '@/lib/dates';
-import { convertedDepositColumns } from '@/lib/estimates/convert';
+import { attachmentsSkippedColumns, convertedDepositColumns } from '@/lib/estimates/convert';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 export type ConvertOutcome =
   | {
@@ -39,6 +40,9 @@ const COLUMNS =
 export async function convertEstimateToInvoice(
   supabase: SupabaseClient,
   estimateId: string,
+  /** The tiers flag, defaulted to the build-time one so a test can prove both
+   *  branches (off = nothing is written, exactly as today). */
+  enforced: boolean = NEXT_PUBLIC_TIERS,
 ): Promise<ConvertOutcome> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, reason: 'signed_out' };
@@ -102,6 +106,26 @@ export async function convertEstimateToInvoice(
     await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
     return { ok: false, reason: 'error' };
   }
+
+  // Tiers: the copy may have left photos behind. Store how many and the source
+  // document's number on the NEW invoice, so the note (design/tiers 05) still
+  // shows after a reload. Flag off — or nothing skipped — writes nothing at
+  // all, so today's conversion is unchanged. A failed note never fails the
+  // conversion: the invoice exists and is about to be shown.
+  const skippedColumns = attachmentsSkippedColumns(enforced, {
+    count: copy.skipped.count,
+    sourceNumber: typeof est.invoice_number === 'number' ? est.invoice_number : null,
+  });
+  if (skippedColumns) {
+    const { error: noteError } = await supabase
+      .from('invoices')
+      .update(skippedColumns)
+      .eq('id', created.id);
+    if (noteError) {
+      console.error('[convert] skipped-photos note not stored', noteError.code ?? noteError.message);
+    }
+  }
+
   return {
     ok: true,
     id: created.id,
