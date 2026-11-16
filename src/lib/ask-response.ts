@@ -15,6 +15,36 @@ export type AskResponseInput = {
   pending: unknown;
 };
 
+/**
+ * The typed answer when the daily AI limit is spent. Same shape as a turn, plus
+ * the numbers the meter needs and `kind: 'limit'` for the client to key on.
+ * `reply` is empty on purpose: the wording is the UI's (see the Handoff Note),
+ * and no chat_messages row was written, so messageId is null.
+ */
+export type AskLimitBody = AskResponseInput & {
+  kind: 'limit';
+  used: number;
+  limit: number;
+  resetsAt: string;
+  reply: '';
+};
+
+export function askLimitBody(input: { used: number; limit: number; resetsAt: string }): AskLimitBody {
+  return {
+    kind: 'limit',
+    used: input.used,
+    limit: input.limit,
+    resetsAt: input.resetsAt,
+    reply: '',
+    messageId: null,
+    template: null,
+    destination: null,
+    fallback: null,
+    tool: null,
+    pending: null,
+  };
+}
+
 export function askResponseBody(input: AskResponseInput): AskResponseInput {
   return {
     reply: input.reply,

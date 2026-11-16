@@ -8,6 +8,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasAccess, type AccessTiming } from '@/lib/access';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
+import { aiLimitForUser } from '@/lib/ai-limit-usage';
+import { aiLimitWindow } from '@/lib/ai-limit';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { trialEligible } from '@/lib/trial';
 import { subscriptionsEnabled } from '@/lib/subscriptions';
@@ -40,13 +43,26 @@ export async function GET(req: NextRequest) {
   const h0 = performance.now();
   const [access, { data: profile }] = await Promise.all([
     hasAccess(user.id, timing),
-    step('trialProfile', supabase.from('profiles').select('trial_ends_at, subscription_status').eq('id', user.id).maybeSingle()),
+    step('trialProfile', supabase.from('profiles').select('trial_ends_at, subscription_status, timezone').eq('id', user.id).maybeSingle()),
   ]);
   if (timing) {
     timing.hasAccessWall = Math.round(performance.now() - h0);
     timing.total = Math.round(performance.now() - t0);
     console.log('access-timing', JSON.stringify({ cold, ...timing }));
   }
+  // Tiers (flag on only): the AI meter's numbers. Flag off → no count query
+  // and no new keys, so the response is byte-for-byte today's. The plan facts
+  // come from the entitlements hasAccess already resolved (a stored plan value
+  // is not the answer here). A failed count reads as 0 used: a meter never
+  // locks anyone out.
+  const ai = NEXT_PUBLIC_TIERS
+    ? await aiLimitForUser(supabase, user.id, {
+      tier: access.tier,
+      plan: access.entitlements.plan,
+      timezone: profile?.timezone ?? null,
+    })
+    : null;
+
   // subscriptionsEnabled: is Stripe subscription checkout open in this
   // deployment? The paywall, Settings' Plan row and the upgrade nudges read it
   // here instead of a browser-side env read (the value is not NEXT_PUBLIC).
@@ -54,5 +70,12 @@ export async function GET(req: NextRequest) {
     ...access,
     trialEligible: trialEligible(profile),
     subscriptionsEnabled: subscriptionsEnabled(),
+    ...(NEXT_PUBLIC_TIERS
+      ? {
+        aiUsedToday: ai?.used ?? 0,
+        aiLimit: ai?.limit ?? access.entitlements.aiDailyLimit,
+        aiResetsAt: ai?.resetsAt ?? aiLimitWindow(profile?.timezone ?? null, new Date()).resetsAt,
+      }
+      : {}),
   });
 }
