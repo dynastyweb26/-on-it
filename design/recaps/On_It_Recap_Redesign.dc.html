@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><style>body{margin:0;background:#f0eee9;font-family:system-ui,sans-serif}a{color:#735c00}a:hover{color:#1f1b13}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style></helmet>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Play it. Tap right to advance, left to go back, swipe, or hold to pause.</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Full recap, auto-playing (Pro, bank connected)</div><dc-import name="RecapPlayer" scenario="{{ heroScenario }}" plan="{{ heroPlan }}" autoplay="{{ true }}" hint-size="408px,862px"></dc-import></div>
+</div>
+</section>
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Every slide, normal week. Dark tags mark every dynamic field (toggle in Tweaks).</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>01 Overview</div><dc-import name="RecapPlayer" start-slide="opener" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>02 Money in, bank line folded in</div><dc-import name="RecapPlayer" start-slide="in" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2c"><div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>03 Money out, bank line folded in</div><dc-import name="RecapPlayer" start-slide="out" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2d"><div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>04 Kept</div><dc-import name="RecapPlayer" start-slide="kept" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2e"><div class="dv-olabel"><a class="dv-oid" href="#2e">2e</a>05 Invoices and estimates</div><dc-import name="RecapPlayer" start-slide="inv" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2f"><div class="dv-olabel"><a class="dv-oid" href="#2f">2f</a>06 Top client</div><dc-import name="RecapPlayer" start-slide="client" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2g"><div class="dv-olabel"><a class="dv-oid" href="#2g">2g</a>07 Bank activity (Pro only)</div><dc-import name="RecapPlayer" start-slide="bank" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2h"><div class="dv-olabel"><a class="dv-oid" href="#2h">2h</a>08 Waiting for you</div><dc-import name="RecapPlayer" start-slide="waiting" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="2i"><div class="dv-olabel"><a class="dv-oid" href="#2i">2i</a>09 Free-plan final</div><dc-import name="RecapPlayer" plan="free" start-slide="free" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import></div>
+</div>
+</section>
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">10 Affirmation: four looks, each with its exported 9:16 share image</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="3a"><div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>A: Montserrat + signature image</div><dc-import name="RecapPlayer" start-slide="aff" aff-variant="A" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import><dc-import name="RecapPlayer" aff-variant="A" export-mode="{{ true }}" hint-size="378px,658px"></dc-import></div>
+<div class="dv-opt" id="3b"><div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>B: Montserrat + handwritten footer</div><dc-import name="RecapPlayer" start-slide="aff" aff-variant="B" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import><dc-import name="RecapPlayer" aff-variant="B" export-mode="{{ true }}" hint-size="378px,658px"></dc-import></div>
+<div class="dv-opt" id="3c"><div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a>C: handwriting + signature + typed name</div><dc-import name="RecapPlayer" start-slide="aff" aff-variant="C" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import><dc-import name="RecapPlayer" aff-variant="C" export-mode="{{ true }}" hint-size="378px,658px"></dc-import></div>
+<div class="dv-opt" id="3d"><div class="dv-olabel"><a class="dv-oid" href="#3d">3d</a>D: handwriting throughout</div><dc-import name="RecapPlayer" start-slide="aff" aff-variant="D" show-fields="{{ showFields }}" hint-size="408px,862px"></dc-import><dc-import name="RecapPlayer" aff-variant="D" export-mode="{{ true }}" hint-size="378px,658px"></dc-import></div>
+</div>
+</section>
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">State: no bank connection (slides 7 and 8 gone, no bank line)</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="4a"><div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Overview, 7 segments</div><dc-import name="RecapPlayer" bank="{{ false }}" start-slide="opener" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="4b"><div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>Money in, no bank line</div><dc-import name="RecapPlayer" bank="{{ false }}" start-slide="in" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="4c"><div class="dv-olabel"><a class="dv-oid" href="#4c">4c</a>Money out, no bank line</div><dc-import name="RecapPlayer" bank="{{ false }}" start-slide="out" hint-size="408px,862px"></dc-import></div>
+</div>
+</section>
+<section class="dv-turn" id="t5">
+<div class="dv-thd"><a class="dv-tid" href="#t5">5</a><span class="dv-tname">State: slow week (small numbers and zeros, still encouraging)</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="5a"><div class="dv-olabel"><a class="dv-oid" href="#5a">5a</a>Overview</div><dc-import name="RecapPlayer" scenario="slow" start-slide="opener" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="5b"><div class="dv-olabel"><a class="dv-oid" href="#5b">5b</a>Money in</div><dc-import name="RecapPlayer" scenario="slow" start-slide="in" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="5c"><div class="dv-olabel"><a class="dv-oid" href="#5c">5c</a>$0 spent</div><dc-import name="RecapPlayer" scenario="slow" start-slide="out" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="5d"><div class="dv-olabel"><a class="dv-oid" href="#5d">5d</a>Kept</div><dc-import name="RecapPlayer" scenario="slow" start-slide="kept" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="5e"><div class="dv-olabel"><a class="dv-oid" href="#5e">5e</a>1 invoice, 0 estimates, caught up</div><dc-import name="RecapPlayer" scenario="slow" start-slide="inv" hint-size="408px,862px"></dc-import></div>
+</div>
+</section>
+<section class="dv-turn" id="t6">
+<div class="dv-thd"><a class="dv-tid" href="#t6">6</a><span class="dv-tname">Scale check: big numbers, 40 invoices, long names, and a month</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="6a"><div class="dv-olabel"><a class="dv-oid" href="#6a">6a</a>Money in, six figures</div><dc-import name="RecapPlayer" scenario="big" start-slide="in" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="6b"><div class="dv-olabel"><a class="dv-oid" href="#6b">6b</a>Money out, 5 categories</div><dc-import name="RecapPlayer" scenario="big" start-slide="out" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="6c"><div class="dv-olabel"><a class="dv-oid" href="#6c">6c</a>40 invoices</div><dc-import name="RecapPlayer" scenario="big" start-slide="inv" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="6d"><div class="dv-olabel"><a class="dv-oid" href="#6d">6d</a>Long client name</div><dc-import name="RecapPlayer" scenario="big" start-slide="client" hint-size="408px,862px"></dc-import></div>
+<div class="dv-opt" id="6e"><div class="dv-olabel"><a class="dv-oid" href="#6e">6e</a>Monthly overview</div><dc-import name="RecapPlayer" scenario="month" start-slide="opener" hint-size="408px,862px"></dc-import></div>
+</div>
+<p class="dv-next">Try next: "go with <a class="dv-oid" href="#3c">3c</a>" · "make the curve in <a class="dv-oid" href="#2a">2a</a> taller" · "bring back the receipt tickets on <a class="dv-oid" href="#2c">2c</a>"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showFields&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;heroScenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;slow&quot;,&quot;big&quot;,&quot;month&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;heroPlan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pro&quot;,&quot;free&quot;],&quot;default&quot;:&quot;pro&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const P = this.props;
+    return { showFields: P.showFields ?? true, heroScenario: P.heroScenario || 'normal', heroPlan: P.heroPlan || 'pro' };
+  }
+}
+</script>
+</body>
+</html>
