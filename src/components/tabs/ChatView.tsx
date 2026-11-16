@@ -114,8 +114,21 @@ import { CATEGORY_LABEL, isExpenseCategory, type ExpenseDraft } from '@/lib/expe
 import type { ExtractResult, LineItem } from '@/lib/ai';
 import { cardAvailableFor, fetchConnectEnabled } from '@/lib/connect-client';
 import { getSharedUser } from '@/lib/auth-client';
-import { AI_TOOLS, IN_APP_CAMERA } from '@/lib/feature-flags';
+import { AI_TOOLS, IN_APP_CAMERA, NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { askQuestion, type AskOutcome } from '@/lib/ask-client';
+import AiMeter from '@/components/chat/AiMeter';
+import AiLimitCard from '@/components/chat/AiLimitCard';
+import type { AiMeter as AiMeterNumbers } from '@/lib/ai-limit';
+import { PLAN_NAMES } from '@/lib/entitlements';
+import {
+  LIMIT_COPY,
+  aiPaywallReason,
+  limitCardCollapsed,
+  nextMeter,
+  tiersFromAccess,
+  upgradeFor,
+  type AccessTiers,
+} from '@/lib/ai-meter-view';
 import { isAskInFlight, pendingAsk, shouldApplyRestore, trackAsk } from '@/lib/chat/pending-ask';
 import { bubbleTextFor } from '@/lib/chat/reply-text';
 import { bypassReason, decideRoute, looksLikeAnswer } from '@/lib/router/decide';
@@ -162,6 +175,10 @@ interface Msg {
   template?: { id: string; props: unknown };
   /** The server's plain-text answer for the card above; shown when it cannot draw. */
   fallbackText?: string;
+  /** Tiers (flag on): the AI limit card answering a question sent at the daily
+   *  limit (design/tiers §03). `resetsAt` is the day it belongs to: a second
+   *  card that day draws collapsed. Never an event, never parse history. */
+  aiLimit?: { limit: number; resetsAt: string; collapsed?: true };
   /** The logged chat_messages id /api/ask returned. No id, no thumbs. */
   messageId?: string;
   /** Where the answer's full list lives (an in-app path the server declared). */
@@ -794,6 +811,51 @@ export default function Chat({ active = true }: { active?: boolean }) {
   const [softWall, setSoftWall] = useState<SoftPrompt | null>(null);
   // Upgraded while the card is up (checkout finished, code redeemed): it has nothing left to say.
   useEffect(() => subscribeAccess(() => { setSoftWall(null); }), []);
+  // Tiers (flag on, AI on): the meter's numbers, the plan and the plan catalog,
+  // read once from /api/access and then kept current by each /api/ask answer.
+  // Flag off: no fetch, nothing drawn. A failed read leaves the meter hidden.
+  const tiersOn = NEXT_PUBLIC_TIERS && AI_TOOLS;
+  const [tiers, setTiers] = useState<AccessTiers>({ meter: null, plan: null, catalog: null });
+  // A new count waits for its answer to finish streaming (board 02, "count").
+  const pendingMeterRef = useRef<{ msgId: string; meter: AiMeterNumbers } | null>(null);
+  // The paywall the limit card opened; its button stays pending while it is up.
+  const [aiPaywall, setAiPaywall] = useState<number | null>(null);
+  useEffect(() => {
+    if (!tiersOn) return;
+    let live = true;
+    const load = () => {
+      fetch('/api/access')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body) => { if (live && body) setTiers(tiersFromAccess(body)); })
+        .catch(() => {});
+    };
+    load();
+    // An upgrade (checkout, code) changes the plan and the limit: read again.
+    const off = subscribeAccess(load);
+    return () => { live = false; off(); };
+  }, [tiersOn]);
+  const setAiMeter = (meter: AiMeterNumbers | null) => setTiers((t) => (meter ? { ...t, meter } : t));
+  /** An answer's new count, applied once its text has finished streaming. An
+   *  answer with no logged id did not count (aiMeterAfterTurn), so it lands now. */
+  function queueAiMeter(msgId: string, out: AskOutcome) {
+    if (!tiersOn || out.kind !== 'ok' || !out.ai) return;
+    if (!out.messageId) { setAiMeter(out.ai); return; }
+    pendingMeterRef.current = { msgId, meter: out.ai };
+  }
+  /** Board 03: the limit card answers the question that hit the limit. */
+  function landAiLimit(out: Extract<AskOutcome, { kind: 'limit' }>, question: string) {
+    pendingMeterRef.current = null;
+    setAiMeter(nextMeter(tiers.meter, out));
+    setMessages((m) => {
+      const at = m.map((x) => x.role === 'user' && x.content === question).lastIndexOf(true);
+      const marked = at < 0 ? m : m.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
+      const collapsed = limitCardCollapsed(marked, out.resetsAt);
+      return [...marked, aMsg(LIMIT_COPY.title, {
+        skipHistory: true,
+        aiLimit: { limit: out.limit, resetsAt: out.resetsAt, ...(collapsed ? { collapsed: true as const } : {}) },
+      })];
+    });
+  }
   const [convoId, setConvoId] = useState('');
   // The (i) note under "Download draft" (chat invoice card).
   const [draftInfoOpen, setDraftInfoOpen] = useState(false);
@@ -1201,10 +1263,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
       const at = list.map((x) => x.role === 'user' && x.content === question).lastIndexOf(true);
       return at < 0 ? list : list.map((x, i) => (i === at ? { ...x, skipHistory: true as const } : x));
     };
+    if (out.kind === 'limit') {
+      landAiLimit(out, question);
+      return;
+    }
     if (out.kind === 'ok') {
       if (out.messageId && messagesRef.current.some((m) => m.messageId === out.messageId)) return;
       const card = resolveTemplate(out.template) ? out.template : undefined;
       const text = card ? bubbleTextFor(out.reply, card.id) : (out.fallback ?? out.reply);
+      // Landed while away: there is no stream to wait for.
+      if (tiersOn && out.ai) setAiMeter(out.ai);
       setMessages((m) => markAsked([...m, aMsg(text, {
         skipHistory: true,
         ...(out.messageId ? { messageId: out.messageId } : {}),
@@ -1625,6 +1693,16 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // Tracked by conversation, not by this component: a tab switch unmounts
       // the view, and the reply still has somewhere to land (lib/chat/pending-ask).
       const out = await trackAsk(convoIdRef.current, trimmed, askQuestion(trimmed, fetch, turnId));
+      if (out.kind === 'limit') {
+        // Board 03: the question stays, the limit card answers it. No retry
+        // bubble, nothing for parse; the + menu and typing stay live.
+        landAiLimit(out, trimmed);
+        if (source === 'voice') {
+          cancelSpeechRef.current?.();
+          cancelSpeechRef.current = speak(LIMIT_COPY.collapsed);
+        }
+        return null;
+      }
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
           // A card is kept only when it can be drawn; otherwise the server's plain
@@ -1637,6 +1715,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
               })
             : aMsg(out.reply, { skipHistory: true, ...(out.kind === 'ok' && out.messageId ? { messageId: out.messageId } : {}) });
+          if (out.kind === 'ok') queueAiMeter(replyMsg.id, out);
           setMessages((m) => {
             // Keep the Q&A out of the job history parse reads later.
             const at = m.map((x) => x.role === 'user' && x.content === trimmed).lastIndexOf(true);
@@ -3041,6 +3120,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // reply waits for its text to finish appearing.
   const [streamDone, setStreamDone] = useState<Set<string>>(() => new Set());
   const markStreamDone = (id: string) => setStreamDone((p) => (p.has(id) ? p : new Set(p).add(id)));
+  // Board 02: the count changes after the answer has landed, never mid-stream.
+  useEffect(() => {
+    const q = pendingMeterRef.current;
+    if (!q || !streamDone.has(q.msgId)) return;
+    pendingMeterRef.current = null;
+    setAiMeter(q.meter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamDone]);
   function thumbsFor(m: Msg, mi: number, wrap: boolean) {
     const lastAssistant = [...messages].reverse().find((x) => x.role === 'assistant');
     const restored = restoredMsgIdsRef.current.has(m.id);
@@ -5186,7 +5273,24 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 </div>
               </div>
             </div>
-          ) : m.template && resolveTemplate(m.template) ? (
+          ) : m.aiLimit && NEXT_PUBLIC_TIERS ? (() => {
+            // Board 03. The upgrade row reads the plan live (an upgrade since
+            // removes it). Free opens the paywall with Pro; Pro's target is
+            // the 1B screen, which ships with section 01, so no row yet.
+            const up = tiers.plan === 'free' ? upgradeFor(tiers.plan, tiers.catalog) : null;
+            return (
+              <AiLimitCard
+                key={m.id}
+                limit={m.aiLimit.limit}
+                collapsed={!!m.aiLimit.collapsed}
+                upgrade={up}
+                onUpgrade={up ? () => setAiPaywall(m.aiLimit?.limit ?? null) : undefined}
+                pending={aiPaywall !== null}
+                live={!restoredMsgIdsRef.current.has(m.id)}
+                showMark={messages[mi - 1]?.role !== 'assistant'}
+              />
+            );
+          })() : m.template && resolveTemplate(m.template) ? (
             <TemplateReply key={m.id} content={m.content} card={resolveTemplate(m.template)!} handlers={templateHandlers(m, mi)} prevRole={messages[mi - 1]?.role} after={thumbsFor(m, mi, false)} live={!restoredMsgIdsRef.current.has(m.id)} onTextDone={() => markStreamDone(m.id)} />
           ) : m.signInLink ? (
             <div key={m.id} className="flex justify-start">
@@ -5733,6 +5837,8 @@ export default function Chat({ active = true }: { active?: boolean }) {
             {phase === 'thinking' ? 'On It is thinking…' : 'Reading your receipt…'}
           </div>
         )}
+        {/* Board 02: the last row of the thread, above the input bar. */}
+        {tiersOn && <AiMeter meter={tiers.meter} />}
       </div>
 
       {/* The composer (UI redesign, release frames 1a): a small "+" on the
@@ -6083,6 +6189,10 @@ export default function Chat({ active = true }: { active?: boolean }) {
       )}
 
       {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
+      {aiPaywall !== null && (
+        // Opened from the AI limit card (board 03): Free → the paywall with Pro.
+        <PaywallModal variant="invoice" reason={aiPaywallReason(PLAN_NAMES.free, aiPaywall)} returnTo="chat" onClose={() => setAiPaywall(null)} />
+      )}
       {softWall && (
         <PaywallModal variant={softWall.variant ?? 'invoice'} reason={softWall.reason} returnTo="chat" onClose={() => setSoftWall(null)} />
       )}

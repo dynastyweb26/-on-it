@@ -1,0 +1,90 @@
+/* AI meter (02) and AI limit card (03): design/tiers/Tiers_1_Paywall_and_AI.dc.html.
+   Every value is the board's own. Phone first; 1280 and up is board 3C. */
+
+/* ── 02 AI meter ── */
+@keyframes aim-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes aim-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes aim-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.aim-row { display: flex; justify-content: center; align-items: center; padding-top: 6px; min-height: 18px; }
+.aim-line {
+  display: flex; align-items: center; gap: 5px;
+  font: 500 12px var(--font-inter), Inter, sans-serif; color: #6b6257;
+}
+.aim-line.is-last { color: #735c00; font-weight: 600; }
+.aim-line .material-symbols-outlined { font-size: 15px; }
+.aim-enter { animation: aim-fade-up 280ms cubic-bezier(.2, .8, .2, 1) both; }
+.aim-leave { animation: aim-fade-out 280ms cubic-bezier(.2, .8, .2, 1) both; }
+.aim-count { animation: aim-fade-in 200ms ease both; }
+.aim-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── 03 AI limit card ── */
+@keyframes ail-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ail-spin { to { transform: rotate(360deg); } }
+
+.ail-wrap { display: flex; gap: 8px; align-items: flex-start; }
+.ail-arrive { animation: ail-arrive 288ms cubic-bezier(.2, .8, .2, 1) both; }
+.ail-card {
+  flex: 1; min-width: 0; box-sizing: border-box;
+  background: #fff; border: 1px solid #eadfcc; border-radius: 18px; overflow: hidden;
+  font-family: var(--font-inter), Inter, sans-serif; color: #1d1914; line-height: normal;
+}
+.ail-head { display: flex; gap: 12px; padding: 14px 14px 12px; }
+.ail-icon {
+  width: 40px; height: 40px; border-radius: 12px; background: #f6eedf; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; color: #735c00;
+}
+.ail-icon .material-symbols-outlined { font-size: 22px; }
+.ail-text { display: flex; flex-direction: column; gap: 3px; }
+.ail-title { font: 700 16px var(--font-montserrat), Montserrat, sans-serif; }
+.ail-body { font: 400 13.5px/1.4 var(--font-inter), Inter, sans-serif; color: #4f473d; }
+.ail-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-top: 1px solid #f1e8d8; font: 500 13.5px var(--font-inter), Inter, sans-serif;
+}
+.ail-row.is-wrap { align-items: flex-start; line-height: 1.4; }
+.ail-row .material-symbols-outlined { font-size: 20px; color: #735c00; }
+.ail-up {
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px;
+  border-top: 1px solid #f1e8d8; background: #fdf8ee;
+}
+.ail-up-top { display: flex; justify-content: space-between; align-items: baseline; }
+.ail-up-label { font: 700 14px var(--font-inter), Inter, sans-serif; }
+.ail-up-price { font: 500 12px var(--font-inter), Inter, sans-serif; color: #6b6257; }
+.ail-up-inline { display: none; }
+.ail-btn {
+  height: 56px; border-radius: 999px; background: #d4af37; border: 0; color: #1d1914;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font: 700 15px var(--font-montserrat), Montserrat, sans-serif; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ail-btn:focus-visible { outline: 2px solid #735c00; outline-offset: 2px; }
+.ail-btn.is-pending { opacity: .8; cursor: default; }
+.ail-spinner {
+  width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box;
+  border: 2.5px solid rgba(29, 25, 20, .25); border-top-color: #1d1914;
+  animation: ail-spin .8s linear infinite;
+}
+/* The repeat send at the limit: one line (board 03 spec panel, "+ menu"). */
+.ail-collapsed { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font: 500 13.5px var(--font-inter), Inter, sans-serif; }
+.ail-collapsed .material-symbols-outlined { font-size: 20px; color: #735c00; }
+
+/* Laptop, board 3C. */
+@media (min-width: 1280px) {
+  .ail-card { flex: none; width: 440px; }
+  .ail-head { padding: 16px; }
+  .ail-icon { width: 44px; height: 44px; }
+  .ail-icon .material-symbols-outlined { font-size: 24px; }
+  .ail-title { font-size: 17px; }
+  .ail-body { font-size: 14px; line-height: normal; }
+  .ail-row, .ail-row.is-wrap { align-items: center; padding: 12px 16px; font-size: 14px; line-height: normal; }
+  .ail-up { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; }
+  .ail-up-top .ail-up-price { display: none; }
+  .ail-up-inline { display: inline; }
+  .ail-btn { height: 52px; padding: 0 24px; flex-shrink: 0; }
+  .ail-collapsed { padding: 12px 16px; font-size: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aim-enter, .aim-leave, .aim-count, .ail-arrive { animation: none !important; }
+}
