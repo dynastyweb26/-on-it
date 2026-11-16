@@ -21,6 +21,10 @@ import { booksDay } from '@/lib/books-period';
 import { countsAsIncome } from '@/lib/other-income';
 import { daysBetween, localYmd, type RecapKind, type RecapPeriod } from './dates';
 
+/** Stays 1. Every field this build added is optional when read, and net, daily
+ *  and previous already existed, so a payload stored before them opens and shows
+ *  the numbers it was built with. Bump only when an existing field would be
+ *  misread by this build; rows.playable() gates on this number. */
 export const RECAP_PAYLOAD_VERSION = 1;
 export const TOP_CATEGORIES = 4;   // the rest fold into "other" (5 data colours)
 export const LIST_MAX = 3;         // owed / paid cards, receipts
