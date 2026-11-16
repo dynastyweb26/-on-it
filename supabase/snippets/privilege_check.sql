@@ -2607,7 +2607,7 @@ results(id, ok, expected, actual) as (
       else (select count(*) from pg_trigger t
         where not t.tgisinternal and t.tgrelid = 'public.invoice_attachments'::regclass
           and t.tgname = 'enforce_plus_attachments'
-          and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 0 and (t.tgtype & 8) = 0 and (t.tgtype & 16) = 0) = 1
+          and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 4 and (t.tgtype & 8) = 0 and (t.tgtype & 16) = 0) = 1
         and coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
           from pg_proc p where p.oid = to_regprocedure('public.enforce_plus_attachments()')), false)
         and not coalesce(has_function_privilege('authenticated', 'public.enforce_plus_attachments()', 'execute'), true) end,
