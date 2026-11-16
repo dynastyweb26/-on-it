@@ -9,23 +9,19 @@
 // open the sheet at once (a share sheet needs the tap's own moment).
 import { useEffect, useRef, useState } from 'react';
 import type { SlideProps } from '@/components/recap/clock';
-import { stripMarks } from '@/lib/recap/ceo-affirmations';
 import { iconStyle, s } from '@/components/recap/design/css';
 import Stage from '@/components/recap/design/Stage';
-import { fitText } from '@/components/recap/design/run';
 import { AffDivider, AffText } from '@/components/recap/design/AffText';
 import { affLayout, type AffLayout } from '@/components/recap/design/aff-layout';
 import { pickMarkedAffirmation } from '@/components/recap/design/aff-line';
 import { approxMeasure, canvasMeasure } from '@/components/recap/design/aff-measure';
 import { renderShareImage, shareErrorMessage, shareImage } from '@/components/recap/design/share-image';
 
-const WORDS = 'display:flex;flex-wrap:wrap;justify-content:center;gap:0 .26em;font:800 54px/60px Montserrat,system-ui,sans-serif;letter-spacing:-.025em';
 const SWOOSH = 'position:absolute;left:0;right:0;top:42%;display:flex;justify-content:center;transform:translateY(-50%);pointer-events:none;opacity:.14';
 const FRAME_BG = 'radial-gradient(110% 50% at 50% -4%,#fff,rgba(255,255,255,0) 64%),radial-gradient(120% 50% at 50% 110%,rgba(212,175,55,.10),rgba(212,175,55,0) 60%),#fff8f0';
 
 export default function DesignAff({ payload: p, clock, reduced, userId = '' }: SlideProps) {
   const marked = pickMarkedAffirmation(userId, p.recapIndex ?? 0);
-  const words = stripMarks(marked).split(' ');
   const exportRef = useRef<HTMLDivElement>(null);
   const image = useRef<Promise<Blob> | null>(null);
   const busy = useRef(false);   // synchronous: a second tap in the same frame is ignored
@@ -33,7 +29,9 @@ export default function DesignAff({ payload: p, clock, reduced, userId = '' }: S
   const [toast, setToast] = useState('');
   // The layout needs the real font widths. Until they are in (a moment) the text is not drawn;
   // on the server and in tests the average widths stand in.
-  const [layout, setLayout] = useState<AffLayout | null>(() => (typeof document === 'undefined' ? affLayout(marked, false, approxMeasure) : null));
+  const server = typeof document === 'undefined';
+  const [layout, setLayout] = useState<AffLayout | null>(() => (server ? affLayout(marked, false, approxMeasure) : null));
+  const [exLayout, setExLayout] = useState<AffLayout | null>(() => (server ? affLayout(marked, true, approxMeasure) : null));
 
   useEffect(() => {
     let live = true;
@@ -41,23 +39,27 @@ export default function DesignAff({ payload: p, clock, reduced, userId = '' }: S
       const el = exportRef.current;
       const family = (el ? getComputedStyle(el).getPropertyValue('--onit-display').trim() : '') || 'system-ui, sans-serif';
       try { await Promise.all([800, 600].map((w) => document.fonts?.load(`${w} 40px ${family}`))); } catch { /* measure with what is loaded */ }
-      if (live) setLayout(affLayout(marked, false, canvasMeasure(family)));
+      if (!live) return;
+      const measure = canvasMeasure(family);
+      setLayout(affLayout(marked, false, measure));
+      setExLayout(affLayout(marked, true, measure));   // the share image's own, smaller box (300 x 320)
     })();
     return () => { live = false; };
   }, [marked]);
 
-  // Draw the export once the fonts are in; a failure here is retried on the tap.
+  // Draw the export once its layout is in; a failure here is retried on the tap.
   useEffect(() => {
+    if (!exLayout) return;
     let live = true;
+    image.current = null;
     const t = setTimeout(() => {
       const el = exportRef.current;
       if (!live || !el) return;
-      fitText(el);
       image.current = renderShareImage(el);
       image.current.catch(() => { image.current = null; });
-    }, 700);
+    }, 300);
     return () => { live = false; clearTimeout(t); };
-  }, [marked]);
+  }, [exLayout]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(''), 2400);
@@ -71,8 +73,8 @@ export default function DesignAff({ payload: p, clock, reduced, userId = '' }: S
     setPending(true);
     try {
       const el = exportRef.current;
-      if (!el) throw new Error('the slide is not ready');
-      if (!image.current) { fitText(el); image.current = renderShareImage(el); }
+      if (!el || !exLayout) throw new Error('the slide is not ready');
+      if (!image.current) image.current = renderShareImage(el);
       const out = await shareImage(await image.current);
       if (out === 'saved') setToast('Image saved');
     } catch (err) {
@@ -120,11 +122,9 @@ export default function DesignAff({ payload: p, clock, reduced, userId = '' }: S
           </div>
           <div style={s('position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column;align-items:center;text-align:center')}>
             <div style={s('flex:1 1 0')} />
-            <div data-affit="54" data-lh="1.11" data-max="400" style={s(WORDS)}>
-              {words.map((w, i) => <span key={i}>{w}</span>)}
-            </div>
-            <div style={s('margin-top:24px;width:44px;height:3px;border-radius:999px;background:#d4af37')} />
-            <div style={s('flex:1.6 1 0')} />
+            {exLayout && <AffText layout={exLayout} animate={false} />}
+            {exLayout && <AffDivider d={0} animate={false} />}
+            <div style={s('flex:1.6 1 0;min-height:32px')} />
             <div style={s('display:flex;align-items:center;gap:7px;font:800 13px/1 Montserrat,system-ui,sans-serif')}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icons/apple-icon-180.png" alt="" style={s('width:22px;height:22px;border-radius:6px;display:block')} />On It
