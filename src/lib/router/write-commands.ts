@@ -27,6 +27,54 @@ const FIGURE = /[$]?\d/;
 /** Spendings and payments: an amount next to these is a record, not a lookup. */
 const SPEND = /\b(?:spent|spend|spending|paid|pay|bought|buy|purchased|expense|expenses)\b/;
 
+/** A document word: a payment beside one of these is about a document. */
+const PAYMENT_DOC_NOUN = /\b(?:invoice|invoices|estimate|estimates|bill|bills)\b/;
+
+/** Openers that make "paid" a spend or a report, never a payment to record. */
+const NOT_A_NAME = new Set([
+  'i', 'we', 'just', 'already', 'she', 'he', 'they', 'my', 'our', 'the',
+]);
+
+/**
+ * Money the owner RECEIVED, said unambiguously enough to record: "record a
+ * payment", "mark invoice 12 paid", "got paid", "Ruth paid in full", "Maria
+ * paid 200", "got 150 cash, no invoice".
+ *
+ * Anything else is left to the classifier. "just paid 60 for lumber" and "we
+ * paid 40 for gas" are spends, "my helper got paid 100" is not the owner being
+ * paid, and a payment mentioned inside a job ("invoice Maria 500 for the deck,
+ * she paid 200 deposit") is a job detail, not a record.
+ */
+function isPaymentRecord(t: string): boolean {
+  // a) record/log/add ... payment — but not a reminder about one.
+  if (/\b(?:record|log|add)\b[^.]*\bpayments?\b/.test(t) && !/\bpayments?\s+reminder\b/.test(t)) {
+    return true;
+  }
+  // b) mark ... paid
+  if (/\bmark\b[^.]*\bpaid\b/.test(t)) return true;
+  // c) got paid, or one or two words paid in full
+  if (/^got\s+paid\b/.test(t)) return true;
+  if (/^(?:[a-z][\w'.-]*\s+){1,2}paid\s+in\s+full\b/.test(t)) return true;
+  // d) "<Name> paid <figure>" as the whole message start, no document named,
+  //    and no " for " after the figure (the figure is the payment, not a price).
+  const opening = /^([a-z][\w'.-]*)\s+paid\s+(\$?\d[\d,]*(?:\.\d+)?)\b/.exec(t);
+  if (opening) {
+    const first = opening[1];
+    const after = t.slice(opening.index + opening[0].length);
+    if (!NOT_A_NAME.has(first) && !/\bfor\b/.test(after) && !PAYMENT_DOC_NOUN.test(t)) return true;
+  }
+  // e) got/received <figure> as cash or through a payment app, with no invoice.
+  if (
+    /^(?:got|received)\b/.test(t)
+    && FIGURE.test(t)
+    && /\b(?:cash|check|zelle|venmo|paypal)\b/.test(t)
+    && /\bno invoice\b/.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * True when the message asks the builder to make something: a document plus a
  * create verb, a bill with a figure, or an expense with an amount. The fallback
@@ -63,6 +111,10 @@ const PATTERNS: RegExp[] = [
  */
 export function isWriteCommand(text: string): boolean {
   const t = normalize(text);
-  if (!t || isBuildRequest(t)) return false;
+  if (!t) return false;
+  // An unambiguous money-in record outranks the figure rule: "Maria paid 200"
+  // is a payment to record. Every ambiguous paid shape stays a build below.
+  if (isPaymentRecord(t)) return true;
+  if (isBuildRequest(t)) return false;
   return PATTERNS.some((pattern) => pattern.test(t));
 }

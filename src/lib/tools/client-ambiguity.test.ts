@@ -12,6 +12,8 @@ import { listInvoicesTool } from './definitions/list_invoices';
 import { listEstimatesTool } from './definitions/list_estimates';
 import { listPaymentsTool } from './definitions/list_payments';
 import { getClientSummaryTool } from './definitions/get_client_summary';
+import { recordPaymentTool } from './definitions/record_payment';
+import { recordOtherIncomeTool } from './definitions/record_other_income';
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 
@@ -97,6 +99,25 @@ test('the exact full name is answered, and only that client\'s rows', async () =
   const summary = await getClientSummaryTool.handler({ db, userId: OWNER }, { name: 'Ruth Chen' });
   assert.equal((summary as { match: string }).match, 'one');
   assert.equal((summary as { summary: { clientName: string } }).summary.clientName, 'Ruth Chen');
+});
+
+test('record_payment: two matching clients is a question with no money in it', async () => {
+  const db = fixtureDb(TWO_RUTHS as never);
+  const prepared = await recordPaymentTool.prepare!(
+    { db, userId: OWNER },
+    recordPaymentTool.input.parse({ client: 'ruth', amount: 100 }) as never,
+  );
+
+  assert.equal(prepared.ok, false);
+  if (prepared.ok) return;
+  for (const name of NAMES) assert.ok(prepared.problem.includes(name), `the sentence must name ${name}`);
+  assert.equal(MONEY.test(prepared.problem), false, 'a figure leaked from an ambiguous name');
+});
+
+test('record_other_income: takes no client name, so an ambiguous one never reaches it', () => {
+  // The tool is for money with NO invoice; with a client name the request is
+  // record_payment's, so there is no client argument to be ambiguous about.
+  assert.equal(recordOtherIncomeTool.input.safeParse({ amount: 100, client: 'ruth' }).success, false);
 });
 
 test('a client who only appears on an invoice still resolves and answers', async () => {

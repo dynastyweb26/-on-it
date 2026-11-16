@@ -12,4 +12,6 @@ export const WRITE_TOOL_PHRASES: Record<string, string> = {
   delete_expense: 'delete the Home Depot expense',
   delete_draft: 'delete draft 6',
   edit_document_details: "change Smith's due date to the 12th",
+  record_payment: 'Maria paid 200',
+  record_other_income: 'got 150 cash, no invoice',
 };

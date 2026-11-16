@@ -41,7 +41,15 @@ import { createPendingAction } from '@/lib/tools/confirm';
 import { supabasePendingStore } from '@/lib/tools/pending-store';
 import { aiEnvRefusal, logEnvRefusal } from '@/lib/tools/env-guard';
 import { logTurn, sessionFrom, supabaseChatLog, turnIndexFrom } from '@/lib/tools/log';
-import { historyMessages, lastTurnOfferedCard, loadHistoryRows, supabaseHistoryReader } from '@/lib/tools/history';
+import {
+  hasLivePendingAction,
+  historyMessages,
+  lastTurnOfferedCard,
+  loadHistoryRows,
+  loadPendingRows,
+  supabaseHistoryReader,
+  supabasePendingReader,
+} from '@/lib/tools/history';
 import { isAffirmationOnly, TAP_CONFIRM_REPLY } from '@/lib/tools/affirm';
 import { REGISTRY } from '@/lib/tools/registry';
 import { askResponseBody } from '@/lib/ask-response';
@@ -114,14 +122,25 @@ export async function POST(req: NextRequest) {
     supabaseHistoryReader(supabase, user.id),
     sessionFrom(req.headers),
   );
-  const history = historyMessages(historyRows);
+  // The actions those cards were drawn from: one tells the model whether a card
+  // turn was confirmed or is still an offer, and one live row is what makes a
+  // bare "yes" mean "tap the card". No session id and no cancel flag is stored;
+  // a row that was never executed and has not expired is the live one.
+  const pendingRows = await loadPendingRows(supabasePendingReader(supabase, user.id));
+  const now = new Date();
+  const history = historyMessages(historyRows, now, pendingRows);
 
   // A bare "yes" right after a confirm card means tap the card. This used to be
   // a prompt rule, and the model started reading real requests after a card as
   // yeses ("change Ruth Lawrence phone to 555-0199" got no tool call). It is code
   // now: only a message that is nothing but an affirmation is answered here, and
-  // only when the newest earlier turn actually offered a confirm card.
-  if (isAffirmationOnly(question) && lastTurnOfferedCard(historyRows)) {
+  // only when the newest earlier turn offered a confirm card that is still live
+  // (not confirmed, not expired) — otherwise there is no card to tap.
+  if (
+    isAffirmationOnly(question)
+    && lastTurnOfferedCard(historyRows, now)
+    && hasLivePendingAction(pendingRows, now)
+  ) {
     const reply = TAP_CONFIRM_REPLY;
     const messageId = await logTurn(supabaseChatLog(supabase), {
       userId: user.id,

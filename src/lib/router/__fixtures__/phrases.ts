@@ -36,7 +36,6 @@ export const COMMAND_LOOKUPS: Labelled[] = [
 /** The same verb shapes with build intent: these must never become a lookup. */
 export const COMMAND_BUILDS: Labelled[] = [
   { text: 'create an invoice for Smith', route: 'build' },
-  { text: 'record a payment from Ruth', route: 'build' },
   { text: 'send the estimate to Smith', route: 'build' },
   { text: 'open a new invoice', route: 'build', note: 'lookup verb, build intent' },
   { text: 'create an estimate for my client Ana', route: 'build', note: 'client named, still a job' },
@@ -58,11 +57,21 @@ export const WRITE_COMMANDS: Labelled[] = [
   { text: "change Smith's due date to the 12th", route: 'ask' },
   { text: 'delete draft 6', route: 'ask' },
   { text: "update Maria's email to m@x.com", route: 'ask' },
+  // A payment is a record the owner confirms, not a builder job: the reason it
+  // appears in COMMAND_BUILDS is gone, and the fallback now routes it to ask.
+  { text: 'record a payment from Ruth', route: 'ask' },
 ];
 
 /** The builder's own shapes, figures and line items included. Never ask. */
 export const BUILD_COMMANDS: Labelled[] = [
   { text: 'invoice Smith $50 for a repair', route: 'build' },
+  // "Paid" shapes that are not a payment to record: a spend, someone else
+  // being paid, a job detail, or cash back. All of them stay builds.
+  { text: 'just paid 60 for lumber', route: 'build' },
+  { text: 'we paid 40 for gas', route: 'build' },
+  { text: 'my helper got paid 100', route: 'build' },
+  { text: 'invoice Maria 500 for the deck, she paid 200 deposit', route: 'build' },
+  { text: 'got 200 cash back from home depot return', route: 'build' },
   { text: 'add a line for the filter', route: 'build' },
   { text: 'make it 50', route: 'build' },
   { text: 'new estimate for Ana', route: 'build' },
