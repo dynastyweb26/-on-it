@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "notes": "The two money-in write tools: a payment for an invoice, an income row with no invoice, and the several-open-invoices question. Every case grades writes: 0, because a write tool only proposes. Until these are recorded they report MISSING in replay, which is not a failure.",
+  "cases": [
+    {
+      "id": "record-payment-invoice-12",
+      "tags": ["money"],
+      "request": "Maria paid 200 on invoice 12",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "invoices": [
+          {
+            "id": "inv-12",
+            "user_id": "11111111-1111-1111-1111-111111111111",
+            "kind": "invoice",
+            "invoice_number": 12,
+            "client_name": "Maria Santos",
+            "status": "sent",
+            "total": 300,
+            "amount_paid": 0,
+            "due_date": "2026-10-08",
+            "created_at": "2026-09-02T12:00:00Z",
+            "deleted_at": null
+          }
+        ]
+      },
+      "expect": {
+        "tools": ["record_payment"],
+        "templateId": "confirm.batch",
+        "writes": 0
+      }
+    },
+    {
+      "id": "record-payment-paid-in-full",
+      "tags": ["money"],
+      "request": "Ruth paid in full",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "clients": [
+          {
+            "id": "cli-ruth",
+            "user_id": "11111111-1111-1111-1111-111111111111",
+            "name": "Ruth Lawrence",
+            "phone": null,
+            "email": "ruth@example.com",
+            "address": null,
+            "deleted_at": null
+          }
+        ],
+        "invoices": [
+          {
+            "id": "inv-74",
+            "user_id": "11111111-1111-1111-1111-111111111111",
+            "kind": "invoice",
+            "invoice_number": 74,
+            "client_name": "Ruth Lawrence",
+            "status": "sent",
+            "total": 120,
+            "amount_paid": 0,
+            "due_date": "2026-10-08",
+            "created_at": "2026-09-01T12:00:00Z",
+            "deleted_at": null
+          }
+        ]
+      },
+      "expect": {
+        "tools": ["record_payment"],
+        "templateId": "confirm.batch",
+        "writes": 0
+      }
+    },
+    {
+      "id": "record-payment-several-open",
+      "tags": ["money"],
+      "request": "Maria paid 200",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "clients": [
+          {
+            "id": "cli-maria",
+            "user_id": "11111111-1111-1111-1111-111111111111",
+            "name": "Maria Santos",
+            "phone": null,
+            "email": "maria@example.com",
+            "address": null,
+            "deleted_at": null
+          }
+        ],
+        "invoices": [
+          {
+            "id": "inv-12",
+            "user_id": "11111111-1111-1111-1111-111111111111",
+            "kind": "invoice",
+            "invoice_number": 12,
+            "client_name": "Maria Santos",
+            "status": "sent",
+            "total": 200,
+            "amount_paid": 0,
+            "due_date": "2026-10-08",
+            "created_at": "2026-09-02T12:00:00Z",
+            "deleted_at": null
+          },
+          {
+            "id": "inv-13",
+            "user_id": "11111111-1111-1111-1111-111111111111",
+            "kind": "invoice",
+            "invoice_number": 13,
+            "client_name": "Maria Santos",
+            "status": "overdue",
+            "total": 80,
+            "amount_paid": 0,
+            "due_date": "2026-10-09",
+            "created_at": "2026-09-03T12:00:00Z",
+            "deleted_at": null
+          }
+        ]
+      },
+      "expect": {
+        "tools": ["record_payment"],
+        "templateId": null,
+        "writes": 0
+      }
+    },
+    {
+      "id": "record-other-income-no-invoice",
+      "tags": ["money"],
+      "request": "got 150 cash, no invoice",
+      "fixture": {
+        "profiles": [{ "id": "11111111-1111-1111-1111-111111111111", "timezone": "America/Chicago" }],
+        "other_income": []
+      },
+      "expect": {
+        "tools": ["record_other_income"],
+        "templateId": "confirm.batch",
+        "writes": 0
+      }
+    }
+  ]
+}

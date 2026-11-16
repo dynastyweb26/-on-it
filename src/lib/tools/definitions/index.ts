@@ -24,4 +24,6 @@ import { editExpenseTool } from './edit_expense';
 import { deleteExpenseTool } from './delete_expense';
 import { deleteDraftTool } from './delete_draft';
 import { editDocumentDetailsTool } from './edit_document_details';
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool, getClientSummaryTool, listExpensesTool, getExpenseTool, listPaymentsTool, listSavedItemsTool, runReportTool, createClientTool, editClientTool, saveItemTool, editExpenseTool, deleteExpenseTool, deleteDraftTool, editDocumentDetailsTool];
+import { recordPaymentTool } from './record_payment';
+import { recordOtherIncomeTool } from './record_other_income';
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [unpaidTool, listInvoicesTool, listEstimatesTool, getInvoiceTool, getEstimateTool, findClientTool, getClientSummaryTool, listExpensesTool, getExpenseTool, listPaymentsTool, listSavedItemsTool, runReportTool, createClientTool, editClientTool, saveItemTool, editExpenseTool, deleteExpenseTool, deleteDraftTool, editDocumentDetailsTool, recordPaymentTool, recordOtherIncomeTool];
