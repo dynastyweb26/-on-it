@@ -48,3 +48,14 @@ test('a negative or fractional period index still lands on a real line', () => {
   }
   assert.equal(pickAffirmation(OWNERS[0], -1), pickAffirmation(OWNERS[0], CEO_AFFIRMATIONS.length - 1));
 });
+
+test('marked affirmations are the same lines, word for word, with 1-2 key phrases each', async () => {
+  const { CEO_AFFIRMATIONS, CEO_AFFIRMATION_MARKS, stripMarks } = await import('./ceo-affirmations');
+  assert.equal(CEO_AFFIRMATION_MARKS.length, CEO_AFFIRMATIONS.length);
+  CEO_AFFIRMATION_MARKS.forEach((line, i) => {
+    assert.equal(stripMarks(line), CEO_AFFIRMATIONS[i]);
+    const phrases = line.match(/\[[^\[\]]+\]/g) ?? [];
+    assert.ok(phrases.length >= 1 && phrases.length <= 2, line);
+    assert.equal((line.match(/[\[\]]/g) ?? []).length, phrases.length * 2, line);
+  });
+});
