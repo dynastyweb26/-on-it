@@ -396,7 +396,7 @@ test('a week whose only money is other income is alive, not quiet', () => {
   assert.equal(p.collected.total, 500);
   assert.deepEqual(recapFlags(p), { nothing: false, quiet: false, investment: false, caughtUp: true });
   assert.equal(recapAnnounces(p), true);
-  assert.deepEqual(recapSequence(p), ['opener', 'moneyIn', 'caughtUp']);
+  assert.deepEqual(recapSequence(p), ['opener', 'moneyIn', 'kept', 'caughtUp']);
 });
 
 test('flags on a payload stored before collected fall back to invoice income', () => {
@@ -427,6 +427,66 @@ test('flags on a payload stored before collected fall back to invoice income', (
     ...old, income: { total: 0, payments: 0, clients: 0 }, net: -100, daily: [0, 0, 0, 0, 0, 0, 0], topClient: null, paymentMethods: [],
   };
   assert.deepEqual(recapFlags(spentOnly), { nothing: false, quiet: true, investment: true, caughtUp: true });
+  assert.deepEqual(recapSequence(spentOnly), ['opener', 'moneyInZero', 'moneyOut', 'keptInvest', 'caughtUp']);
+});
+
+test('other income earns the kept slide, with nothing spent', () => {
+  const p = buildRecapPayload(base({
+    otherIncome: [{ amount: 500, received_on: '2026-09-24', client_name: null, classification: 'other_income' }],
+  }));
+  assert.equal(p.income.total, 0);
+  assert.ok(recapSequence(p).includes('kept'));
+  assert.ok(!recapSequence(p).includes('keptInvest'));
+});
+
+test('other income with spending still reads kept, never keptInvest', () => {
+  const p = buildRecapPayload(base({
+    otherIncome: [{ amount: 500, received_on: '2026-09-24', client_name: null, classification: 'other_income' }],
+    expenses: [{ amount: 100, category: 'fuel', vendor: 'Shell', spent_on: '2026-09-24' }],
+  }));
+  assert.equal(p.income.total, 0);
+  assert.equal(p.net, 400);
+  assert.ok(recapSequence(p).includes('kept'));
+  assert.ok(!recapSequence(p).includes('keptInvest'));
+});
+
+test('a month whose only money is other income still gets the glance', () => {
+  const p = buildRecapPayload(base({
+    period: { kind: 'month', start: '2026-09-01', end: '2026-09-30' },
+    otherIncome: [{ amount: 500, received_on: '2026-09-24', client_name: null, classification: 'other_income' }],
+  }));
+  assert.equal(p.income.total, 0);
+  assert.ok(recapSequence(p).includes('glance'));
+  assert.ok(recapSequence(p).includes('moneyIn'));
+  assert.ok(!recapSequence(p).includes('moneyInZero'));
+});
+
+test('sequence on a payload stored before collected is unchanged', () => {
+  const old: RecapPayload = {
+    v: RECAP_PAYLOAD_VERSION, kind: 'week', start: '2026-09-21', end: '2026-09-27',
+    income: { total: 500, payments: 1, clients: 1 },
+    spend: { total: 100, count: 1, categories: [{ key: 'fuel', amount: 100 }], receipts: [] },
+    net: 400, change: null, previous: null, daily: [0, 0, 500, 0, 0, 0, 0],
+    topClient: { name: 'Ana Cruz', amount: 500 },
+    topVendor: null, paymentMethods: [{ method: 'zelle', amount: 500 }],
+    owed: { total: 0, count: 0, invoices: [] }, viewedUnpaid: 0, quotesPending: 0,
+    paid: { total: 0, count: 0, invoices: [] },
+  };
+  assert.equal(old.collected, undefined);
+  assert.deepEqual(recapSequence(old), ['opener', 'moneyIn', 'moneyOut', 'kept', 'caughtUp']);
+
+  // $0 in and $0 out: the quiet card, as today.
+  const empty: RecapPayload = {
+    ...old, income: { total: 0, payments: 0, clients: 0 },
+    spend: { total: 0, count: 0, categories: [], receipts: [] }, net: 0, daily: [0, 0, 0, 0, 0, 0, 0],
+    topClient: null, paymentMethods: [],
+  };
+  assert.deepEqual(recapSequence(empty), ['quiet']);
+
+  // Spent only: no kept slide, as today.
+  const spentOnly: RecapPayload = {
+    ...old, income: { total: 0, payments: 0, clients: 0 }, net: -100, daily: [0, 0, 0, 0, 0, 0, 0], topClient: null, paymentMethods: [],
+  };
   assert.deepEqual(recapSequence(spentOnly), ['opener', 'moneyInZero', 'moneyOut', 'keptInvest', 'caughtUp']);
 });
 

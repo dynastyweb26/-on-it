@@ -411,14 +411,16 @@ export type RecapSlide =
 
 /** The prototype's R.sequence, plus two guards it doesn't need with its
  *  fixtures: no kept slide when nothing moved ($0 in and $0 out, but invoices
- *  owed or paid), and no month-at-a-glance for a month with $0 in. */
+ *  owed or paid), and no month-at-a-glance for a month with $0 in. "$0 in"
+ *  means Collected — other income is money in, so it earns both slides. */
 export function recapSequence(p: RecapPayload): RecapSlide[] {
   const f = recapFlags(p);
   if (f.nothing) return ['quiet'];
+  const inTotal = collectedIn(p);
   const s: RecapSlide[] = ['opener', f.quiet ? 'moneyInZero' : 'moneyIn'];
   if (p.spend.total > 0) s.push('moneyOut');
-  if (p.income.total > 0 || p.spend.total > 0) s.push(p.net >= 0 && p.income.total > 0 ? 'kept' : 'keptInvest');
-  if (p.kind === 'month' && p.income.total > 0) s.push('glance');
+  if (inTotal > 0 || p.spend.total > 0) s.push(p.net >= 0 && inTotal > 0 ? 'kept' : 'keptInvest');
+  if (p.kind === 'month' && inTotal > 0) s.push('glance');
   s.push(f.caughtUp ? 'caughtUp' : 'owed');
   return s;
 }
