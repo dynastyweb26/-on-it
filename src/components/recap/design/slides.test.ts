@@ -11,6 +11,8 @@ import { redesignSequence, type RecapPayload, type RedesignSlide } from '@/lib/r
 import { createClock } from '@/components/recap/clock';
 import { money } from '@/components/recap/copy';
 import { designTiming } from '@/components/recap/design/timing';
+import { pickAffirmation } from '@/lib/recap/ceo-affirmations';
+import { isShareCancel, shareErrorMessage, shareRoute } from '@/components/recap/design/share-image';
 import { DESIGN_SLIDES } from '@/components/recap/design/slides';
 
 const IDS = Object.keys(REDESIGN_FIXTURES) as RedesignFixtureId[];
@@ -173,6 +175,28 @@ test('sequence: the free slide plays on the free plan only, and only with a free
   assert.ok(redesignSequence({ ...p, freeRecapNumber: 1 }, { plan: 'free' }).includes('free'));
   assert.ok(!redesignSequence({ ...p, freeRecapNumber: undefined }, { plan: 'free' }).includes('free'));
   assert.equal(redesignSequence({ ...p, freeRecapNumber: 2 }, { plan: 'free' }).at(-1), 'aff');
+});
+
+test('affirmation: the owner\'s nth line, "-by On It CEO", Share, no signer; the export frame carries the logo', () => {
+  const p = { ...redesignPayload('normalWeek'), recapIndex: 3 };
+  const h = html('aff', p, 'owner-1');
+  const t = text(h);
+  assert.ok(t.includes(pickAffirmation('owner-1', 3)));
+  assert.ok(t.includes('-by On It CEO') && !t.includes('Onit') && t.includes('Share'));
+  assert.doesNotMatch(t, /Deffeu|CEO of On It/);
+  assert.ok(h.includes('width:360px;height:640px') && h.includes('apple-icon-180.png'), 'export frame');
+  // a different owner or a different recap number picks by the owner's own order
+  assert.equal(pickAffirmation('owner-1', 3), pickAffirmation('owner-1', 3));
+  assert.ok(text(html('aff', { ...p, recapIndex: undefined })).includes(pickAffirmation('owner-1', 0)), 'old payload: first line');
+});
+
+test('share: the sheet when files can be shared, a saved file when not; a closed sheet is not an error', () => {
+  assert.equal(shareRoute(true), 'share');
+  assert.equal(shareRoute(false), 'save');
+  assert.equal(isShareCancel(new DOMException('x', 'AbortError')), true);
+  assert.equal(isShareCancel(new Error('boom')), false);
+  assert.equal(shareErrorMessage(new Error('canvas is tainted')), 'Couldn’t make the image: canvas is tainted');
+  assert.equal(shareErrorMessage('?'), 'Couldn’t make the image.');
 });
 
 test('opener: an old payload falls back to income.total and drops what it never had', () => {

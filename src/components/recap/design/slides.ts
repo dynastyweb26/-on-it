@@ -10,6 +10,7 @@ import DesignKept from '@/components/recap/design/DesignKept';
 import DesignInv from '@/components/recap/design/DesignInv';
 import DesignClient from '@/components/recap/design/DesignClient';
 import DesignFree from '@/components/recap/design/DesignFree';
+import DesignAff from '@/components/recap/design/DesignAff';
 
 // The redesign's slides, one file each. 'glance' and 'quiet' (and a month's
 // opener) keep their old components, so RecapStory never reads those entries.
@@ -24,6 +25,6 @@ export const DESIGN_SLIDES: Record<RedesignSlide, ComponentType<SlideProps>> = {
   inv: DesignInv,
   client: DesignClient,
   free: DesignFree,
-  aff: Unbuilt,
+  aff: DesignAff,
   quiet: Unbuilt,
 };
