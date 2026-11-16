@@ -1,10 +1,10 @@
 // The database half of the AI daily limit: read the owner's plan facts, count
 // this window's turns, hand both to the pure decision in ai-limit.ts.
 //
-// Server-only and fail-open: a failed count or profile read logs one line and
-// returns null, and the caller answers the question. A meter must never be the
-// reason a paying (or any) user is locked out of the assistant.
-import 'server-only';
+// Server-side only (imported by route handlers, never a client module) and
+// fail-open: a failed count or profile read logs one line and returns null, and
+// the caller answers the question. A meter must never be the reason a paying
+// (or any) user is locked out of the assistant.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { aiDailyLimitFor, aiLimitWindow, type AiLimitState } from './ai-limit';
 
