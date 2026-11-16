@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { entitlementsFor, type TierPlan } from './entitlements';
+import { entitlementsFor, isPlusPlan, type TierPlan } from './entitlements';
 
 // TIERS-SPEC.md, "Plans" — the table this file proves, written once here so a
 // limit cannot drift from the spec without this test failing.
@@ -99,6 +99,20 @@ test('entitlements: AI limits are 5 / 30 / 100', () => {
   assert.equal(entitlementsFor('free', null).aiDailyLimit, 5);
   assert.equal(entitlementsFor('active', 'pro').aiDailyLimit, 30);
   assert.equal(entitlementsFor('founder', null).aiDailyLimit, 100);
+});
+
+test('isPlusPlan: the same table, one answer (never a plan-name compare)', () => {
+  for (const tier of TIERS) {
+    for (const plan of PLANS) {
+      assert.equal(
+        isPlusPlan(tier, plan),
+        entitlementsFor(tier, plan).plan === 'plus',
+        `${String(tier)}/${String(plan)}`,
+      );
+    }
+  }
+  assert.equal(isPlusPlan('founder', null), true);
+  assert.equal(isPlusPlan('active', 'pro'), false);
 });
 
 test('entitlements: a fresh object each call (a caller cannot poison the table)', () => {

@@ -78,3 +78,12 @@ export function entitlementsFor(
   const name = planNameFor(tier, plan);
   return { plan: name, ...LIMITS[name] };
 }
+
+/** The one "is this pair on Plus?" test. A route that needs a Plus-only action
+ *  asks this instead of comparing plan names itself. */
+export function isPlusPlan(
+  tier: string | null | undefined,
+  plan: string | null | undefined,
+): boolean {
+  return entitlementsFor(tier, plan).plan === 'plus';
+}

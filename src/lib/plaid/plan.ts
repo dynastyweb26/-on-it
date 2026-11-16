@@ -5,9 +5,9 @@
 // owns), sync, review, transactions, deposits, disconnect and the webhook are
 // never gated — spec rule 4: a connected bank keeps working after a lapse.
 //
-// The decision is not re-derived here: entitlementsFor() is the one place a
-// plan is resolved, and Plus is the only plan with bank activity.
-import { entitlementsFor } from '@/lib/entitlements';
+// The decision is not re-derived here: isPlusPlan() (entitlementsFor) is the one
+// place a plan is resolved, and Plus is the only plan with bank activity.
+import { isPlusPlan } from '@/lib/entitlements';
 
 export const PLAN_REQUIRED = 'plan_required';
 
@@ -19,5 +19,5 @@ export function newLinkAllowed(
   plan: string | null | undefined,
 ): boolean {
   if (!enforced) return true;
-  return entitlementsFor(tier, plan).plan === 'plus';
+  return isPlusPlan(tier, plan);
 }
