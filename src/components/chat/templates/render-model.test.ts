@@ -23,3 +23,9 @@ test('props that fail the schema resolve to null, never a half card', () => {
   assert.equal(resolveTemplate({ id: 'nav.link', props: { items: [] } }), null);
   assert.equal(resolveTemplate({ id: 'stat.tiles', props: 'nope' }), null);
 });
+
+test('confirm.batch draws with one row (owner-approved Nov 14 2026) and not with none', () => {
+  const one = { ...TEMPLATE_FIXTURES['confirm.batch'], actions: TEMPLATE_FIXTURES['confirm.batch'].actions.slice(0, 1) };
+  assert.equal(resolveTemplate({ id: 'confirm.batch', props: one })?.id, 'confirm.batch');
+  assert.equal(resolveTemplate({ id: 'confirm.batch', props: { ...one, actions: [] } }), null);
+});

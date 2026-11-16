@@ -28,7 +28,7 @@ name. Do not invent other ids.
 | `chart.trend` | `TrendChart.dc.html` | falls back to `stat.tiles` at 1 point |
 | `chart.breakdown` | `Breakdown.dc.html` | horizontal bars, never a pie |
 | `draft.message` | `DraftMessage.dc.html` | revised Nov 12; see section 6, item 8 |
-| `confirm.batch` | `BatchConfirm.dc.html` | 2 to 4 actions |
+| `confirm.batch` | `BatchConfirm.dc.html` | 1 to 4 actions (one row approved Nov 14 2026, section 3) |
 | `cant.do` | `CantDo.dc.html` | extends P-73 on Board 8 |
 | `nav.link` | `NavLink.dc.html` | 1 to 3 items |
 | `feedback.thumbs` | `Feedback.dc.html` | thumbs plus the thumbs-down follow-up |
@@ -46,8 +46,17 @@ name. Do not invent other ids.
   look that is already designed. An error uses the existing error strip. A pending control
   uses the existing 55% dim from `confirm.batch` saving rows. Nothing new is drawn.
   Recorded so far: `copyError` on `draft.message` (section 6, item 8), the failed-vote
-  strip under the thumbs (section 6, item 3), and the pending dim on `nav.link` Retry.
+  strip under the thumbs (section 6, item 3), the pending dim on `nav.link` Retry, and on
+  `confirm.batch` (Nov 14 2026): a failed confirm shows the existing error strip with the
+  server's reply text, and a reopened chat's unconfirmed card shows no controls and the
+  server's expired sentence as its two header lines ("Confirmation expired." / "Ask me
+  again and I will redo it.").
   Anything bigger than that still goes to Claude Design first.
+- Owner-approved exception (Nov 14 2026): `confirm.batch` may show ONE row, in the same
+  card with the same look. The "2 to 4 actions" in section 2 is 1 to 4 from here on.
+  Same date: Cancel on that card collapses it to the same no-controls face as expired,
+  header "Cancelled.", second line "Nothing was saved." No server call. A cancelled card
+  never shows Confirm again, also after a restore.
 - Text in the design is the copy. Do not reword it. Wording that depends on data follows the
   pattern in the file's script (for example "Confirm 3 changes?", "2 saved, 1 didn't.").
 - Truncation rules are part of the design: names and secondary lines truncate to one line;

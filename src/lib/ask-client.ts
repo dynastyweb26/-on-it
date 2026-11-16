@@ -14,6 +14,8 @@ export type AskExtras = {
   fallback?: string;
   tool?: unknown;
   pending?: unknown;
+  /** The one-time token that confirms this turn's proposal. Kept on the message, never drawn. */
+  confirmToken?: string;
   /** Where the tool's full list lives (in-app path), once the server returns it. */
   destination?: { screen: string; path: string };
 };
@@ -75,6 +77,8 @@ function extrasOf(data: Record<string, unknown>): AskExtras {
   if (typeof data.fallback === 'string' && data.fallback.trim()) out.fallback = data.fallback;
   if (data.tool != null) out.tool = data.tool;
   if (data.pending != null) out.pending = data.pending;
+  const token = Array.isArray(data.pending) && isObj(data.pending[0]) ? data.pending[0].token : null;
+  if (typeof token === 'string' && token) out.confirmToken = token;
   const d = data.destination;
   if (isObj(d) && typeof d.screen === 'string' && typeof d.path === 'string' && d.path.startsWith('/') && !d.path.startsWith('//')) out.destination = { screen: d.screen, path: d.path };
   return out;

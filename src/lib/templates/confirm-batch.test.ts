@@ -48,11 +48,12 @@ test('a batch starts pending with nothing saved', () => {
   });
 });
 
-test('a batch outside 2-4 rows, or with duplicate ids, is refused', () => {
-  assert.throws(() => startBatch([pay]), /2-4 rows/);
+test('a batch outside 1-4 rows, or with duplicate ids, is refused', () => {
+  assert.throws(() => startBatch([]), /1-4 rows/);
+  assert.equal(startBatch([pay]).rows.length, 1); // one row is a batch (owner-approved Nov 14 2026)
   assert.throws(
     () => startBatch([pay, remind, expense, { ...expense, id: 'd' }, { ...pay, id: 'e' }]),
-    /2-4 rows/,
+    /1-4 rows/,
   );
   assert.throws(() => startBatch([pay, { ...remind, id: 'a' }]), /unique ids/);
 });

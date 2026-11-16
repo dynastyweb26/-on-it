@@ -5,10 +5,11 @@
 // request (onPrimary) and moves the card on by changing `state`.
 import { useEffect, useRef, useState } from 'react';
 import { Sym, TONE, tap } from './shared';
-import { batchFromProps, rowsFromActions } from './confirm-batch-view';
-import { batchHeadline, beginConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
+import { applyConfirmResult, batchFromProps, partialLine, problemsOf, rowsFromActions } from './confirm-batch-view';
+import { batchHeadline, beginConfirm, cancelConfirm, failedCount, removeRow, startBatch, undoAll } from '@/lib/templates/confirm-batch';
 import type { ConfirmBatchProps } from '@/lib/templates/props';
 import type { ConfirmBatchCallbacks } from '@/lib/templates/callbacks';
+import { CANCELLED_HEAD, CONFIRM_COPY, EXPIRED_HEAD } from '@/lib/confirm-client';
 import './templates.css';
 
 const LINE = '1px solid var(--tpl-line)';
@@ -16,9 +17,12 @@ const MONT = 'var(--font-montserrat), Montserrat, sans-serif';
 const ELLIPSIS = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
 
 export default function ConfirmBatch({
-  state = 'pending', statuses, actions, onPrimary, onRemove, onUndo,
-}: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[] }) {
+  state = 'pending', statuses, actions, expired = false, cancelled = false, onPrimary, onRemove, onUndo, onCancel,
+}: ConfirmBatchProps & ConfirmBatchCallbacks & { statuses?: readonly ('saved' | 'failed' | undefined)[]; expired?: boolean; cancelled?: boolean }) {
   const [batch, setBatch] = useState(() => batchFromProps(state, statuses, actions));
+  const [problems, setProblems] = useState<Record<string, string>>({}); // the server's sentence per refused row
+  const [error, setError] = useState<string | null>(null); // why the last confirm did not settle
+  const [cancelledNow, setCancelledNow] = useState(false); // Cancel tapped: no server call, the card is closed
   const busy = useRef(batch.phase === 'confirming'); // synchronous: a second tap never gets past it
   const loading = state === 'loading';
   const statusKey = (statuses ?? []).join(','); // a new array each render must not reset the card
@@ -39,6 +43,10 @@ export default function ConfirmBatch({
   const isEmpty = ph === 'pending' && n === 0;
   const [head, sub] = loading
     ? ['Getting these ready…', 'One moment.']
+    : cancelled || cancelledNow
+      ? CANCELLED_HEAD
+    : expired
+      ? EXPIRED_HEAD
     : isEmpty
       ? ['Nothing left to confirm.', 'Tell me what to do next.']
       : (() => { const h = batchHeadline(batch); return [h.head, h.sub]; })();
@@ -46,13 +54,31 @@ export default function ConfirmBatch({
   const partial = ph === 'partial';
   const done = ph === 'done';
   const failed = batch.rows.find((r) => batch.outcomes[r.id] === 'failed');
-  const showFooter = (ph === 'pending' && n > 0) || confirming || partial;
+  const noControls = expired || cancelled || cancelledNow;
+  const showFooter = !noControls && ((ph === 'pending' && n > 0) || confirming || partial);
 
-  const primary = () => {
-    if (busy.current || (ph !== 'pending' && ph !== 'partial')) return;
-    busy.current = true;
+  const primary = async () => {
+    if (!onPrimary || busy.current || (ph !== 'pending' && ph !== 'partial')) return;
+    busy.current = true; // before any await: a rage-tap in the same frame stops here
+    const before = ph;
+    setError(null);
     setBatch(beginConfirm(batch));
-    onPrimary?.();
+    try {
+      const out = await onPrimary();
+      setProblems(problemsOf(actions, out));
+      if (out && out.kind === 'error' && !out.done) setError(out.message);
+      setBatch((prev) => applyConfirmResult(prev, before, actions, out));
+    } catch {
+      setError(CONFIRM_COPY.server);
+      setBatch((prev) => cancelConfirm(prev, before)); // every exit clears pending
+    } finally {
+      busy.current = false;
+    }
+  };
+  const cancel = () => {
+    if (busy.current || ph !== 'pending') return;
+    setCancelledNow(true);
+    onCancel?.();
   };
   const remove = (id: string, i: number) => {
     if (ph !== 'pending') return;
@@ -122,7 +148,7 @@ export default function ConfirmBatch({
               )}
             </div>
             <div style={{ fontFamily: MONT, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', flex: 'none', color: TONE[a.tone] }}>{r.amount}</div>
-            {ph === 'pending' ? (
+            {ph === 'pending' && !noControls ? (
               <div {...rm} aria-label="Remove" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', cursor: 'pointer' }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--tpl-skel)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Sym name="close" size={17} color="var(--tpl-muted-2)" />
@@ -135,17 +161,17 @@ export default function ConfirmBatch({
         );
       })}
 
-      {partial && (
+      {(partial || (error && ph === 'pending')) && (
         <div style={{ background: 'var(--tpl-red-soft)', padding: '12px 16px', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 14, lineHeight: 1.4, color: 'var(--tpl-fail-ink)', borderTop: '1px solid var(--tpl-fail-line)' }}>
           <Sym name="error" size={18} />
-          <span>{`"${failed?.summary}" didn't save. The connection dropped. The others are saved.`}</span>
+          <span>{error ?? partialLine(failed?.summary ?? '', failed ? problems[failed.id] : undefined, batch.rows.some((r) => batch.outcomes[r.id] === 'saved'))}</span>
         </div>
       )}
 
       {done && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 52, borderTop: LINE, fontSize: 14, color: 'var(--tpl-muted-2)' }}>
           <span>Saved to your books.</span>
-          <span {...tap(undo)} style={{ color: 'var(--tpl-gold-ink)', fontWeight: 600, cursor: 'pointer' }}>Undo all</span>
+          {onUndo && <span {...tap(undo)} style={{ color: 'var(--tpl-gold-ink)', fontWeight: 600, cursor: 'pointer' }}>Undo all</span>}
         </div>
       )}
 
@@ -159,7 +185,7 @@ export default function ConfirmBatch({
       {showFooter && (
         <div style={{ padding: '12px 16px 16px', display: 'flex', gap: 10, borderTop: LINE }}>
           {ph === 'pending' && (
-            <div {...tap()} style={{ flex: 1, height: 48, borderRadius: 999, border: '1.5px solid var(--tpl-btn-border)', background: 'var(--tpl-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>Cancel</div>
+            <div {...tap(cancel)} style={{ flex: 1, height: 48, borderRadius: 999, border: '1.5px solid var(--tpl-btn-border)', background: 'var(--tpl-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>Cancel</div>
           )}
           <div
             {...tap(primary)}

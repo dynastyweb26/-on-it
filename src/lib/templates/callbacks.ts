@@ -77,9 +77,16 @@ export type DraftMessageCallbacks = {
 };
 
 export type ConfirmBatchCallbacks = {
-  onPrimary?: () => void;
+  /** Runs the real confirm. The card shows Saving until it settles, whichever way it ends. */
+  onPrimary?: () => Promise<ConfirmBatchResult | void> | void;
   onRemove?: (index: number) => void;
   onUndo?: () => void;
   /** The pending footer's Cancel button. */
   onCancel?: () => void;
 };
+
+/** What the host's confirm request tells the card. The server's per-row answer, never a guess. */
+export type ConfirmBatchResult =
+  | { kind: 'settled'; rows: { actionId: string; outcome: 'saved' | 'failed'; problem?: string | null }[] }
+  /** Did not settle. `done` is true only when the server itself said it was already done. */
+  | { kind: 'error'; message: string; done?: boolean };

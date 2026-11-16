@@ -127,6 +127,8 @@ import ReplyThumbs from '@/components/chat/templates/ReplyThumbs';
 import { thumbReplyFor } from '@/components/chat/templates/thumbs-view';
 import type { ChatTemplateHandlers } from '@/components/chat/templates/ChatTemplate';
 import { resolveTemplate } from '@/components/chat/templates/render-model';
+import { confirmViewFor } from '@/components/chat/templates/confirm-batch-view';
+import { confirmProposal, keyFor, shareInflight, type ConfirmOutcome } from '@/lib/confirm-client';
 import { UNSUPPORTED_REPLY } from '@/lib/tools/reply';
 
 // The in-app receipt camera, behind NEXT_PUBLIC_IN_APP_CAMERA and loaded
@@ -162,6 +164,12 @@ interface Msg {
   template?: { id: string; props: unknown };
   /** The server's plain-text answer for the card above; shown when it cannot draw. */
   fallbackText?: string;
+  /** confirm.batch: the one-time token /api/ask returned. Memory only: never drawn, never written to storage. */
+  confirmToken?: string;
+  /** confirm.batch: the server settled every row as saved. Stored, so a reopened chat shows the card done. */
+  confirmed?: 'done';
+  /** confirm.batch: the owner cancelled it. Stored: the card never offers Confirm again. */
+  cancelled?: true;
   /** The logged chat_messages id /api/ask returned. No id, no thumbs. */
   messageId?: string;
   /** Where the answer's full list lives (an in-app path the server declared). */
@@ -538,7 +546,8 @@ function withMessageIds(messages: Msg[]): Msg[] {
 const PERSIST_THUMBS = 8;
 function forStorage(messages: Msg[], keep = PERSIST_THUMBS): Msg[] {
   let kept = 0;
-  const out = messages.filter((m) => !m.auto);
+  // A confirm token lives in memory only: a restored card must never be able to confirm.
+  const out = messages.filter((m) => !m.auto).map(({ confirmToken: _t, ...m }) => m as Msg);
   for (let i = out.length - 1; i >= 0; i--) {
     const m = out[i];
     if (!m.receipt) continue;
@@ -1208,7 +1217,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       setMessages((m) => markAsked([...m, aMsg(text, {
         skipHistory: true,
         ...(out.messageId ? { messageId: out.messageId } : {}),
-        ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
+        ...(card ? { template: card, ...(out.confirmToken ? { confirmToken: out.confirmToken } : {}), ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
       })]));
       return;
     }
@@ -1624,7 +1633,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     if (decision.route === 'ask') {
       // Tracked by conversation, not by this component: a tab switch unmounts
       // the view, and the reply still has somewhere to land (lib/chat/pending-ask).
-      const out = await trackAsk(convoIdRef.current, trimmed, askQuestion(trimmed, fetch, turnId));
+      const out = await trackAsk(convoIdRef.current, trimmed, askQuestion(trimmed, fetch, turnId, convoId || null));
       if (out.kind !== 'off') {
         if (out.kind === 'ok' || out.kind === 'signed-out') {
           // A card is kept only when it can be drawn; otherwise the server's plain
@@ -1634,7 +1643,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
             ? aMsg(card ? bubbleTextFor(out.reply, card.id) : (out.fallback as string), {
                 skipHistory: true,
                 ...(out.messageId ? { messageId: out.messageId } : {}),
-                ...(card ? { template: card, ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
+                ...(card ? { template: card, ...(out.confirmToken ? { confirmToken: out.confirmToken } : {}), ...(out.fallback ? { fallbackText: out.fallback } : {}), ...(out.destination ? { destination: out.destination } : {}) } : {}),
               })
             : aMsg(out.reply, { skipHistory: true, ...(out.kind === 'ok' && out.messageId ? { messageId: out.messageId } : {}) });
           setMessages((m) => {
@@ -3055,8 +3064,12 @@ export default function Chat({ active = true }: { active?: boolean }) {
     return wrap ? <div className={`!mt-1${messages[mi - 1]?.role !== 'assistant' ? ' pl-[30px]' : ''}`}>{thumbs}</div> : thumbs;
   }
 
+  // One idempotency key per confirm card, minted at its first tap and reused on every retry.
+  const confirmKeysRef = useRef(new Map<string, string>());
+  const confirmInflightRef = useRef(new Map<string, Promise<ConfirmOutcome>>()); // one request per card, even across a remount
   function templateHandlers(m: Msg, mi: number): ChatTemplateHandlers {
     const open = openDestination(m.destination?.path, (p) => router.push(p));
+    const token = m.confirmToken;
     const asked = messages[mi - 1]?.role === 'user' ? messages[mi - 1].content : null;
     return {
       onRowTap: open, onShowAll: open, onOpen: open,
@@ -3065,6 +3078,21 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // cant.do: an alternative starts the message (never sends); Request posts the
       // reply's messageId to /api/ask/request-feature (hidden without one).
       onAlt: fillComposer,
+      confirmView: confirmViewFor(m),
+      onCancel: () => setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, cancelled: true as const } : x))),
+      // confirm.batch: the real request. The card owns the pending state and the synchronous guard.
+      onPrimary: token && !m.cancelled
+        ? async () => {
+            const out = await shareInflight(confirmInflightRef.current, m.id, () => confirmProposal(token, keyFor(confirmKeysRef.current, m.id)));
+            const done = out.kind === 'error' ? out.cause === 'already-done' : out.state === 'done';
+            if (out.kind === 'error') {
+              if (done) setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, confirmed: 'done' as const } : x)));
+              return { kind: 'error' as const, message: out.reply, done };
+            }
+            if (done) setMessages((all) => all.map((x) => (x.id === m.id ? { ...x, confirmed: 'done' as const } : x)));
+            return { kind: 'settled' as const, rows: out.rows.map((r) => ({ actionId: r.actionId, outcome: r.status, problem: r.problem })) };
+          }
+        : undefined,
       requestable: Boolean(m.messageId),
       onRequest: m.messageId
         ? async () => {
