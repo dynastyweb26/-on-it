@@ -14,6 +14,8 @@
 //   • income   = invoice_payments with paid_at inside the range (owner's local
 //     midnights), on invoices only (kind = 'invoice', never quotes) that are
 //     not soft-deleted — summed by summarizeIncome;
+//   • the previous period's totals use the same basis (loadNumbers adds counted
+//     other income), so the change chip compares like with like;
 //   • expenses = non-deleted expenses with spent_on inside the range — rolled
 //     up by summarize(); top_category is its first row (highest spend, stored
 //     as the category key), top_vendor the store with the highest spend inside
@@ -68,8 +70,8 @@ import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
 import {
-  buildRecapPayload, recapAnnounces, RECAP_PAYLOAD_VERSION,
-  type RecapExpenseRow, type RecapInput, type RecapPaymentRow,
+  buildRecapPayload, periodTotals, recapAnnounces, RECAP_PAYLOAD_VERSION,
+  type RecapExpenseRow, type RecapInput, type RecapOtherIncomeRow, type RecapPaymentRow,
 } from '@/lib/recap/payload';
 
 const PAGE_ROWS = 1000;   // PostgREST cap; long reads are paged
@@ -180,12 +182,41 @@ export async function loadPeriodRows(admin: Admin, userId: string, period: Recap
   return { expenses, payments };
 }
 
-async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz: string): Promise<RecapNumbers> {
-  const rows = await loadPeriodRows(admin, userId, period, tz);
-  return rollUp(rows.expenses, rows.payments, period);
+const embedded = (v: unknown): Row => (Array.isArray(v) ? (v[0] ?? {}) : (v ?? {})) as Row;
+
+const asOtherIncomeRow = (r: Row): RecapOtherIncomeRow => ({
+  amount: r.amount as number | string,
+  received_on: r.received_on as string,
+  client_name: (r.client_name as string | null) ?? null,
+  classification: (r.classification as string | null) ?? null,
+  deleted_at: (r.deleted_at as string | null) ?? null,
+});
+
+/** The other_income rows a period may count. One day of slack each side: the
+ *  payload files each row by the owner's local day itself. */
+async function loadOtherIncome(admin: Admin, userId: string, period: RecapPeriod): Promise<RecapOtherIncomeRow[]> {
+  const rows = await fetchAll((f, t) => admin.from('other_income')
+    .select('id, amount, received_on, client_name, classification, deleted_at')
+    .eq('user_id', userId).is('deleted_at', null)
+    .gte('received_on', addDays(period.start, -1)).lte('received_on', addDays(period.end, 1))
+    .order('id', { ascending: true }).range(f, t));
+  return rows.map(asOtherIncomeRow);
 }
 
-const embedded = (v: unknown): Row => (Array.isArray(v) ? (v[0] ?? {}) : (v ?? {})) as Row;
+/** A period's totals on the story's basis (Books' Collected − expenses), so the
+ *  PREVIOUS period the change chip compares against is like with like. The
+ *  stored snapshot columns keep their own rollUp: they are insert-once history. */
+async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz: string): Promise<RecapNumbers> {
+  const [rows, otherIncome] = await Promise.all([
+    loadPeriodRows(admin, userId, period, tz),
+    loadOtherIncome(admin, userId, period),
+  ]);
+  const numbers = rollUp(rows.expenses, rows.payments, period);
+  return {
+    ...numbers,
+    ...periodTotals({ invoiceIncome: numbers.income, expenses: numbers.expenses, otherIncome, period, tz }),
+  };
+}
 
 /** Everything buildRecapPayload needs beyond the period's own rows: what is
  *  still owed and pending as of now, the invoices paid in the period, and the
@@ -231,13 +262,8 @@ export async function loadRecapInput(
       .not('approved_at', 'is', null)
       .gte('approved_at', from).lt('approved_at', until)
       .order('id', { ascending: true }).range(f, t)),
-    // Other money received: Collected counts these, so the story does too. One
-    // day of slack each side; the payload files each row by local day itself.
-    fetchAll((f, t) => admin.from('other_income')
-      .select('id, amount, received_on, client_name, classification, deleted_at')
-      .eq('user_id', userId).is('deleted_at', null)
-      .gte('received_on', addDays(period.start, -1)).lte('received_on', addDays(period.end, 1))
-      .order('id', { ascending: true }).range(f, t)),
+    // Other money received: Collected counts these, so the story does too.
+    loadOtherIncome(admin, userId, period),
   ]);
   const answered = new Set(converted.map((r) => r.converted_from as string));
 
@@ -269,13 +295,7 @@ export async function loadRecapInput(
       paid_at: p.paid_at as string,
     })),
     quotesPending: quotes.filter((q) => !answered.has(q.id as string)).length,
-    otherIncome: otherIncome.map((r) => ({
-      amount: r.amount as number | string,
-      received_on: r.received_on as string,
-      client_name: (r.client_name as string | null) ?? null,
-      classification: (r.classification as string | null) ?? null,
-      deleted_at: (r.deleted_at as string | null) ?? null,
-    })),
+    otherIncome,
     sentInvoices: sent.map((r) => ((r.sent_at ?? r.first_sent_at) as string | null) ?? null),
     estimatesApproved: approved.map((r) => (r.approved_at as string | null) ?? null),
     previous: { income: previous.income, expenses: previous.expenses },

@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildRecapPayload, changeVs, recapAnnounces, recapFlags, recapSequence, slidesWithData,
-  RECAP_PAYLOAD_VERSION, TRIPS_MAX, type RecapInput, type RecapPayload, type RecapSlide,
+  buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
+  slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
+  type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
 import {
@@ -384,6 +385,36 @@ test('net follows Books: collected − spent, for the same rows', () => {
   });
   assert.equal(slow.net, books.net);
   assert.equal(books.net, 229);
+});
+
+// ── One basis everywhere ─────────────────────────────────────────────
+test('the daily series counts other income on its local day', () => {
+  const p = buildRecapPayload(base({
+    payments: [{ amount: 100, paid_at: '2026-09-22T17:00:00Z', method: 'zelle', client_name: 'Ana' }],
+    otherIncome: [
+      { amount: 40, received_on: '2026-09-24', client_name: null, classification: 'other_income' },
+      { amount: 999, received_on: '2026-09-24', client_name: null, classification: 'transfer' }, // counts nowhere
+    ],
+  }));
+  assert.deepEqual(p.daily, [0, 100, 0, 40, 0, 0, 0]);
+  assert.equal(p.collected.total, 140);
+  assert.equal(p.net, 140); // no spend: Kept is the collected money
+});
+
+test('previous-period totals use the same basis, so the chip compares like with like', () => {
+  const prev = periodTotals({
+    invoiceIncome: 1000,
+    expenses: 400,
+    otherIncome: [
+      { amount: 250, received_on: '2026-09-16', client_name: null, classification: 'other_income' },
+      { amount: 500, received_on: '2026-09-16', client_name: null, classification: 'vendor_refund' },
+      { amount: 90, received_on: '2026-09-30', client_name: null, classification: 'other_income' }, // next period
+    ],
+    period: { kind: 'week', start: '2026-09-14', end: '2026-09-20' },
+    tz: FIXTURE_TZ,
+  });
+  assert.deepEqual(prev, { income: 1250, expenses: 400, net: 850 });
+  assert.deepEqual(changeVs(1000, prev), { prevNet: 850, pct: 18, direction: 'up' });
 });
 
 // ── Old stored recaps still open ─────────────────────────────────────

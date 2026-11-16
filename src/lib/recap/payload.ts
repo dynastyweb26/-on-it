@@ -9,6 +9,8 @@
 //     owner's local day of paid_at;
 //   • collected (redesign) = income + the other_income rows Books counts, so the
 //     story's Collected number is the Books tab's, by construction;
+//   • net (Kept) = collected − spend, and the daily series counts the same
+//     other income on its local day, so every slide uses the Books basis;
 //   • spend  = non-deleted expenses by spent_on, rolled up by summarize();
 //   • still owed = sent/overdue invoices, max(0, total − amount_paid), AS OF
 //     the build (not period-bound), the same formula as the Books tile.
@@ -96,7 +98,7 @@ export type RecapPayload = {
    *  period's (RECAP-SPEC §5 opener). Added with the opener; still v1, since no
    *  payload had been stored in production yet. */
   previous: { income: number; expenses: number } | null;
-  daily: number[];               // income per local day: 7 (week) or 28–31 (month)
+  daily: number[];               // collected (invoices + other income) per local day: 7 (week) or 28–31 (month)
   /** By money collected in the period (invoice payments + other income with a
    *  client name); ties broken by name. pct is of collected.total. */
   topClient: { name: string; amount: number; pct?: number; invoiceCount?: number } | null;
@@ -126,6 +128,44 @@ export type BuiltRecapPayload = RecapPayload & {
   spend: RecapPayload['spend'] & { moreCategories: number };
   topClient: { name: string; amount: number; pct: number; invoiceCount: number } | null;
 };
+
+// ── The Books basis, shared by the story and the cron ────────────────
+/** One counted other_income row, filed on the local day Books files it. */
+export type RecapOtherIncomeDay = { day: string; amount: number; client_name: string | null };
+
+/** The other_income rows Collected counts (income classification, never
+ *  soft-deleted, positive), each on its local day of received_on. One rule for
+ *  the daily series, the top client and the previous-period totals. */
+export function otherIncomeInPeriod(rows: RecapOtherIncomeRow[], period: RecapPeriod, tz: string): RecapOtherIncomeDay[] {
+  const out: RecapOtherIncomeDay[] = [];
+  for (const r of rows) {
+    if (r.deleted_at) continue;
+    if (r.classification != null && !countsAsIncome(r.classification)) continue;
+    const amount = num(r.amount);
+    if (!(amount > 0)) continue;
+    const day = booksDay('other_income', r.received_on, tz);
+    if (day < period.start || day > period.end) continue;
+    out.push({ day, amount, client_name: r.client_name ?? null });
+  }
+  return out;
+}
+
+/** A period's totals on the story's basis — the Books basis: invoice payments +
+ *  counted other income in, expenses out. The previous period uses it too, so
+ *  the change chip compares like with like. */
+export function periodTotals(input: {
+  invoiceIncome: number;
+  expenses: number;
+  otherIncome?: RecapOtherIncomeRow[];
+  period: RecapPeriod;
+  tz: string;
+}): { income: number; expenses: number; net: number } {
+  const other = otherIncomeInPeriod(input.otherIncome ?? [], input.period, input.tz)
+    .reduce((sum, r) => sum + r.amount, 0);
+  const income = r2(input.invoiceIncome + other);
+  const expenses = r2(input.expenses);
+  return { income, expenses, net: r2(income - expenses) };
+}
 
 const num = (v: Num | null | undefined) => Number(v) || 0;
 const r2 = roundCurrency;
@@ -172,26 +212,22 @@ export function buildRecapPayload(input: RecapInput): BuiltRecapPayload {
     const m = methodKey(p.method);
     byMethod.set(m, (byMethod.get(m) ?? 0) + amt);
   }
-  // Other money received: the rows Books counts (an income classification, never
-  // soft-deleted, a positive amount), filed under the owner's local day the way
-  // booksDay files it. Money with no client name is Collected, not a client.
+  // Other money received: the rows Books counts, on their own local days — the
+  // same rows that set Collected, the daily series and the top client. Money
+  // with no client name is Collected, not a client.
   const byClientCollected = new Map<string, { name: string; amount: number }>();
   for (const [name, amount] of byClient) byClientCollected.set(name.toLowerCase(), { name, amount });
   let otherReceived = 0;
   let otherRows = 0;
-  for (const r of input.otherIncome ?? []) {
-    if (r.deleted_at) continue;
-    if (r.classification != null && !countsAsIncome(r.classification)) continue;
-    const amt = num(r.amount);
-    if (!(amt > 0)) continue;
-    if (!inRange(booksDay('other_income', r.received_on, tz))) continue;
-    otherReceived += amt;
+  for (const r of otherIncomeInPeriod(input.otherIncome ?? [], period, tz)) {
+    otherReceived += r.amount;
     otherRows += 1;
+    daily[daysBetween(period.start, r.day)] += r.amount;
     const name = String(r.client_name ?? '').trim().slice(0, NAME_MAX);
     if (!name) continue;
     const k = name.toLowerCase();
     const cur = byClientCollected.get(k) ?? { name, amount: 0 };
-    cur.amount += amt;
+    cur.amount += r.amount;
     byClientCollected.set(k, cur);
   }
 
