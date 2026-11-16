@@ -2541,6 +2541,83 @@ results(id, ok, expected, actual) as (
         || ' auth ins=' || has_column_privilege('authenticated', 'public.profiles', 'plan', 'INSERT')::text
         || ' anon upd=' || has_column_privilege('anon', 'public.profiles', 'plan', 'UPDATE')::text end
 
+  -- BJ. Tiers phase 2 (20261116100000 / 120000 / 120100). SKIP until pushed.
+  --     BJ1: the switch is a readable constant (invoker, immutable), like the
+  --     free_*_limit() functions. BJ2/BJ3: is_plus is definer, search_path="",
+  --     executable by nobody, and its body still checks founder + plan. BJ4:
+  --     the reorder function is authenticated-only and never inserts or
+  --     deletes (a reorder must not become a new attachment). BJ5: the
+  --     attachment gate is BEFORE INSERT only.
+  union all
+  select 'BJ1 tiers_enforced constant',
+    case when not exists (select 1 from applied where version = '20261116100000') then null
+      else coalesce((select not p.prosecdef and p.provolatile = 'i'
+          and 'search_path=""' = any(p.proconfig)
+        from pg_proc p where p.oid = to_regprocedure('public.tiers_enforced()')), false)
+        and coalesce(has_function_privilege('authenticated', 'public.tiers_enforced()', 'execute'), false)
+        and not coalesce(has_function_privilege('anon', 'public.tiers_enforced()', 'execute'), true) end,
+    'SECURITY INVOKER, immutable, search_path=""; authenticated EXECUTE, anon none',
+    case when not exists (select 1 from applied where version = '20261116100000') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' volatility=' || p.provolatile::text
+          || ' config=' || coalesce(p.proconfig::text, 'none')
+        from pg_proc p where p.oid = to_regprocedure('public.tiers_enforced()')), 'missing')
+        || ' auth=' || coalesce(has_function_privilege('authenticated', 'public.tiers_enforced()', 'execute')::text, 'missing')
+        || ' anon=' || coalesce(has_function_privilege('anon', 'public.tiers_enforced()', 'execute')::text, 'missing') end
+  union all
+  select 'BJ2 is_plus definer, no execute',
+    case when not exists (select 1 from applied where version = '20261116100000') then null
+      else coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
+        from pg_proc p where p.oid = to_regprocedure('public.is_plus(uuid)')), false)
+        and not coalesce(has_function_privilege('anon', 'public.is_plus(uuid)', 'execute'), true)
+        and not coalesce(has_function_privilege('authenticated', 'public.is_plus(uuid)', 'execute'), true) end,
+    'SECURITY DEFINER, search_path="", no EXECUTE for anon/authenticated',
+    case when not exists (select 1 from applied where version = '20261116100000') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' config=' || coalesce(p.proconfig::text, 'none')
+        from pg_proc p where p.oid = to_regprocedure('public.is_plus(uuid)')), 'missing')
+        || ' anon_exec=' || coalesce(has_function_privilege('anon', 'public.is_plus(uuid)', 'execute')::text, 'missing')
+        || ' auth_exec=' || coalesce(has_function_privilege('authenticated', 'public.is_plus(uuid)', 'execute')::text, 'missing') end
+  union all
+  select 'BJ3 is_plus founder + plan rule',
+    case when not exists (select 1 from applied where version = '20261116100000') then null
+      else coalesce((select p.prosrc ilike '%founder%' and p.prosrc ilike '%plan = ''plus''%'
+        from pg_proc p where p.oid = to_regprocedure('public.is_plus(uuid)')), false) end,
+    'body checks access_tier = founder OR (paid tier AND plan = plus)',
+    case when not exists (select 1 from applied where version = '20261116100000') then 'not applied yet'
+      else coalesce((select p.prosrc from pg_proc p where p.oid = to_regprocedure('public.is_plus(uuid)')), 'missing') end
+  union all
+  select 'BJ4 reorder function',
+    case when not exists (select 1 from applied where version = '20261116120100') then null
+      else coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
+          and p.prosrc not ilike '%insert into%'
+          and p.prosrc not ilike '%delete from%'
+          and p.prosrc ilike '%auth.uid()%'
+        from pg_proc p where p.oid = to_regprocedure('public.reorder_invoice_attachments(uuid, uuid[])')), false)
+        and coalesce(has_function_privilege('authenticated', 'public.reorder_invoice_attachments(uuid, uuid[])', 'execute'), false)
+        and not coalesce(has_function_privilege('anon', 'public.reorder_invoice_attachments(uuid, uuid[])', 'execute'), true) end,
+    'SECURITY DEFINER, search_path="", owner check, no INSERT/DELETE; authenticated only',
+    case when not exists (select 1 from applied where version = '20261116120100') then 'not applied yet'
+      else coalesce((select 'definer=' || p.prosecdef || ' insert=' || (p.prosrc ilike '%insert into%')
+          || ' delete=' || (p.prosrc ilike '%delete from%')
+        from pg_proc p where p.oid = to_regprocedure('public.reorder_invoice_attachments(uuid, uuid[])')), 'missing')
+        || ' auth_exec=' || coalesce(has_function_privilege('authenticated', 'public.reorder_invoice_attachments(uuid, uuid[])', 'execute')::text, 'missing')
+        || ' anon_exec=' || coalesce(has_function_privilege('anon', 'public.reorder_invoice_attachments(uuid, uuid[])', 'execute')::text, 'missing') end
+  union all
+  select 'BJ5 attachment gate BEFORE INSERT',
+    case when not exists (select 1 from applied where version = '20261116120000') then null
+      else (select count(*) from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = 'public.invoice_attachments'::regclass
+          and t.tgname = 'enforce_plus_attachments'
+          and (t.tgtype & 2) = 2 and (t.tgtype & 4) = 0 and (t.tgtype & 8) = 0 and (t.tgtype & 16) = 0) = 1
+        and coalesce((select p.prosecdef and 'search_path=""' = any(p.proconfig)
+          from pg_proc p where p.oid = to_regprocedure('public.enforce_plus_attachments()')), false)
+        and not coalesce(has_function_privilege('authenticated', 'public.enforce_plus_attachments()', 'execute'), true) end,
+    'enforce_plus_attachments: BEFORE INSERT only, SECURITY DEFINER, not executable',
+    case when not exists (select 1 from applied where version = '20261116120000') then 'not applied yet'
+      else coalesce((select string_agg(t.tgname || ' type=' || t.tgtype::text, ', ')
+        from pg_trigger t
+        where not t.tgisinternal and t.tgrelid = 'public.invoice_attachments'::regclass
+          and t.tgname = 'enforce_plus_attachments'), 'missing') end
+
 )
 select id as check_id,
   case when ok then 'PASS' when actual = 'not applied yet' then 'SKIP' else 'FAIL' end as result,
