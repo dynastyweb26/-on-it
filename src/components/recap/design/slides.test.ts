@@ -106,6 +106,38 @@ test('kept: a loss week draws an empty ring and still plays (RULE 11)', () => {
   assert.ok(h.includes('stroke-dasharray:0.00 '), 'empty arc');
 });
 
+test('invoices: the three counts, the owed card and its line come from the payload', () => {
+  for (const id of IDS) {
+    const p = redesignPayload(id);
+    const t = text(html('inv', p));
+    assert.doesNotMatch(t, /quote/i, id);
+    assert.ok(t.includes('Invoices sent') && t.includes('Invoices paid') && t.includes('Estimates approved'), id);
+    if (p.owed.total > 0) {
+      assert.ok(t.includes(money(p.owed.total)) && t.includes('Still owed to you') && t.includes('View invoices'), `${id} owed`);
+      assert.ok(t.includes(`${p.owed.count} invoice${p.owed.count === 1 ? '' : 's'}`), `${id} owed count`);
+    }
+  }
+  assert.ok(text(html('inv', redesignPayload('oneInvoiceWeek'))).includes('1 invoice'));
+  assert.ok(text(html('inv', redesignPayload('fortyInvoicesWeek'))).includes('40 invoices'));
+});
+
+test('invoices: nothing owed shows the caught-up card; an old payload drops the rows it never had', () => {
+  const none = { ...redesignPayload('normalWeek'), owed: { total: 0, count: 0, invoices: [] }, viewedUnpaid: 0 };
+  const t = text(html('inv', none));
+  assert.ok(t.includes('You’re all caught up.') && !t.includes('View invoices'));
+  const o = text(html('inv', old(redesignPayload('normalWeek'))));
+  assert.ok(o.includes('Invoices paid') && !o.includes('Invoices sent') && !o.includes('Estimates approved'));
+});
+
+test('invoices: a row that is 0 says None this time; past 20 the pips stop and "+n" shows', () => {
+  const z = { ...redesignPayload('normalWeek'), invoicesSent: 0, estimatesApproved: 0 };
+  assert.ok(text(html('inv', z)).includes('None this time'));
+  const big = { ...redesignPayload('normalWeek'), invoicesSent: 40 };
+  const h = html('inv', big);
+  assert.ok(text(h).includes('+20'));
+  assert.equal((h.match(/data-d="\d+" data-dur="260"/g) ?? []).length >= 20, true);
+});
+
 test('opener: an old payload falls back to income.total and drops what it never had', () => {
   const p = old(redesignPayload('normalWeek'));
   const t = text(html('opener', p));
