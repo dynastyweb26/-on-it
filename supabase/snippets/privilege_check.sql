@@ -38,7 +38,10 @@ privileged(col) as (values
   ('bank_account_last4'), ('bank_account_type'), ('bank_transfer_enabled'),
   -- Cancel flow (20261016200000): written only by the Stripe webhook and
   -- /api/subscription/* on the service role.
-  ('cancel_at_period_end'), ('paused_until'), ('retention_offer_used_at')
+  ('cancel_at_period_end'), ('paused_until'), ('retention_offer_used_at'),
+  -- Tiers (20261116090000): the paid plan. Written only by the Stripe webhook /
+  -- subscription sync on the service role; BI1-BI2 assert it.
+  ('plan')
 ),
 -- Profiles columns onboarding may INSERT (B). Every other column: no INSERT.
 onboarding(col) as (values
@@ -2504,6 +2507,39 @@ results(id, ok, expected, actual) as (
       else 'auth_insert=' || has_table_privilege('authenticated', 'public.tool_action_commits', 'INSERT')::text
         || ' auth_update=' || has_table_privilege('authenticated', 'public.tool_action_commits', 'UPDATE')::text
         || ' anon_select=' || has_table_privilege('anon', 'public.tool_action_commits', 'SELECT')::text end
+
+  -- BI1-BI2. Tiers phase 1 (20261116090000). SKIP until pushed. profiles.plan
+  --     is nullable text with a check on its own values, and no client write:
+  --     only the billing webhook / subscription sync sets it.
+  union all
+  select 'BI1 profiles.plan column',
+    case when not exists (select 1 from applied where version = '20261116090000') then null
+      else (select count(*) from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'profiles'
+          and c.column_name = 'plan' and c.data_type = 'text' and c.is_nullable = 'YES') = 1
+        and exists (select 1 from pg_constraint
+          where conrelid = 'public.profiles'::regclass and conname = 'profiles_plan_chk'
+            and pg_get_constraintdef(oid) ilike '%''pro''%'
+            and pg_get_constraintdef(oid) ilike '%''plus''%') end,
+    'plan text null; profiles_plan_chk allows null, pro, plus',
+    case when not exists (select 1 from applied where version = '20261116090000') then 'not applied yet'
+      else coalesce((select c.data_type || ' nullable=' || c.is_nullable
+          from information_schema.columns c
+          where c.table_schema = 'public' and c.table_name = 'profiles' and c.column_name = 'plan'), 'missing')
+        || ' | chk=' || coalesce((select pg_get_constraintdef(oid) from pg_constraint
+          where conrelid = 'public.profiles'::regclass and conname = 'profiles_plan_chk'), 'missing') end
+  union all
+  select 'BI2 profiles.plan no client write',
+    case when not exists (select 1 from applied where version = '20261116090000') then null
+      else not has_column_privilege('anon', 'public.profiles', 'plan', 'UPDATE')
+        and not has_column_privilege('anon', 'public.profiles', 'plan', 'INSERT')
+        and not has_column_privilege('authenticated', 'public.profiles', 'plan', 'UPDATE')
+        and not has_column_privilege('authenticated', 'public.profiles', 'plan', 'INSERT') end,
+    'plan: no UPDATE, no INSERT for anon/authenticated',
+    case when not exists (select 1 from applied where version = '20261116090000') then 'not applied yet'
+      else 'auth upd=' || has_column_privilege('authenticated', 'public.profiles', 'plan', 'UPDATE')::text
+        || ' auth ins=' || has_column_privilege('authenticated', 'public.profiles', 'plan', 'INSERT')::text
+        || ' anon upd=' || has_column_privilege('anon', 'public.profiles', 'plan', 'UPDATE')::text end
 
 )
 select id as check_id,
