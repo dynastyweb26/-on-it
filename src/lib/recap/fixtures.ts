@@ -6,7 +6,7 @@
 // (e.g. the monthly top client isn't one of the generated payments), so the
 // tests assert only the fields each scenario's rows actually determine.
 import { addDays, zonedMidnight, type RecapPeriod } from './dates';
-import { buildRecapPayload, type RecapInput, type RecapPayload } from './payload';
+import { buildRecapPayload, type BuiltRecapPayload, type RecapInput, type RecapPayload } from './payload';
 
 type Inv = { id: string; client: string; amount: number; status: 'viewed' | 'sent' | 'paid'; date: string };
 export type Scenario = {
@@ -30,17 +30,26 @@ export type Scenario = {
    *  derived as previous net + this period's spend. Chosen so the change chip
    *  (previous net) is exactly what the prototype shows. */
   previousIncome?: number;
+  /** Other money received (the redesign's Collected split); day is 0-based in the period. */
+  otherIncome?: { client: string | null; amount: number; day: number }[];
 };
 
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 const CLIENTS = ['Sarah Lee', 'James Ortiz', 'Tom Reyes', 'Ana Cruz', 'Ben Park', 'Lisa Chen', 'Dave Kim', 'Rosa Diaz', 'Mark Hill', 'Nina Shah', 'Paul Grant', 'Kim Nguyen', 'Luis Ortega', 'Amy Ford', 'Ray Cole', 'Jen Wu', 'Sam Price', 'Eva Long', 'Joe Burns', 'Tara Moss'];
-const SETS: Record<number, number[]> = { 1: [1200], 3: [1200, 800, 400], 7: [900, 600, 350, 200, 150, 120, 80], 20: [1200, 800, 650, 420, 380, 350, 300, 280, 260, 240, 220, 200, 180, 160, 150, 140, 120, 110, 90, 80] };
-const VIEWED: Record<number, number> = { 1: 1, 3: 2, 7: 4, 20: 11 };
+const SETS: Record<number, number[]> = {
+  1: [1200],
+  3: [1200, 800, 400],
+  7: [900, 600, 350, 200, 150, 120, 80],
+  20: [1200, 800, 650, 420, 380, 350, 300, 280, 260, 240, 220, 200, 180, 160, 150, 140, 120, 110, 90, 80],
+  // Forty invoices (redesign fixture): the list slides cap at 3, the counts don't.
+  40: Array.from({ length: 40 }, (_, i) => 1800 - i * 40),
+};
+const VIEWED: Record<number, number> = { 1: 1, 3: 2, 7: 4, 20: 11, 40: 23 };
 export const INVOICE_COUNTS = [1, 3, 7, 20] as const;
 
 function makeInvoices(n: number, paid = false): Inv[] {
   return SETS[n].map((amount, i) => ({
-    id: 'INV-' + (1060 - i), client: CLIENTS[i], amount,
+    id: 'INV-' + (1060 - i), client: CLIENTS[i % CLIENTS.length], amount,
     status: paid ? 'paid' : (i < VIEWED[n] ? 'viewed' : 'sent'),
     date: '2026-09-' + String(28 - (i % 7)).padStart(2, '0'),
   }));
@@ -265,6 +274,13 @@ export function scenarioInput(s: Scenario): RecapInput {
     owed: s.owed.invoices.map((i) => ({ client_name: i.client, total: i.amount, amount_paid: 0, viewed_at: i.status === 'viewed' ? noon(i.date) : null, sent_at: noon(i.date) })),
     paid: s.paidInvoices.map((i) => ({ client_name: i.client, total: i.amount, paid_at: noon(i.date) })),
     quotesPending: s.quotesPending,
+    otherIncome: (s.otherIncome ?? []).map((o) => ({
+      amount: o.amount,
+      received_on: addDays(period.start, o.day),
+      client_name: o.client,
+      classification: 'other_income' as const,
+      deleted_at: null,
+    })),
     // Previous income (horizon height) with the previous NET kept exactly as
     // the prototype's change chip implies: expenses = income − prevNet.
     previous: (() => {
@@ -275,8 +291,62 @@ export function scenarioInput(s: Scenario): RecapInput {
   };
 }
 
-export const fixturePayload = (id: ScenarioId, invoiceCount?: number): RecapPayload =>
+export const fixturePayload = (id: ScenarioId, invoiceCount?: number): BuiltRecapPayload =>
   buildRecapPayload(scenarioInput(getScenario(id, invoiceCount)));
 
 /** Any scenario object (e.g. onePaymentWeek) through the real payload builder. */
-export const scenarioPayload = (s: Scenario): RecapPayload => buildRecapPayload(scenarioInput(s));
+export const scenarioPayload = (s: Scenario): BuiltRecapPayload => buildRecapPayload(scenarioInput(s));
+
+// ── The redesign's five cases ────────────────────────────────────────
+// One per shape the new slides must survive: an ordinary week, a slow one, a
+// week that spent nothing, a single invoice, and forty of them. Kept out of
+// SCENARIOS so the prototype-parity tests stay about the prototype.
+
+/** Slow week: two small payments, light spend, one other-income row. */
+export const slowWeek: Scenario = {
+  ...normalWeek, id: 'slow-week',
+  income: { total: 240, payments: 2, clients: 2 },
+  spend: {
+    total: 96,
+    categories: [{ name: 'Fuel', amount: 60 }, { name: 'Supplies', amount: 36 }],
+    receipts: [{ vendor: 'Shell', amount: 60, category: 'Fuel' }, { vendor: 'Home Depot', amount: 36, category: 'Supplies' }],
+  },
+  net: 144,
+  change: { net: { pct: 45, direction: 'down', vs: 'last week' } },
+  daily: [0, 0, 140, 0, 0, 100, 0],
+  topClient: { name: 'Ana Cruz', amount: 140 },
+  topVendor: { name: 'Shell', amount: 60, category: 'Fuel', trips: [60] },
+  paymentMethods: [{ method: 'zelle', amount: 140 }, { method: 'cash', amount: 100 }],
+  owed: owed(makeInvoices(1)), viewedUnpaid: 1, quotesPending: 0,
+  paidInvoices: [{ id: 'INV-1042', client: 'Ana Cruz', amount: 140, status: 'paid', date: '2026-09-24' }],
+  otherIncome: [{ client: null, amount: 85, day: 2 }],
+  previousIncome: 1600,
+};
+
+/** A normal week that spent nothing: no store, no categories, no money out. */
+export const zeroSpentWeek: Scenario = {
+  ...normalWeek, id: 'zero-spent',
+  spend: { total: 0, categories: [], receipts: [] },
+  net: 1850,
+  change: { net: { pct: 0, direction: 'flat', vs: 'last week' } },
+  topVendor: null,
+};
+
+/** One invoice on the table, one paid: the smallest list the slides can show. */
+export const oneInvoiceWeek: Scenario = {
+  ...normalWeek, id: 'one-invoice',
+  owed: owed(makeInvoices(1)), viewedUnpaid: 1,
+  paidInvoices: [],
+};
+
+/** Forty invoices: counts carry, lists cap at three, the pips stop at twenty. */
+export const fortyInvoicesWeek: Scenario = {
+  ...normalWeek, id: 'forty-invoices',
+  owed: owed(makeInvoices(40)), viewedUnpaid: VIEWED[40],
+  paidInvoices: [],
+};
+
+export const REDESIGN_FIXTURES = { normalWeek, slowWeek, zeroSpentWeek, oneInvoiceWeek, fortyInvoicesWeek } as const;
+export type RedesignFixtureId = keyof typeof REDESIGN_FIXTURES;
+/** A redesign fixture through the real payload builder. */
+export const redesignPayload = (id: RedesignFixtureId): BuiltRecapPayload => scenarioPayload(REDESIGN_FIXTURES[id]);

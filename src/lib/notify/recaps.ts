@@ -14,6 +14,8 @@
 //   • income   = invoice_payments with paid_at inside the range (owner's local
 //     midnights), on invoices only (kind = 'invoice', never quotes) that are
 //     not soft-deleted — summed by summarizeIncome;
+//   • the previous period's totals use the same basis (loadNumbers adds counted
+//     other income), so the change chip compares like with like;
 //   • expenses = non-deleted expenses with spent_on inside the range — rolled
 //     up by summarize(); top_category is its first row (highest spend, stored
 //     as the category key), top_vendor the store with the highest spend inside
@@ -68,8 +70,9 @@ import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
 import {
-  buildRecapPayload, recapAnnounces, RECAP_PAYLOAD_VERSION,
-  type RecapExpenseRow, type RecapInput, type RecapPaymentRow,
+  buildRecapPayload, periodTotals, playerFields, recapAnnounces, recapRunNumbers, sentInvoiceStamps,
+  RECAP_PAYLOAD_VERSION,
+  type RecapExpenseRow, type RecapInput, type RecapOtherIncomeRow, type RecapPaymentRow,
 } from '@/lib/recap/payload';
 
 const PAGE_ROWS = 1000;   // PostgREST cap; long reads are paged
@@ -180,12 +183,41 @@ export async function loadPeriodRows(admin: Admin, userId: string, period: Recap
   return { expenses, payments };
 }
 
-async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz: string): Promise<RecapNumbers> {
-  const rows = await loadPeriodRows(admin, userId, period, tz);
-  return rollUp(rows.expenses, rows.payments, period);
+const embedded = (v: unknown): Row => (Array.isArray(v) ? (v[0] ?? {}) : (v ?? {})) as Row;
+
+const asOtherIncomeRow = (r: Row): RecapOtherIncomeRow => ({
+  amount: r.amount as number | string,
+  received_on: r.received_on as string,
+  client_name: (r.client_name as string | null) ?? null,
+  classification: (r.classification as string | null) ?? null,
+  deleted_at: (r.deleted_at as string | null) ?? null,
+});
+
+/** The other_income rows a period may count. One day of slack each side: the
+ *  payload files each row by the owner's local day itself. */
+async function loadOtherIncome(admin: Admin, userId: string, period: RecapPeriod): Promise<RecapOtherIncomeRow[]> {
+  const rows = await fetchAll((f, t) => admin.from('other_income')
+    .select('id, amount, received_on, client_name, classification, deleted_at')
+    .eq('user_id', userId).is('deleted_at', null)
+    .gte('received_on', addDays(period.start, -1)).lte('received_on', addDays(period.end, 1))
+    .order('id', { ascending: true }).range(f, t));
+  return rows.map(asOtherIncomeRow);
 }
 
-const embedded = (v: unknown): Row => (Array.isArray(v) ? (v[0] ?? {}) : (v ?? {})) as Row;
+/** A period's totals on the story's basis (Books' Collected − expenses), so the
+ *  PREVIOUS period the change chip compares against is like with like. The
+ *  stored snapshot columns keep their own rollUp: they are insert-once history. */
+async function loadNumbers(admin: Admin, userId: string, period: RecapPeriod, tz: string): Promise<RecapNumbers> {
+  const [rows, otherIncome] = await Promise.all([
+    loadPeriodRows(admin, userId, period, tz),
+    loadOtherIncome(admin, userId, period),
+  ]);
+  const numbers = rollUp(rows.expenses, rows.payments, period);
+  return {
+    ...numbers,
+    ...periodTotals({ invoiceIncome: numbers.income, expenses: numbers.expenses, otherIncome, period, tz }),
+  };
+}
 
 /** Everything buildRecapPayload needs beyond the period's own rows: what is
  *  still owed and pending as of now, the invoices paid in the period, and the
@@ -196,7 +228,7 @@ export async function loadRecapInput(
 ): Promise<RecapInput> {
   const from = zonedMidnight(period.start, tz).toISOString();
   const until = zonedMidnight(addDays(period.end, 1), tz).toISOString();
-  const [owed, paid, quotes, converted, previous] = await Promise.all([
+  const [owed, paid, quotes, converted, previous, sent, approved, otherIncome] = await Promise.all([
     // Still owed: the Books "Still owed" rows (sent/overdue invoices, not deleted).
     fetchAll((f, t) => admin.from('invoices')
       .select('id, client_name, total, amount_paid, viewed_at, sent_at, first_sent_at')
@@ -218,6 +250,22 @@ export async function loadRecapInput(
       .eq('user_id', userId).not('converted_from', 'is', null)
       .order('id', { ascending: true }).range(f, t)),
     loadNumbers(admin, userId, previousPeriod(period), tz),
+    // Invoices first sent in the period (the redesign's "Invoices sent").
+    // first_sent_at is write-once, so a later re-send cannot move the count.
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id, first_sent_at')
+      .eq('user_id', userId).eq('kind', 'invoice').is('deleted_at', null)
+      .gte('first_sent_at', from).lt('first_sent_at', until)
+      .order('id', { ascending: true }).range(f, t)),
+    // Estimates approved in the period ("Estimates approved").
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id, approved_at')
+      .eq('user_id', userId).eq('kind', 'quote').is('deleted_at', null)
+      .not('approved_at', 'is', null)
+      .gte('approved_at', from).lt('approved_at', until)
+      .order('id', { ascending: true }).range(f, t)),
+    // Other money received: Collected counts these, so the story does too.
+    loadOtherIncome(admin, userId, period),
   ]);
   const answered = new Set(converted.map((r) => r.converted_from as string));
 
@@ -249,6 +297,9 @@ export async function loadRecapInput(
       paid_at: p.paid_at as string,
     })),
     quotesPending: quotes.filter((q) => !answered.has(q.id as string)).length,
+    otherIncome,
+    sentInvoices: sentInvoiceStamps(sent),
+    estimatesApproved: approved.map((r) => (r.approved_at as string | null) ?? null),
     previous: { income: previous.income, expenses: previous.expenses },
   };
 }
@@ -283,6 +334,17 @@ async function freeSlotsUsed(admin: Admin, userId: string): Promise<number> {
   return count ?? 0;
 }
 
+/** Every recap the owner already has, at any period: the base their next row's
+ *  0-based recap number (the affirmation index) starts from. Deliberately not
+ *  filtered by period_start — a month and a week must never share a number. */
+async function recapsSoFar(admin: Admin, userId: string): Promise<number> {
+  const { count, error } = await admin.from('recaps')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Build (insert-once) one owner's snapshots for `periods`. Shared by the
  *  daily run's per-owner work. Never pushes. `freePlan` decides whether these
  *  rows spend the free allowance (lib/recap/quota). */
@@ -292,6 +354,12 @@ export async function buildOwnerRecaps(
   const out: OwnerRecaps = { inactive: false, built: 0, existing: 0, quiet: 0, rows: [] };
   if (!(await everActive(admin, userId))) { out.inactive = true; return out; }
   let used = freePlan ? await freeSlotsUsed(admin, userId) : 0;
+  // Counted once, then numbered by a ledger that only advances when a row is
+  // actually written: a skipped period (free-plan monthly, quiet) or an insert
+  // that already existed never burns a number, so rows written together or later
+  // cannot collide.
+  const existing = await recapsSoFar(admin, userId);
+  const numbering = recapRunNumbers(existing);
   for (const period of periods) {
     const rows = await loadPeriodRows(admin, userId, period, tz);
     const numbers = rollUp(rows.expenses, rows.payments, period);
@@ -307,6 +375,12 @@ export async function buildOwnerRecaps(
     // from the moment it exists, so no story can be cut off mid-play.
     const slot = nextFreeSlot({ kind: period.kind, announce, freePlan, used });
     if (slot) used++;
+    // The player's two numbers, fixed with the row: its 0-based recap number
+    // (the affirmation index) and, for a free row with a slot, which free recap.
+    const story = {
+      ...payload,
+      ...playerFields({ earlierRecaps: numbering.next(), freeSlot: slot }),
+    };
 
     // Insert-once: an existing snapshot (an earlier run) is never rewritten.
     const { data, error } = await admin
@@ -314,7 +388,7 @@ export async function buildOwnerRecaps(
       .upsert(
         {
           user_id: userId, kind: period.kind, period_start: period.start, period_end: period.end,
-          ...numbers, payload, payload_version: RECAP_PAYLOAD_VERSION,
+          ...numbers, payload: story, payload_version: RECAP_PAYLOAD_VERSION,
           free_plan: freePlan, free_slot: slot,
         },
         { onConflict: 'user_id,kind,period_start', ignoreDuplicates: true },
@@ -323,7 +397,7 @@ export async function buildOwnerRecaps(
     if (error) { console.error('recaps: insert failed', error.code ?? error.message); continue; }
     let id = (data?.[0]?.id as string | undefined) ?? null;
     let storedSlot = slot;
-    if (id) out.built++;
+    if (id) { out.built++; numbering.wrote(); }
     else {
       out.existing++;
       const { data: row } = await admin.from('recaps').select('id, free_slot')
