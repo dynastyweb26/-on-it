@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { redesignPayload, REDESIGN_FIXTURES, type RedesignFixtureId } from '@/lib/recap/fixtures';
 import { redesignSequence, type RecapPayload, type RedesignSlide } from '@/lib/recap/payload';
 import { createClock } from '@/components/recap/clock';
-import { money } from '@/components/recap/copy';
+import { keptNote, money, moneyInNote } from '@/components/recap/copy';
 import { designTiming } from '@/components/recap/design/timing';
 import { payMark } from '@/lib/recap/paymarks';
 import { pickAffirmation } from '@/lib/recap/ceo-affirmations';
@@ -208,6 +208,29 @@ test('money in: bank, PayPal and Venmo keep the old slide\'s colours and marks',
   assert.ok(h.includes('background:#5b77a8') && h.includes('account_balance'), 'bank');
   assert.ok(h.includes(`background:${payMark('paypal').color}`) && h.includes(`background:${payMark('venmo').color}`), 'brand colours');
   assert.equal((h.match(/<svg role="img"/g) ?? []).length, 2, 'paypal and venmo draw their marks');
+});
+
+test('encouragement lines: the design\'s patterns, only where the design draws them, never shaming', () => {
+  const p = redesignPayload('normalWeek');
+  const one = { ...p, collected: { ...p.collected, payments: 1, total: 180 }, previous: null };
+  assert.equal(moneyInNote(one), 'One job, done and paid. That counts.');
+  assert.ok(text(html('in', one)).includes('One job, done and paid.'));
+  assert.equal(moneyInNote({ ...p, previous: { income: 0, expenses: 0 } }), null, 'a normal week gets none');
+  assert.equal(moneyInNote({ ...p, collected: { ...p.collected, payments: 3, total: 400 }, previous: { income: 900, expenses: 0 } }), 'A lighter week. The work still counts.');
+  // kept: only without a change chip
+  const noChip = { ...p, change: null };
+  assert.equal(keptNote(p), p.change ? null : keptNote(noChip));
+  assert.equal(keptNote({ ...noChip, spend: { ...p.spend, total: 0 }, net: 500 }), 'Every dollar stayed with you this week.');
+  const loss = keptNote({ ...noChip, net: -120 });
+  assert.equal(loss, 'Money went back into the business this week. That’s how it grows.');
+  assert.ok(text(html('kept', { ...noChip, net: -120 })).includes('That’s how it grows.'));
+  assert.equal(keptNote({ ...noChip, spend: { ...p.spend, total: 0 }, net: 0, income: { ...p.income, total: 0 }, collected: { ...p.collected, total: 0 } }), null);
+  for (const id of IDS) {
+    const q = redesignPayload(id);
+    for (const line of [moneyInNote(q), keptNote(q), keptNote({ ...q, change: null })]) {
+      if (line) assert.doesNotMatch(line, /\b(fail|bad|poor|only|behind|loss|lost|worse|should|disappoint)/i, `${id}: ${line}`);
+    }
+  }
 });
 
 test('opener: an old payload falls back to income.total and drops what it never had', () => {

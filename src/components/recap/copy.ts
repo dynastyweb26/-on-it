@@ -49,3 +49,26 @@ export function changeLine(p: Pick<RecapPayload, 'kind' | 'start' | 'change'>): 
   if (c.direction === 'flat') return { dir: 'flat', text: `About the same as ${vs}` };
   return { dir: c.direction, text: `${c.direction === 'up' ? 'Up' : 'Down'} ${c.pct}% from ${vs}` };
 }
+
+/** The encouragement line under Money in (design: the slow week's "One job, done
+ *  and paid. That counts."). Only a quiet period gets one: a single payment, or
+ *  less collected than the period before. Never about what went wrong. */
+export function moneyInNote(p: Pick<RecapPayload, 'kind' | 'income' | 'collected' | 'previous'>): string | null {
+  const total = p.collected?.total ?? p.income.total;
+  if (!(total > 0)) return null;
+  const payments = p.collected?.payments ?? p.income.payments;
+  if (payments === 1) return 'One job, done and paid. That counts.';
+  if (p.previous && total < p.previous.income) return `A lighter ${per(p)}. The work still counts.`;
+  return null;
+}
+
+/** The encouragement line on What you kept, drawn only when there is no change
+ *  chip (design: "Every dollar stayed with you this week."). A week that spent
+ *  more than it collected reads as an investment, never a loss (RULE 11). */
+export function keptNote(p: Pick<RecapPayload, 'kind' | 'net' | 'spend' | 'income' | 'collected' | 'change' | 'start'>): string | null {
+  if (changeLine(p)) return null;
+  const total = p.collected?.total ?? p.income.total;
+  if (p.net < 0) return `Money went back into the business this ${per(p)}. That’s how it grows.`;
+  if (p.spend.total <= 0) return total > 0 ? `Every dollar stayed with you this ${per(p)}.` : null;
+  return p.net > 0 ? `You kept more than you spent this ${per(p)}.` : null;
+}

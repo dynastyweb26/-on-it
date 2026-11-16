@@ -4,7 +4,7 @@
 // empty ring plus the change chip (RULE 11). The encouragement line has no
 // payload field, so it is not drawn.
 import type { SlideProps } from '@/components/recap/clock';
-import { changeLine, money } from '@/components/recap/copy';
+import { changeLine, keptNote, money } from '@/components/recap/copy';
 import { collectedOf } from '@/components/recap/design/data';
 import { iconStyle, s } from '@/components/recap/design/css';
 import Stage from '@/components/recap/design/Stage';
@@ -21,6 +21,7 @@ export default function DesignKept({ payload: p, clock, reduced }: SlideProps) {
   const arc = (w: number, o: number) =>
     ({ fill: 'none', stroke: '#d4af37', strokeOpacity: o, strokeWidth: w, strokeLinecap: kf > 0 ? 'round' : 'butt', strokeDasharray: `${kl.toFixed(2)} ${C2.toFixed(2)}` }) as const;
   const ch = changeLine(p);
+  const note = keptNote(p);
   return (
     <Stage clock={clock} reduced={reduced}>
       <div data-slide="kept" style={s('position:absolute;inset:0')}>
@@ -57,6 +58,9 @@ export default function DesignKept({ payload: p, clock, reduced }: SlideProps) {
               <span style={iconStyle(20)}>{ch.dir === 'up' ? 'trending_up' : ch.dir === 'down' ? 'trending_down' : 'trending_flat'}</span>
               <span data-f="change_vs_last_period">{ch.text}</span>
             </div>
+          )}
+          {note && (
+            <div data-a="up" data-d="2500" data-f="encouragement_line" style={s('margin-top:32px;font:700 17px/23px Montserrat,system-ui,sans-serif;text-align:center;text-wrap:balance')}>{note}</div>
           )}
         </div>
       </div>

@@ -4,7 +4,7 @@
 // strip and the encouragement line are not drawn: no bank yet (RULE 7) and
 // no payload field for the line.
 import type { SlideProps } from '@/components/recap/clock';
-import { money, plural } from '@/components/recap/copy';
+import { money, moneyInNote, plural } from '@/components/recap/copy';
 import { clientsCount, collectedOf, invoicesPaidTotal, otherReceivedTotal, paymentsCount } from '@/components/recap/design/data';
 import { iconStyle, s } from '@/components/recap/design/css';
 import Stage from '@/components/recap/design/Stage';
@@ -32,6 +32,7 @@ const split = (v: number, c: string) =>
 export default function DesignIn({ payload: p, clock, reduced }: SlideProps) {
   const collected = collectedOf(p), invPaid = invoicesPaidTotal(p), other = otherReceivedTotal(p);
   const methods = p.paymentMethods;
+  const note = moneyInNote(p);
   const mt = methods.reduce((a, m) => a + m.amount, 0) || 1;   // the share bar's denominator, not a reported number
   return (
     <Stage clock={clock} reduced={reduced}>
@@ -94,6 +95,9 @@ export default function DesignIn({ payload: p, clock, reduced }: SlideProps) {
                 })}
               </div>
             </>
+          )}
+          {note && (
+            <div data-a="up" data-d="2000" data-f="encouragement_line" style={s('margin-top:22px;font:700 17px/23px Montserrat,system-ui,sans-serif;text-wrap:pretty')}>{note}</div>
           )}
           <div style={s('flex:1 1 0')} />
         </div>
