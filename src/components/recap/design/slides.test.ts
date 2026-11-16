@@ -87,6 +87,25 @@ test('money out: spend.total, the category rows and the top store are the payloa
   }
 });
 
+test('kept: net is the big number, money in and out are the payload\'s, the chip is the change', () => {
+  for (const id of IDS) {
+    const p = redesignPayload(id);
+    const t = text(html('kept', p));
+    assert.ok(t.includes(money(p.net)), `${id} net`);
+    assert.ok(t.includes(money(p.collected.total)), `${id} in`);
+    assert.ok(t.includes(money(p.spend.total)), `${id} out`);
+    if (p.change) assert.match(t, /(Up|Down) \d+% from|About the same as/, id);
+    else assert.doesNotMatch(t, /from last week/, id);
+  }
+});
+
+test('kept: a loss week draws an empty ring and still plays (RULE 11)', () => {
+  const p = { ...redesignPayload('normalWeek'), net: -120 };
+  const h = html('kept', p);
+  assert.ok(text(h).includes('−$120'));
+  assert.ok(h.includes('stroke-dasharray:0.00 '), 'empty arc');
+});
+
 test('opener: an old payload falls back to income.total and drops what it never had', () => {
   const p = old(redesignPayload('normalWeek'));
   const t = text(html('opener', p));

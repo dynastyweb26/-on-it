@@ -6,6 +6,7 @@ import { createElement } from 'react';
 import DesignOpener from '@/components/recap/design/DesignOpener';
 import DesignIn from '@/components/recap/design/DesignIn';
 import DesignOut from '@/components/recap/design/DesignOut';
+import DesignKept from '@/components/recap/design/DesignKept';
 
 // The redesign's slides, one file each. 'glance' and 'quiet' (and a month's
 // opener) keep their old components, so RecapStory never reads those entries.
@@ -16,7 +17,7 @@ export const DESIGN_SLIDES: Record<RedesignSlide, ComponentType<SlideProps>> = {
   glance: Unbuilt,
   in: DesignIn,
   out: DesignOut,
-  kept: Unbuilt,
+  kept: DesignKept,
   inv: Unbuilt,
   client: Unbuilt,
   free: Unbuilt,
