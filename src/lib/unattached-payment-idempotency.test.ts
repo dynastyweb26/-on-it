@@ -20,6 +20,7 @@ const input = {
   amount: 120,
   method: 'zelle' as const,
   received_on: '2026-11-11',
+  client_name: null,
   title: 'Side job',
 };
 const KEY = unattachedPaymentKey('submission-1');
