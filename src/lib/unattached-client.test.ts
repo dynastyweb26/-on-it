@@ -12,6 +12,7 @@ test('each failure is named in plain words', () => {
   assert.match(unattachedErrorMessage(400, 'method_invalid'), /how they paid/);
   assert.match(unattachedErrorMessage(400, 'date_invalid'), /date/);
   assert.match(unattachedErrorMessage(400, 'title_too_long'), /200/);
+  assert.match(unattachedErrorMessage(400, 'client_too_long'), /120 characters or fewer/);
   assert.match(unattachedErrorMessage(403, 'not_allowed'), /not allowed/);
   assert.match(unattachedErrorMessage(409, 'duplicate_submission'), /already saved/);
   assert.match(unattachedErrorMessage(500, 'db_insert_failed'), /Nothing was saved/);
@@ -34,6 +35,9 @@ test('a 200 without an id is not a save', async () => {
   assert.equal((await callUnattached('POST', {}, reply(200, { ok: true }))).ok, false);
 });
 
-test('success returns the id', async () => {
-  assert.deepEqual(await callUnattached('POST', {}, reply(200, { ok: true, id: 'abc' })), { ok: true, id: 'abc' });
+test('success returns the id and the saved title', async () => {
+  assert.deepEqual(
+    await callUnattached('POST', {}, reply(200, { ok: true, id: 'abc', title: 'Ruth Lawrence' })),
+    { ok: true, id: 'abc', title: 'Ruth Lawrence' },
+  );
 });

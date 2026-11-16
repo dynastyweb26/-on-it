@@ -8,11 +8,13 @@
 // the user's own client, the policies allow only the owner's manual rows, and
 // user_id is taken from the session — never from the body. No service role.
 //
-// Body: { amount, method, received_on, title?, idempotency_key? }
+// Body: { amount, method, received_on, title?, client_name?, idempotency_key? }
 //   amount          positive, 2 decimals
 //   method          one of the card's methods
 //   received_on     yyyy-mm-dd, the day the money arrived
-//   title           optional name the owner typed; a neutral one fills a blank
+//   title           optional name the owner typed; a blank takes the payer, then
+//                   the neutral one
+//   client_name     optional payer name; saved on the row so the money keeps it
 //   idempotency_key optional; the card mints one per submission and reuses it
 //                   for every retry, so a retry writes one row
 import { NextRequest, NextResponse } from 'next/server';
@@ -26,6 +28,7 @@ import {
   saveUnattachedPaymentOnce,
   unattachedInsertRow,
   unattachedPaymentKey,
+  unattachedSavedBody,
   type UnattachedPaymentIO,
   type UnattachedPaymentRow,
 } from '@/lib/unattached-payment';
@@ -37,6 +40,7 @@ const Body = z.object({
   method: z.string(),
   received_on: z.string(),
   title: z.string().nullish(),
+  client_name: z.string().nullish(),
   idempotency_key: z.string().min(1).max(120).optional(),
 });
 
@@ -67,7 +71,7 @@ export async function POST(req: NextRequest) {
   const findByKey = async (userId: string, k: string): Promise<UnattachedPaymentRow | null> => {
     const { data, error } = await supabase
       .from('other_income')
-      .select('id, amount, received_on, method, idempotency_key')
+              .select('id, amount, received_on, method, idempotency_key, title')
       .eq('user_id', userId)
       .eq('idempotency_key', k)
       .maybeSingle();
@@ -130,7 +134,9 @@ export async function POST(req: NextRequest) {
     return fail('db_insert_failed', 500);
   }
 
-  return NextResponse.json({ ok: true, id: saved.payment.id });
+  // The saved title, not the one the request asked for: a replay returns the
+  // row the key already owns, and that row is what the user will see.
+  return NextResponse.json(unattachedSavedBody(saved.payment.id, saved.payment.title ?? input.value.title));
 }
 
 // ── Undo ───────────────────────────────────────────────────────────────────
