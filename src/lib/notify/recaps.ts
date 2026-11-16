@@ -70,7 +70,8 @@ import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
 import {
-  buildRecapPayload, periodTotals, playerFields, recapAnnounces, sentInvoiceStamps, RECAP_PAYLOAD_VERSION,
+  buildRecapPayload, nextRecapIndex, periodTotals, playerFields, recapAnnounces, sentInvoiceStamps,
+  RECAP_PAYLOAD_VERSION,
   type RecapExpenseRow, type RecapInput, type RecapOtherIncomeRow, type RecapPaymentRow,
 } from '@/lib/recap/payload';
 
@@ -333,12 +334,13 @@ async function freeSlotsUsed(admin: Admin, userId: string): Promise<number> {
   return count ?? 0;
 }
 
-/** How many of this owner's recaps come before `period`: the row's 0-based
- *  recap number, which is the affirmation index. Insert-once rows make it stable. */
-async function recapsBefore(admin: Admin, userId: string, period: RecapPeriod): Promise<number> {
+/** Every recap the owner already has, at any period: the base their next row's
+ *  0-based recap number (the affirmation index) starts from. Deliberately not
+ *  filtered by period_start — a month and a week must never share a number. */
+async function recapsSoFar(admin: Admin, userId: string): Promise<number> {
   const { count, error } = await admin.from('recaps')
     .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId).lt('period_start', period.start);
+    .eq('user_id', userId);
   if (error) throw error;
   return count ?? 0;
 }
@@ -352,7 +354,12 @@ export async function buildOwnerRecaps(
   const out: OwnerRecaps = { inactive: false, built: 0, existing: 0, quiet: 0, rows: [] };
   if (!(await everActive(admin, userId))) { out.inactive = true; return out; }
   let used = freePlan ? await freeSlotsUsed(admin, userId) : 0;
-  for (const period of periods) {
+  // Counted once, then numbered in-loop: each period this run builds takes the
+  // next number after the owner's rows and the ones already assigned here, so a
+  // week and a month written together cannot collide (the loop awaits each
+  // insert before the next, but the number no longer depends on that).
+  const existing = await recapsSoFar(admin, userId);
+  for (const [i, period] of periods.entries()) {
     const rows = await loadPeriodRows(admin, userId, period, tz);
     const numbers = rollUp(rows.expenses, rows.payments, period);
     const payload = buildRecapPayload(await loadRecapInput(admin, userId, period, tz, rows));
@@ -371,7 +378,7 @@ export async function buildOwnerRecaps(
     // (the affirmation index) and, for a free row with a slot, which free recap.
     const story = {
       ...payload,
-      ...playerFields({ earlierRecaps: await recapsBefore(admin, userId, period), freeSlot: slot }),
+      ...playerFields({ earlierRecaps: nextRecapIndex({ existing, thisRun: i }), freeSlot: slot }),
     };
 
     // Insert-once: an existing snapshot (an earlier run) is never rewritten.

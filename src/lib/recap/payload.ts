@@ -184,6 +184,15 @@ export function periodTotals(input: {
   return { income, expenses, net: r2(income - expenses) };
 }
 
+/** The next recap number in one build run: every row the owner already has,
+ *  plus the rows this run has already assigned one to. Counting all rows (no
+ *  period filter) and numbering in-loop is what stops a week and a month built
+ *  in the same run — or a month and a week of the same span — sharing a number. */
+export function nextRecapIndex(run: { existing: number; thisRun: number }): number {
+  const intact = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0);
+  return intact(run.existing) + intact(run.thisRun);
+}
+
 /** The two numbers the player needs that are not in the story's own figures,
  *  stored beside the payload when the row is built:
  *    recapIndex      — how many of the owner's recaps came before this one (0-based),

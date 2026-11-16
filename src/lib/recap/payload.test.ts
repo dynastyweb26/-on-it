@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
-  peakDayOf, playerFields, redesignSequence, sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
+  nextRecapIndex, peakDayOf, playerFields, redesignSequence, sentInvoiceStamps, slidesWithData,
+  RECAP_PAYLOAD_VERSION, TRIPS_MAX,
   type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
@@ -570,6 +571,17 @@ test('redesign order: a month keeps its opener and glance first (RULE 12)', () =
     ['opener', 'glance', 'in', 'out', 'kept', 'inv', 'client', 'aff']);
   assert.deepEqual(redesignSequence(month, { plan: 'free' }),
     ['opener', 'glance', 'in', 'out', 'kept', 'inv', 'client', 'free', 'aff']);
+});
+
+test('week and month rows built in one run never share a recapIndex', () => {
+  const existing = 4;
+  const indexes = [0, 1].map((thisRun) => nextRecapIndex({ existing, thisRun }));
+  assert.deepEqual(indexes, [4, 5]);
+  assert.equal(new Set(indexes).size, indexes.length);
+  // The rows that run wrote are what the next run numbers after (6, 7 …).
+  assert.deepEqual([0, 1].map((thisRun) => nextRecapIndex({ existing: existing + indexes.length, thisRun })), [6, 7]);
+  // The first recap an owner ever gets is 0.
+  assert.equal(nextRecapIndex({ existing: 0, thisRun: 0 }), 0);
 });
 
 test('redesign order works on a stored payload without collected', () => {
