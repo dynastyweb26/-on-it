@@ -142,3 +142,59 @@ test('a destination is kept only when it is an in-app path', async () => {
     messageId: null, reply: 'r' }, path);
   }
 });
+
+// ── Tiers: the AI meter and the spent limit ─────────────────────────────────
+
+test('a spent limit is a typed result, not a thrown error', async () => {
+  const out = await askQuestion('q', fake(200, {
+    kind: 'limit',
+    used: 5,
+    limit: 5,
+    resetsAt: '2026-11-17T06:00:00.000Z',
+    reply: '',
+  }));
+  assert.deepEqual(out, {
+    kind: 'limit',
+    used: 5,
+    limit: 5,
+    resetsAt: '2026-11-17T06:00:00.000Z',
+    reply: '',
+  });
+});
+
+test('a malformed limit body is a server error, never a blank bubble', async () => {
+  for (const body of [
+    { kind: 'limit' },
+    { kind: 'limit', used: 1, limit: 0, resetsAt: 'x' },
+    { kind: 'limit', used: -1, limit: 5, resetsAt: 'x' },
+    { kind: 'limit', used: 1, limit: 5, resetsAt: '  ' },
+  ]) {
+    assert.deepEqual(await askQuestion('q', fake(200, body)), {
+      kind: 'error',
+      reply: ASK_COPY.serverError,
+    });
+  }
+});
+
+test('an answer carries the AI count when the server sends it', async () => {
+  const ai = { used: 2, limit: 5, resetsAt: '2026-11-17T06:00:00.000Z' };
+  assert.deepEqual(await askQuestion('q', fake(200, { reply: 'r', ai })), {
+    kind: 'ok',
+    reply: 'r',
+    messageId: null,
+    ai,
+  });
+});
+
+test('a half-readable meter is dropped, never half-used', async () => {
+  const out = await askQuestion('q', fake(200, { reply: 'r', ai: { used: 1 } }));
+  assert.equal('ai' in out, false);
+  const floored = await askQuestion('q', fake(200, { reply: 'r', ai: { used: 1.9, limit: 5, resetsAt: 'x' } }));
+  assert.deepEqual('ai' in floored ? floored.ai : null, { used: 1, limit: 5, resetsAt: 'x' });
+});
+
+test('flag off: a today-shaped answer has no ai key at all', async () => {
+  const out = await askQuestion('q', fake(200, { reply: 'r' }));
+  assert.deepEqual(out, { kind: 'ok', reply: 'r', messageId: null });
+  assert.equal('ai' in out, false);
+});

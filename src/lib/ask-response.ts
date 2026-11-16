@@ -2,6 +2,7 @@
 // template, never a property inside it: the client owns the card data and the
 // route owns where the card's "Show all" should go.
 import type { ToolCard } from '@/lib/tools/registry';
+import type { AiMeter } from '@/lib/ai-limit';
 
 export type AskDestination = { screen: string; path: string };
 
@@ -13,6 +14,9 @@ export type AskResponseInput = {
   fallback: string | null;
   tool: unknown;
   pending: unknown;
+  /** The AI count after this question, when the tiers flag is on. Absent (never
+   *  null) with the flag off, so today's response is byte-for-byte unchanged. */
+  ai?: AiMeter | null;
 };
 
 /**
@@ -54,5 +58,6 @@ export function askResponseBody(input: AskResponseInput): AskResponseInput {
     fallback: input.fallback,
     tool: input.tool,
     pending: input.pending,
+    ...(input.ai ? { ai: input.ai } : {}),
   };
 }
