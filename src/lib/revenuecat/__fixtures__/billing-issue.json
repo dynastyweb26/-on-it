@@ -1,0 +1,32 @@
+{
+  "now": "2026-12-01T12:00:00Z",
+  "subscriber": {
+    "entitlements": {
+      "pro": {
+        "product_identifier": "onit_pro_monthly",
+        "expires_date": "2026-11-28T12:00:00Z",
+        "grace_period_expires_date": "2026-12-05T12:00:00Z"
+      }
+    },
+    "subscriptions": {
+      "onit_pro_monthly": {
+        "expires_date": "2026-11-28T12:00:00Z",
+        "period_type": "normal",
+        "store": "app_store",
+        "billing_issues_detected_at": "2026-11-29T12:00:00Z",
+        "grace_period_expires_date": "2026-12-05T12:00:00Z",
+        "unsubscribe_detected_at": null,
+        "refunded_at": null,
+        "product_identifier": "onit_pro_monthly"
+      }
+    }
+  },
+  "expected": {
+    "tier": "past_due",
+    "plan": "pro",
+    "billingSource": "app_store",
+    "currentPeriodEnd": "2026-12-05T12:00:00Z",
+    "cancelAtPeriodEnd": false,
+    "trialEndsAt": null
+  }
+}
