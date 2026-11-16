@@ -36,3 +36,12 @@ test('compactMoney: chart labels', () => {
   assert.equal(compactMoney(1250000), '$1.3M');
   assert.equal(compactMoney(-1500), '−$1.5k');
 });
+
+test('keptNote: "kept more than you spent" only when kept really is more than spent', async () => {
+  const { keptNote } = await import('./copy');
+  const base = { kind: 'week' as const, start: '2026-11-09', change: null, income: { total: 1000, payments: 3, clients: 2 } };
+  // Collected 1000, spent 600, kept 400: kept is LESS than spent, so no such line.
+  assert.equal(keptNote({ ...base, net: 400, spend: { total: 600, count: 2, categories: [], receipts: [] } }), null);
+  // Collected 1000, spent 300, kept 700: the line is true.
+  assert.equal(keptNote({ ...base, net: 700, spend: { total: 300, count: 2, categories: [], receipts: [] } }), 'You kept more than you spent this week.');
+});

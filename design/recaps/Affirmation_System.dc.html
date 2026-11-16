@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
+<style>body{margin:0;background:#efe8dc}a{color:#735c00}a:hover{color:#1f1b13}</style>
+</helmet>
+<section style="padding:56px 64px 80px;font-family:Inter,system-ui,sans-serif;color:#1f1b13;background:#efe8dc;min-width:1760px">
+  <div style="display:flex;gap:64px;align-items:flex-end;justify-content:space-between;max-width:1700px">
+    <div>
+      <div style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Recap · slide 10 · Affirmation</div>
+      <h1 style="margin:12px 0 0;font:800 40px/46px Montserrat,system-ui,sans-serif;letter-spacing:-.02em">Affirmation type system</h1>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,280px));gap:12px 32px;font:400 13px/19px Inter,system-ui,sans-serif;color:#4d4635">
+      <div><b style="color:#1f1b13">Input</b> · <code style="font:500 12px/19px ui-monospace,Menlo,monospace;color:#1f1b13">affirmation_text</code>, 1–2 key phrases in [brackets]</div>
+      <div><b style="color:#1f1b13">Key phrases</b> · Montserrat 800 at K. Other words 600 at 0.72K</div>
+      <div><b style="color:#1f1b13">Lines</b> · balanced, break at punctuation and phrase edges, never one word alone</div>
+      <div><b style="color:#1f1b13">Size</b> · K starts at 60 / 52 / 44 / 40 by word count, steps down 2px until it fits the box</div>
+      <div><b style="color:#1f1b13">Gold</b> · brush under the first key phrase, diamond divider below. Never text</div>
+      <div><b style="color:#1f1b13">Clearance</b> · text box capped at 400px (app) / 320px (share), 32px minimum above Share</div>
+    </div>
+  </div>
+  <div style="margin-top:44px;display:grid;grid-template-columns:repeat(4,408px);gap:24px 32px;align-items:start">
+    <div id="q1" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:700 15px/20px Montserrat,system-ui,sans-serif">01 · Very short <span style="font:400 13px/20px Inter,system-ui,sans-serif;color:#4d4635">4 words</span></div>
+      <code style="font:500 12px/18px ui-monospace,Menlo,monospace;color:#4d4635">affirmation_text: "Small steps [build empires]."</code>
+      <dc-import name="RecapPlayer" start-slide="aff" aff-quote="Small steps [build empires]." show-fields="{{ true }}" hint-size="408px,862px"></dc-import>
+      <div style="margin-top:8px;font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Share image · 9:16</div>
+      <dc-import name="RecapPlayer" start-slide="aff" export-mode="{{ true }}" aff-quote="Small steps [build empires]." hint-size="378px,658px"></dc-import>
+    </div>
+    <div id="q2" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:700 15px/20px Montserrat,system-ui,sans-serif">02 · Medium <span style="font:400 13px/20px Inter,system-ui,sans-serif;color:#4d4635">11 words</span></div>
+      <code style="font:500 12px/18px ui-monospace,Menlo,monospace;color:#4d4635">affirmation_text: "No [achievement] is too high if you’re meant to [reach it]."</code>
+      <dc-import name="RecapPlayer" start-slide="aff" aff-quote="No [achievement] is too high if you’re meant to [reach it]." show-fields="{{ true }}" hint-size="408px,862px"></dc-import>
+      <div style="margin-top:8px;font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Share image · 9:16</div>
+      <dc-import name="RecapPlayer" start-slide="aff" export-mode="{{ true }}" aff-quote="No [achievement] is too high if you’re meant to [reach it]." hint-size="378px,658px"></dc-import>
+    </div>
+    <div id="q3" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:700 15px/20px Montserrat,system-ui,sans-serif">03 · Long <span style="font:400 13px/20px Inter,system-ui,sans-serif;color:#4d4635">16 words</span></div>
+      <code style="font:500 12px/18px ui-monospace,Menlo,monospace;color:#4d4635">affirmation_text: "Every invoice you send, every job you finish, is [proof you’re building] something that will [last]."</code>
+      <dc-import name="RecapPlayer" start-slide="aff" aff-quote="Every invoice you send, every job you finish, is [proof you’re building] something that will [last]." show-fields="{{ true }}" hint-size="408px,862px"></dc-import>
+      <div style="margin-top:8px;font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Share image · 9:16</div>
+      <dc-import name="RecapPlayer" start-slide="aff" export-mode="{{ true }}" aff-quote="Every invoice you send, every job you finish, is [proof you’re building] something that will [last]." hint-size="378px,658px"></dc-import>
+    </div>
+    <div id="q4" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font:700 15px/20px Montserrat,system-ui,sans-serif">04 · Question <span style="font:400 13px/20px Inter,system-ui,sans-serif;color:#4d4635">8 words</span></div>
+      <code style="font:500 12px/18px ui-monospace,Menlo,monospace;color:#4d4635">affirmation_text: "If not you, [who]? If not now, [when]?"</code>
+      <dc-import name="RecapPlayer" start-slide="aff" aff-quote="If not you, [who]? If not now, [when]?" show-fields="{{ true }}" hint-size="408px,862px"></dc-import>
+      <div style="margin-top:8px;font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Share image · 9:16</div>
+      <dc-import name="RecapPlayer" start-slide="aff" export-mode="{{ true }}" aff-quote="If not you, [who]? If not now, [when]?" hint-size="378px,658px"></dc-import>
+    </div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

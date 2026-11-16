@@ -89,6 +89,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
   const pathname = usePathname();
   const [access, setAccess] = useState<RecapAccess>(RECAPS_LIVE ? 'loading' : 'off');
   const [freePlan, setFreePlan] = useState(false);
+  const [userId, setUserId] = useState('');
   const [rows, setRows] = useState<RecapRow[]>([]);
   const [watched, setWatched] = useState<ReadonlySet<string>>(() => new Set());
   const [prompt, setPrompt] = useState<RecapRow | null>(null);
@@ -116,6 +117,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
         .order('period_end', { ascending: false }).limit(LATEST);
       if (!live) return;
       setFreePlan(free);
+      setUserId(user.id);
       setRows(sortRows(((data ?? []) as Record<string, unknown>[]).map(normalizeRow)));
       setAccess('open');
     })().catch(() => { if (live) setAccess('off'); });   // best-effort: no recaps this time
@@ -195,6 +197,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
   const onAction = useCallback((a: RecapAction) => {
     setStory(null);
     if (a === 'view-invoices') router.push('/invoices?filter=unpaid');
+    else if (a === 'upgrade') router.push('/settings/plan');
     // Already on Chat: the page won't remount for ?new=1, so ask it directly.
     else if (pathname?.startsWith('/chat')) window.dispatchEvent(new Event('onit-new-chat'));
     else router.push('/chat?new=1');
@@ -220,7 +223,7 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     <Ctx.Provider value={value}>
       {children}
       {prompt && !story && <RecapPrompt row={prompt} onWatch={() => open(prompt)} onLater={later} />}
-      {story?.payload && <RecapStory payload={story.payload} onClose={() => setStory(null)} onAction={onAction} />}
+      {story?.payload && <RecapStory payload={story.payload} plan={freePlan ? 'free' : 'pro'} userId={userId} onClose={() => setStory(null)} onAction={onAction} />}
     </Ctx.Provider>
   );
 }

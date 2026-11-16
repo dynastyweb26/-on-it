@@ -21,6 +21,33 @@ export const CEO_AFFIRMATIONS = [
   'Worry not about end goal. Put in the work today!',
 ] as const;
 
+// ── Key phrases (founder-approved 2026-11-15) ─────────────────────────
+// The same lines, in the same order, with the 1-2 key phrases wrapped in
+// [brackets], the design's format, for the affirmation slide's typography (big/heavy key phrases,
+// underline under the first). Not shown anywhere yet: the slide still reads
+// CEO_AFFIRMATIONS. A test keeps the two lists word-for-word identical.
+export const CEO_AFFIRMATION_MARKS = [
+  'Keep [showing up]. The Lord will [bless] the works of your hands',
+  '[Labour] in a way that God can [bless your works]',
+  '[Brick by Brick]. An [empire] in the making?',
+  'He’s [watching]. [Don’t stop] now',
+  'When the [time is Right] the Lord will [make things happen]',
+  'Your [Hard work] is [showing]…',
+  'Even when it feels like nobody’s watching [keep working]',
+  'Keep putting in the work, The [fruit will come]',
+  'Don’t be anxious for results. Your [efforts will show].',
+  'No [achievement] is too high if you’re meant to [reach it]',
+  'Keep a [steady pace], nobody’s rushing you',
+  '[Build] something you can be [proud of]',
+  'Even when you’re at a loss of Direction, just [Show up] every day',
+  'You are [blessed], and it shouldn’t take riches for you to believe that.',
+  'What are [limits] to the [creator of the universe]?',
+  'Worry not about end goal. Put in the [work today]!',
+] as const;
+
+/** A marked line with its brackets removed. */
+export const stripMarks = (line: string) => line.replace(/[\[\]]/g, '');
+
 // ── Picking one per recap ─────────────────────────────────────────────
 // Each owner walks the whole list in their own shuffled order, one line per
 // recap, and only wraps once every line has been used: their first `count`
