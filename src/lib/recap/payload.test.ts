@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
   nextRecapIndex, peakDayOf, playerFields, redesignSequence, sentInvoiceStamps, slidesWithData,
-  RECAP_PAYLOAD_VERSION, TRIPS_MAX,
+  recapRunNumbers, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
   type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
@@ -583,6 +584,38 @@ test('redesign order: the free slide needs a free recap number', () => {
   }
   // Pro never shows it, even when the row carries a slot.
   assert.ok(!redesignSequence({ ...week, freeRecapNumber: 1 }, { plan: 'pro' }).includes('free'));
+});
+
+test('a skipped period does not burn a recap number', () => {
+  // [month skipped for the free plan, week written], with 3 rows already stored.
+  const run = recapRunNumbers(3);
+  // The month never reached the payload, so the ledger was not touched; the
+  // week then takes the number right after the stored rows.
+  assert.equal(run.next(), 3);
+  run.wrote(); // the week's row landed
+  // The next run counts 4 rows and starts there — nothing was skipped.
+  assert.equal(recapRunNumbers(4).next(), 4);
+
+  // A quiet free-plan period is the same: no number asked for, none burned.
+  const quietRun = recapRunNumbers(2);
+  assert.equal(quietRun.next(), 2);
+});
+
+test('buildOwnerRecaps numbers with the write ledger, not the loop index', () => {
+  const src = readFileSync('src/lib/notify/recaps.ts', 'utf8');
+  assert.match(src, /const numbering = recapRunNumbers\(existing\)/);
+  assert.match(src, /earlierRecaps: numbering\.next\(\)/);
+  assert.match(src, /if \(id\) \{ out\.built\+\+; numbering\.wrote\(\); \}/);
+  assert.doesNotMatch(src, /thisRun: i/); // the loop index is gone
+});
+
+test('an existing row does not push the next row past its number', () => {
+  const run = recapRunNumbers(5);
+  assert.equal(run.next(), 5); // the period whose row already exists
+  // The upsert hit an existing row, so nothing was written and nothing advanced.
+  assert.equal(run.next(), 5); // the new row gets `existing`, not existing + 1
+  run.wrote();
+  assert.equal(run.next(), 6);
 });
 
 test('week and month rows built in one run never share a recapIndex', () => {

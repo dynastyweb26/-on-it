@@ -70,7 +70,7 @@ import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
 import {
-  buildRecapPayload, nextRecapIndex, periodTotals, playerFields, recapAnnounces, sentInvoiceStamps,
+  buildRecapPayload, periodTotals, playerFields, recapAnnounces, recapRunNumbers, sentInvoiceStamps,
   RECAP_PAYLOAD_VERSION,
   type RecapExpenseRow, type RecapInput, type RecapOtherIncomeRow, type RecapPaymentRow,
 } from '@/lib/recap/payload';
@@ -354,12 +354,13 @@ export async function buildOwnerRecaps(
   const out: OwnerRecaps = { inactive: false, built: 0, existing: 0, quiet: 0, rows: [] };
   if (!(await everActive(admin, userId))) { out.inactive = true; return out; }
   let used = freePlan ? await freeSlotsUsed(admin, userId) : 0;
-  // Counted once, then numbered in-loop: each period this run builds takes the
-  // next number after the owner's rows and the ones already assigned here, so a
-  // week and a month written together cannot collide (the loop awaits each
-  // insert before the next, but the number no longer depends on that).
+  // Counted once, then numbered by a ledger that only advances when a row is
+  // actually written: a skipped period (free-plan monthly, quiet) or an insert
+  // that already existed never burns a number, so rows written together or later
+  // cannot collide.
   const existing = await recapsSoFar(admin, userId);
-  for (const [i, period] of periods.entries()) {
+  const numbering = recapRunNumbers(existing);
+  for (const period of periods) {
     const rows = await loadPeriodRows(admin, userId, period, tz);
     const numbers = rollUp(rows.expenses, rows.payments, period);
     const payload = buildRecapPayload(await loadRecapInput(admin, userId, period, tz, rows));
@@ -378,7 +379,7 @@ export async function buildOwnerRecaps(
     // (the affirmation index) and, for a free row with a slot, which free recap.
     const story = {
       ...payload,
-      ...playerFields({ earlierRecaps: nextRecapIndex({ existing, thisRun: i }), freeSlot: slot }),
+      ...playerFields({ earlierRecaps: numbering.next(), freeSlot: slot }),
     };
 
     // Insert-once: an existing snapshot (an earlier run) is never rewritten.
@@ -396,7 +397,7 @@ export async function buildOwnerRecaps(
     if (error) { console.error('recaps: insert failed', error.code ?? error.message); continue; }
     let id = (data?.[0]?.id as string | undefined) ?? null;
     let storedSlot = slot;
-    if (id) out.built++;
+    if (id) { out.built++; numbering.wrote(); }
     else {
       out.existing++;
       const { data: row } = await admin.from('recaps').select('id, free_slot')
