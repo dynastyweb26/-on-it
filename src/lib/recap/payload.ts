@@ -103,6 +103,10 @@ export type RecapPayload = {
    *  payload had been stored in production yet. */
   previous: { income: number; expenses: number } | null;
   daily: number[];               // collected (invoices + other income) per local day: 7 (week) or 28–31 (month)
+  /** The tallest day of daily — the day the peak label sits over. Earliest on
+   *  a tie; null when every day is $0. Optional on read: payloads stored before
+   *  it have none, and the player skips the label. */
+  peakDay?: { amount: number; index: number } | null;
   /** By money collected in the period (invoice payments + other income with a
    *  client name); ties broken by name. pct is of collected.total. */
   topClient: { name: string; amount: number; pct?: number; invoiceCount?: number } | null;
@@ -127,6 +131,7 @@ export type RecapCollected = {
  *  recap opens, and the player skips what it cannot fill. */
 export type BuiltRecapPayload = RecapPayload & {
   collected: RecapCollected;
+  peakDay: { amount: number; index: number } | null;
   invoicesSent: number;
   estimatesApproved: number;
   spend: RecapPayload['spend'] & { moreCategories: number };
@@ -169,6 +174,17 @@ export function periodTotals(input: {
   const income = r2(input.invoiceIncome + other);
   const expenses = r2(input.expenses);
   return { income, expenses, net: r2(income - expenses) };
+}
+
+/** The largest day of a daily series (earliest on a tie), or null when every
+ *  day is $0 — the same day peakIndex() puts the peak label over. */
+export function peakDayOf(daily: number[]): { amount: number; index: number } | null {
+  let best: { amount: number; index: number } | null = null;
+  daily.forEach((amount, index) => {
+    const value = r2(amount);
+    if (value > 0 && (!best || value > best.amount)) best = { amount: value, index };
+  });
+  return best;
 }
 
 /** The invoices-sent input: first_sent_at only. A later re-send must not move
@@ -355,6 +371,7 @@ export function buildRecapPayload(input: RecapInput): BuiltRecapPayload {
     change: changeVs(net, input.previous),
     previous: input.previous ? { income: r2(num(input.previous.income)), expenses: r2(num(input.previous.expenses)) } : null,
     daily: daily.map(r2),
+    peakDay: peakDayOf(daily),
     topClient,
     topVendor,
     paymentMethods: [...byMethod].map(([method, amount]) => ({ method, amount: r2(amount) }))

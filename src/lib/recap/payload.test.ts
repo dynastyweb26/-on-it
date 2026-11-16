@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
-  redesignSequence, sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
+  peakDayOf, redesignSequence, sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
   type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
@@ -488,6 +488,22 @@ test('sequence on a payload stored before collected is unchanged', () => {
     ...old, income: { total: 0, payments: 0, clients: 0 }, net: -100, daily: [0, 0, 0, 0, 0, 0, 0], topClient: null, paymentMethods: [],
   };
   assert.deepEqual(recapSequence(spentOnly), ['opener', 'moneyInZero', 'moneyOut', 'keptInvest', 'caughtUp']);
+});
+
+// ── The peak day the opener labels ───────────────────────────────────
+test('peakDay: the tallest day, earliest on a tie, null when every day is $0', () => {
+  const week = fixturePayload('normalWeek'); // daily [0, 450, 0, 800, 400, 0, 200]
+  assert.deepEqual(week.peakDay, { amount: 800, index: 3 });
+  assert.deepEqual(peakDayOf([0, 500, 500, 0]), { amount: 500, index: 1 });
+  assert.equal(fixturePayload('quietWeek').peakDay, null);
+  assert.equal(fixturePayload('nothing').peakDay, null);
+  assert.equal(peakDayOf([0, 0, 0]), null);
+
+  // Collected basis: other income can be the day's peak.
+  const other = buildRecapPayload(base({
+    otherIncome: [{ amount: 300, received_on: '2026-09-24', client_name: null, classification: 'other_income' }],
+  }));
+  assert.deepEqual(other.peakDay, { amount: 300, index: 3 });
 });
 
 // ── The redesign's slide order (RULES 9–12) ──────────────────────────
