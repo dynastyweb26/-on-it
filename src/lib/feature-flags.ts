@@ -18,6 +18,12 @@ export const IN_APP_CAMERA = process.env.NEXT_PUBLIC_IN_APP_CAMERA === 'true';
 // neither does local development unless both gates are deliberately set.
 export const AI_TOOLS = process.env.NEXT_PUBLIC_AI_TOOLS === 'true';
 
+// Tiers (TIERS-SPEC.md): the Pro / Plus plans and their gates. Phase 1 only
+// computes entitlements — nothing is gated yet, so this is off everywhere.
+// Exactly 'true' turns it on (the same inlining as IN_APP_CAMERA above); an
+// unset, empty or '1' value stays off.
+export const NEXT_PUBLIC_TIERS = process.env.NEXT_PUBLIC_TIERS === 'true';
+
 /** Preview-only, fails closed: production, local dev and an unset env are off. */
 export function aiToolsForEnv(vercelEnv: string | undefined): boolean {
   return vercelEnv === 'preview';

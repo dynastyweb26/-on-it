@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { accessEndsISO, PAUSE_FROM_KEY, pauseStartsAt, profileFieldsFor, tierForSubscription, tierFromStatus } from './state';
+import { accessEndsISO, PAUSE_FROM_KEY, pauseStartsAt, planFromTier, profileFieldsFor, tierForSubscription, tierFromStatus } from './state';
 import { addMonthsClamped, nextRenewal, offerAllowed, offerEligible, offerFor, OFFER_WINDOW_MS, pauseResumesAt, pickRetentionCoupon, type OfferState } from './offers';
 import { averageDaysToPaid, statTiles } from './stats';
 import { cleanDetail, isCancelReason } from './reasons';
 import { discountLine, endsWithPlanLine, freePlanAfterLine, offerNotice, pausedLine, pauseOfferLine } from './copy';
 import { cancellationEmail } from '../email/cancellation';
+import { readFileSync } from 'node:fs';
 
 const NOW = new Date('2026-10-16T12:00:00Z');
 const T = (iso: string) => Math.floor(Date.parse(iso) / 1000);
@@ -19,6 +20,22 @@ test('tier: status mapping (paused / unpaid / incomplete collapse to canceled)',
   for (const s of ['canceled', 'unpaid', 'incomplete', 'incomplete_expired', 'paused']) {
     assert.equal(tierFromStatus(s), 'canceled', s);
   }
+});
+
+test('plan: trialing and active are pro, past_due and canceled leave it alone', () => {
+  assert.equal(planFromTier('trialing'), 'pro');
+  assert.equal(planFromTier('active'), 'pro');
+  // Null = no write: a lapsed or paused subscription keeps the plan value it
+  // had, so a resubscribe restores it; access_tier already decides access.
+  assert.equal(planFromTier('past_due'), null);
+  assert.equal(planFromTier('canceled'), null);
+});
+
+test('sync: the plan write rides the same atomic founder guard', () => {
+  const src = readFileSync(new URL('./sync.ts', import.meta.url), 'utf8');
+  // Only trialing / active set a plan, and a founder is never overwritten.
+  assert.match(src, /planFromTier\(tier\)/);
+  assert.match(src, /access_tier\.is\.null,access_tier\.neq\.founder/);
 });
 
 test('tier: pause set outside the app (no anchor) is the free tier at once', () => {

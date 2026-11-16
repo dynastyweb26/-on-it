@@ -23,6 +23,7 @@ export const REQUIRED_CHECKS = [
   'BF1',
   'BG1', 'BG2', 'BG3', 'BG4', 'BG5',
   'BH1', 'BH2',
+  'BI1', 'BI2',
 ];
 
 // Postgres/psql put these in the plain-text error, not always in structured form.

@@ -27,6 +27,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { PAYWALL_ENABLED } from '@/lib/paywall';
+import { entitlementsFor, type Entitlements } from '@/lib/entitlements';
 
 export type AccessTier = 'free' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'founder';
 
@@ -49,6 +50,11 @@ export interface AccessResult {
   invoiceLimit: number | null;
   expenseLimit: number | null;
   estimateLimit: number | null;
+  // What the user's plan allows (TIERS-SPEC.md), from the one table in
+  // lib/entitlements.ts. Nothing gates on it yet: the fields above still
+  // decide everything. Additive — the shape of every existing field is
+  // unchanged.
+  entitlements: Entitlements;
 }
 
 // A free limit worth showing the user; anything this large is "uncapped".
@@ -73,14 +79,20 @@ export async function hasAccess(userId: string, timing?: AccessTiming): Promise<
   // need the reset) and both limits (constant; fetched alongside so a free
   // user pays no extra round). Paid tiers and the paywall-off path ignore
   // the limits, exactly as before.
-  const [{ data: profile }, { data: resetData }, { data: estimateResetData }] = await Promise.all([
+  const [{ data: profile }, { data: planRow }, { data: resetData }, { data: estimateResetData }] = await Promise.all([
     timed(timing, 'profile', supabase.from('profiles').select('access_tier').eq('id', userId).maybeSingle()),
+    // profiles.plan arrives with the tiers migration (20261116090000). Its own
+    // query on purpose: on a database without the column this one fails alone,
+    // and the tier above still resolves exactly as it did before.
+    timed(timing, 'plan', supabase.from('profiles').select('plan').eq('id', userId).maybeSingle()),
     // Before the reset migration is pushed the rpc doesn't exist; count
     // all-time then, as before (the limits are still the kill-switch value).
     timed(timing, 'reset', supabase.rpc('paywall_reset_at')),
     timed(timing, 'estimateReset', supabase.rpc('estimate_reset_at')),
   ]);
   const raw = (profile?.access_tier ?? 'free') as string;
+  const plan = typeof planRow?.plan === 'string' ? planRow.plan : null;
+  const entitlements = entitlementsFor(raw, plan);
   const resetAt = typeof resetData === 'string' ? resetData : null;
   const estimateResetAt = typeof estimateResetData === 'string' ? estimateResetData : null;
 
@@ -126,10 +138,10 @@ export async function hasAccess(userId: string, timing?: AccessTiming): Promise<
   const counts = { invoiceCount, expenseCount, estimateCount, invoiceLimit: null, expenseLimit: null, estimateLimit: null };
   const everything = { hasAccess: true, canExpense: true, canEstimate: true, canRecurring: true, canExport: true };
 
-  if (raw === 'founder') return { ...everything, tier: 'founder', ...counts };
+  if (raw === 'founder') return { ...everything, tier: 'founder', ...counts, entitlements };
   // trialing / active / past_due → unlimited (past_due = dunning grace window).
   if (raw === 'trialing' || raw === 'active' || raw === 'past_due') {
-    return { ...everything, tier: raw, ...counts };
+    return { ...everything, tier: raw, ...counts, entitlements };
   }
   // Capped from here on: free, canceled, legacy, anything unexpected. A
   // canceled user is treated exactly like a free one (the triggers do the
@@ -141,7 +153,7 @@ export async function hasAccess(userId: string, timing?: AccessTiming): Promise<
   // DB triggers still enforce whatever limits are live — turning the caps off
   // for real is the rollback (supabase/rollbacks/paywall_v2_rollback.sql).
   if (!PAYWALL_ENABLED) {
-    return { ...everything, tier, ...counts };
+    return { ...everything, tier, ...counts, entitlements };
   }
 
   // If an rpc failed we do NOT false-block — the triggers are the real
@@ -157,6 +169,7 @@ export async function hasAccess(userId: string, timing?: AccessTiming): Promise<
     canExport: false, // reports are a paid feature (free / canceled tiers)
     tier,
     ...counts,
+    entitlements,
     // Only real limits: a missing rpc (pre-push) or the paywall-off sentinel
     // (1,000,000, 20260823120000) reads as no cap, so no "1 of 1000000" line.
     invoiceLimit: displayLimit(invLimit),
