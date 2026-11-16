@@ -22,8 +22,8 @@ import {
   parseUnattachedPayment,
   unattachedInsertRow,
 } from '@/lib/unattached-payment';
-import { formatDay } from '../write-targets';
-import { moneyText } from '../read';
+import { formatDay, manySentence } from '../write-targets';
+import { moneyText, resolveClient } from '../read';
 import { MoneySchema, moneyIn } from '../money';
 import {
   actionKey,
@@ -40,7 +40,9 @@ export const RecordOtherIncomeInput = z
   .object({
     /** A number, never a formatted figure. */
     amount: z.number().finite().max(INCOME_AMOUNT_MAX),
-    /** What it was. Omitted means the neutral "Other income". */
+    /** Who paid, as heard. Resolved against the client list when it can be. */
+    payer: z.string().min(1).max(120).optional(),
+    /** What it was. Omitted takes the payer's name, then "Other income". */
     title: z.string().max(200).optional(),
     method: z.enum(METHOD_VALUES).optional(),
     /** yyyy-mm-dd; the owner's local day. */
@@ -60,6 +62,8 @@ type Resolved = {
   method: ReturnType<typeof modelMethod>;
   /** The owner's local calendar day the money arrived. */
   receivedOn: string;
+  /** The payer as saved: the client's own name, the words said, or null. */
+  clientName: string | null;
   title: string;
 };
 
@@ -90,12 +94,13 @@ const PROBLEM: Record<string, string> = {
   method_invalid: 'I do not know that payment method.',
   date_invalid: 'That is not a day I can read. Give the day as YYYY-MM-DD.',
   title_too_long: 'That name is too long.',
+  client_too_long: 'Keep the payer name to 120 characters or fewer.',
 };
 
 export const recordOtherIncomeTool = defineWriteTool({
   name: RECORD_OTHER_INCOME,
   description:
-    'Propose recording money that came in with NO invoice behind it, such as a job paid outside the app, a repaid loan or other income: an amount, an optional name for what it was, an optional method (card, bank, zelle, cashapp, paypal, venmo, other) and an optional day. It saves nothing: the app shows a card and the owner confirms. Use it only when the user says there is no invoice or it is not for a job invoice; money for a client invoiced in the app is record_payment.',
+    'Propose recording money that came in with NO invoice behind it, such as a job paid outside the app, a repaid loan or other income: an amount, an optional payer name (who paid), an optional name for what it was, an optional method (card, bank, zelle, cashapp, paypal, venmo, other) and an optional day. It saves nothing: the app shows a card and the owner confirms. Use it only when the user says there is no invoice or it is not for a job invoice; money for a client invoiced in the app is record_payment.',
   input: RecordOtherIncomeInput,
   output: RecordOtherIncomeOutput,
   type: 'write',
@@ -111,12 +116,25 @@ export const recordOtherIncomeTool = defineWriteTool({
       return { ok: false, problem: 'That day has not happened yet. Income is money that already arrived.' };
     }
 
+    // Who paid: one saved client takes their own spelling, several is the
+    // shared ask-which-one sentence, and a name nobody has is kept as said.
+    let clientName: string | null = null;
+    const said = args.payer?.trim() ?? '';
+    if (said) {
+      const resolution = await resolveClient(ctx, said);
+      if (resolution.kind === 'many') {
+        return { ok: false, problem: manySentence(`More than one client matches "${said}"`, resolution.names) };
+      }
+      clientName = resolution.kind === 'one' ? resolution.name : said;
+    }
+
     const method = modelMethod(args.method);
     // The route's own parser and limits, so this row is the form's row.
     const parsed = parseUnattachedPayment({
       amount: args.amount,
       method,
       received_on: receivedOn,
+      client_name: clientName,
       title: args.title,
     });
     if (!parsed.ok) return { ok: false, problem: PROBLEM[parsed.code] ?? 'That income cannot be recorded.' };
@@ -128,13 +146,18 @@ export const recordOtherIncomeTool = defineWriteTool({
         amount: value.amount,
         method: value.method,
         receivedOn: value.received_on,
+        clientName: value.client_name,
         title: value.title,
       } satisfies Resolved,
       row: {
         icon: 'savings',
-        summary: value.title === UNATTACHED_PAYMENT_TITLE
-          ? 'Record other income'
-          : `Record other income: ${value.title}`,
+        // The payer is the card's subject when there is one; otherwise the name
+        // the money was given, and the neutral line when it has none.
+        summary: value.client_name
+          ? `Record income from ${value.client_name}`
+          : value.title === UNATTACHED_PAYMENT_TITLE
+            ? 'Record other income'
+            : `Record other income: ${value.title}`,
         detail: `${methodText(value.method)} · ${formatDay(value.received_on)}`,
         amount: moneyText(value.amount),
         tone: 'in',
@@ -152,7 +175,13 @@ export const recordOtherIncomeTool = defineWriteTool({
     // The unattached route's row builder: same columns, same classification.
     const row = unattachedInsertRow(
       ctx.userId,
-      { amount: r.amount, method: r.method, received_on: r.receivedOn, title: r.title },
+      {
+        amount: r.amount,
+        method: r.method,
+        received_on: r.receivedOn,
+        client_name: r.clientName,
+        title: r.title,
+      },
       key,
     );
     const { error } = await ctx.db.insert('other_income', row);
@@ -172,7 +201,7 @@ export const recordOtherIncomeTool = defineWriteTool({
     result: { id: 'income-1', title: 'Side job', receivedOn: '2026-11-15', money: moneyIn(150) },
   },
   preview: {
-    resolved: { amount: 150, method: 'other', receivedOn: '2026-11-15', title: 'Side job' },
+    resolved: { amount: 150, method: 'other', receivedOn: '2026-11-15', clientName: null, title: 'Side job' },
     row: {
       icon: 'savings',
       summary: 'Record other income: Side job',
