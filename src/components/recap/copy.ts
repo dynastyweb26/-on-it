@@ -70,5 +70,5 @@ export function keptNote(p: Pick<RecapPayload, 'kind' | 'net' | 'spend' | 'incom
   const total = p.collected?.total ?? p.income.total;
   if (p.net < 0) return `Money went back into the business this ${per(p)}. That’s how it grows.`;
   if (p.spend.total <= 0) return total > 0 ? `Every dollar stayed with you this ${per(p)}.` : null;
-  return p.net > 0 ? `You kept more than you spent this ${per(p)}.` : null;
+  return p.net > p.spend.total ? `You kept more than you spent this ${per(p)}.` : null;
 }
