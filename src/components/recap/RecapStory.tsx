@@ -26,7 +26,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import { RECAP_CONFIG } from '@/lib/recap/config';
-import { recapAudio } from '@/lib/recap/audio';
 import { redesignSequence, type RecapPayload, type RedesignPlan, type RedesignSlide } from '@/lib/recap/payload';
 import { slideTiming, type Cue, type SlideTiming } from '@/lib/recap/timing';
 import { createClock, type RecapAction, type SlideClock } from '@/components/recap/clock';
@@ -37,12 +36,6 @@ import { designTiming } from '@/components/recap/design/timing';
 import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 import './recap.css';
 
-const MUTE_KEY = 'onit-recap-muted';
-/** Set once the Silent mode hint has shown on this device (it never shows again). */
-const SOUND_HINT_KEY = 'onit-recap-sound-hint';
-/** iPhone / iPad (iPadOS reports a Mac with touch): the only devices with a Silent switch. */
-const hasSilentSwitch = () =>
-  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const OPENS_KEY = 'onit-recap-opens';
 const DT_MAX = 64;
 
@@ -106,7 +99,6 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   const [pendingTrans, setPendingTrans] = useState<{ dir: 1 | -1; key: number } | null>(null);
 
   const [muted, setMuted] = useState(false);
-  const [soundHint, setSoundHint] = useState(false);
   const [paused, setPaused] = useState(false);
   const [announce, setAnnounce] = useState('');
   // Opens on this device: the opener's affirmation rotates per open (§8).
@@ -129,41 +121,9 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   const playing = () => !st.current.held && !st.current.spacePaused && !st.current.hidden;
   const syncPaused = () => {
     setPaused(st.current.held || st.current.spacePaused);
-    recapAudio()?.pauseMusic(!playing());
   };
-  // Sound starts on the first gesture if the opening tap didn't prime it.
-  const ensureSound = () => {
-    const a = recapAudio();
-    if (!a) return;
-    a.resume();
-    a.setMuted(st.current.muted);
-    if (!a.musicOn) a.startMusic();
-  };
-  const cue = (c: Cue) => {
-    if (st.current.muted) return;
-    recapAudio()?.play(c.sound, c.db);
-    cbs.current.onCue?.(c);
-  };
-
-  useEffect(() => {
-    try { const m = localStorage.getItem(MUTE_KEY) === '1'; st.current.muted = m; setMuted(m); } catch { /* storage blocked: unmuted */ }
-    // One-time hint (iPhone): the recap follows the Silent switch. Marked seen
-    // as it shows, so closing early still counts; unmuted recaps only; no
-    // storage → never shown (it couldn't be "once").
-    try {
-      if (!st.current.muted && hasSilentSwitch() && !localStorage.getItem(SOUND_HINT_KEY)) {
-        localStorage.setItem(SOUND_HINT_KEY, '1');
-        setSoundHint(true);
-      }
-    } catch { /* no hint */ }
-    // Music bed: now if the opening tap primed the audio context, else on the first tap.
-    const a = recapAudio();
-    if (a) {
-      a.setMuted(st.current.muted);
-      if (a.running) a.startMusic();
-    }
-    return () => { recapAudio()?.stopMusic(); };   // 600 ms fade-out on close
-  }, []);
+  // RULE 6: the redesigned player plays nothing yet (no music bed, no whoosh,
+  // no cues); the sound button only swaps its icon.
 
   const endTrans = useCallback(() => {
     const T = st.current.trans;
@@ -245,7 +205,6 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
       A(bandRef.current, [{ transform: `translateX(${b0}px)`, opacity: 0 }, { offset: 0.5, opacity: 1 }, { transform: `translateX(${b1}px)`, opacity: 0 }]);
     }
     st.current.trans = { anims, p: 0, dur, theme: timings[st.current.idx].theme };
-    cue({ t: 0, sound: C.cue.sound, db: C.cue.db, label: C.cue.label });
     setPendingTrans(null);
   }, [pendingTrans, reduced, timings]);
 
@@ -262,7 +221,6 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
         const D = cur.timing.duration;
         s.t = Math.min(D, s.t + dt);
         cur.clock.seek(s.t);
-        for (const c of cur.timing.cues) if (c.t > s.prevT && c.t <= s.t) cue(c);
         s.prevT = s.t;
         const T = s.trans;
         if (T) {
@@ -288,7 +246,7 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
 
   // Hidden tab / app in the background: hold the clock.
   useEffect(() => {
-    const on = () => { st.current.hidden = document.visibilityState === 'hidden'; recapAudio()?.pauseMusic(!playing()); };
+    const on = () => { st.current.hidden = document.visibilityState === 'hidden'; };
     document.addEventListener('visibilitychange', on);
     return () => document.removeEventListener('visibilitychange', on);
   }, []);
@@ -312,7 +270,6 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
   }
   function onPointerUp(e: React.PointerEvent) {
     if (!e.isPrimary) return;
-    ensureSound();
     clearTimeout(holdT.current);
     if (st.current.held) { st.current.held = false; syncPaused(); return; }
     if (onAct(e)) return;
@@ -324,18 +281,13 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
     if (st.current.held) { st.current.held = false; syncPaused(); }
   }
   function onKeyDown(e: React.KeyboardEvent) {
-    ensureSound();
     if (e.key === 'Escape') { e.preventDefault(); cbs.current.onClose(); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); go(st.current.idx + 1); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); go(st.current.idx - 1); }
     else if (e.key === ' ' && !onAct(e)) { e.preventDefault(); st.current.spacePaused = !st.current.spacePaused; syncPaused(); }
   }
   function toggleMute() {
-    const m = !st.current.muted;
-    st.current.muted = m;
-    setMuted(m);
-    recapAudio()?.setMuted(m);
-    try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* not persisted */ }
+    setMuted((m) => !m);   // the icon only (RULE 6)
   }
   const action = useCallback((a: RecapAction) => cbs.current.onAction?.(a), []);
 
@@ -404,11 +356,6 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
             </button>
           </div>
         </div>
-        {soundHint && !quietOnly && (
-          <div className="rc-hint" role="note" onAnimationEnd={() => setSoundHint(false)}>
-            Turn off Silent mode to hear the soundtrack
-          </div>
-        )}
         <div className="rc-paused" data-on={paused || undefined} aria-hidden={!paused}>
           <Icon name="pause" size={15} />Paused
         </div>
