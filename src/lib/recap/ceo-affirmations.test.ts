@@ -54,8 +54,8 @@ test('marked affirmations are the same lines, word for word, with 1-2 key phrase
   assert.equal(CEO_AFFIRMATION_MARKS.length, CEO_AFFIRMATIONS.length);
   CEO_AFFIRMATION_MARKS.forEach((line, i) => {
     assert.equal(stripMarks(line), CEO_AFFIRMATIONS[i]);
-    const phrases = line.match(/\*[^*]+\*/g) ?? [];
+    const phrases = line.match(/\[[^\[\]]+\]/g) ?? [];
     assert.ok(phrases.length >= 1 && phrases.length <= 2, line);
-    assert.equal((line.match(/\*/g) ?? []).length, phrases.length * 2, line);
+    assert.equal((line.match(/[\[\]]/g) ?? []).length, phrases.length * 2, line);
   });
 });
