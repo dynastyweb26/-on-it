@@ -19,6 +19,7 @@ import { isExpenseCategory } from '@/lib/expenses';
 import { roundCurrency } from '@/lib/financials';
 import { booksDay } from '@/lib/books-period';
 import { countsAsIncome } from '@/lib/other-income';
+import { isEntitledSlot } from './quota';
 import { daysBetween, localYmd, type RecapKind, type RecapPeriod } from './dates';
 
 /** Stays 1. Every field this build added is optional when read, and net, daily
@@ -103,6 +104,13 @@ export type RecapPayload = {
    *  payload had been stored in production yet. */
   previous: { income: number; expenses: number } | null;
   daily: number[];               // collected (invoices + other income) per local day: 7 (week) or 28–31 (month)
+  /** This owner's 0-based recap number, fixed when the row is built. The player
+   *  passes it to pickAffirmation as periodIndex, so a recap's line never changes.
+   *  Optional on read: payloads stored before it fall back to 0. */
+  recapIndex?: number;
+  /** 1 or 2: which of the two free recaps this row is (quota.ts slots, rules
+   *  unchanged). Only a free-plan row that owns a slot has it. Optional on read. */
+  freeRecapNumber?: number;
   /** The tallest day of daily — the day the peak label sits over. Earliest on
    *  a tie; null when every day is $0. Optional on read: payloads stored before
    *  it have none, and the player skips the label. */
@@ -174,6 +182,23 @@ export function periodTotals(input: {
   const income = r2(input.invoiceIncome + other);
   const expenses = r2(input.expenses);
   return { income, expenses, net: r2(income - expenses) };
+}
+
+/** The two numbers the player needs that are not in the story's own figures,
+ *  stored beside the payload when the row is built:
+ *    recapIndex      — how many of the owner's recaps came before this one (0-based),
+ *                      which is pickAffirmation's periodIndex;
+ *    freeRecapNumber — which free recap this is (1..FREE_RECAPS) for a free-plan
+ *                      row that owns a slot, straight from quota.ts's rule. */
+export function playerFields(input: {
+  earlierRecaps: number;
+  freeSlot?: number | null;
+}): { recapIndex: number; freeRecapNumber?: number } {
+  const earlier = Number.isFinite(input.earlierRecaps) ? Math.floor(input.earlierRecaps) : 0;
+  return {
+    recapIndex: Math.max(0, earlier),
+    ...(isEntitledSlot(input.freeSlot) ? { freeRecapNumber: input.freeSlot as number } : {}),
+  };
 }
 
 /** The largest day of a daily series (earliest on a tie), or null when every

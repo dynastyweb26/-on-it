@@ -70,7 +70,7 @@ import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
 import {
-  buildRecapPayload, periodTotals, recapAnnounces, sentInvoiceStamps, RECAP_PAYLOAD_VERSION,
+  buildRecapPayload, periodTotals, playerFields, recapAnnounces, sentInvoiceStamps, RECAP_PAYLOAD_VERSION,
   type RecapExpenseRow, type RecapInput, type RecapOtherIncomeRow, type RecapPaymentRow,
 } from '@/lib/recap/payload';
 
@@ -333,6 +333,16 @@ async function freeSlotsUsed(admin: Admin, userId: string): Promise<number> {
   return count ?? 0;
 }
 
+/** How many of this owner's recaps come before `period`: the row's 0-based
+ *  recap number, which is the affirmation index. Insert-once rows make it stable. */
+async function recapsBefore(admin: Admin, userId: string, period: RecapPeriod): Promise<number> {
+  const { count, error } = await admin.from('recaps')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId).lt('period_start', period.start);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Build (insert-once) one owner's snapshots for `periods`. Shared by the
  *  daily run's per-owner work. Never pushes. `freePlan` decides whether these
  *  rows spend the free allowance (lib/recap/quota). */
@@ -357,6 +367,12 @@ export async function buildOwnerRecaps(
     // from the moment it exists, so no story can be cut off mid-play.
     const slot = nextFreeSlot({ kind: period.kind, announce, freePlan, used });
     if (slot) used++;
+    // The player's two numbers, fixed with the row: its 0-based recap number
+    // (the affirmation index) and, for a free row with a slot, which free recap.
+    const story = {
+      ...payload,
+      ...playerFields({ earlierRecaps: await recapsBefore(admin, userId, period), freeSlot: slot }),
+    };
 
     // Insert-once: an existing snapshot (an earlier run) is never rewritten.
     const { data, error } = await admin
@@ -364,7 +380,7 @@ export async function buildOwnerRecaps(
       .upsert(
         {
           user_id: userId, kind: period.kind, period_start: period.start, period_end: period.end,
-          ...numbers, payload, payload_version: RECAP_PAYLOAD_VERSION,
+          ...numbers, payload: story, payload_version: RECAP_PAYLOAD_VERSION,
           free_plan: freePlan, free_slot: slot,
         },
         { onConflict: 'user_id,kind,period_start', ignoreDuplicates: true },

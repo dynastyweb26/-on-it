@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
-  peakDayOf, redesignSequence, sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
+  peakDayOf, playerFields, redesignSequence, sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
   type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
@@ -488,6 +488,30 @@ test('sequence on a payload stored before collected is unchanged', () => {
     ...old, income: { total: 0, payments: 0, clients: 0 }, net: -100, daily: [0, 0, 0, 0, 0, 0, 0], topClient: null, paymentMethods: [],
   };
   assert.deepEqual(recapSequence(spentOnly), ['opener', 'moneyInZero', 'moneyOut', 'keptInvest', 'caughtUp']);
+});
+
+// ── The player's two numbers ─────────────────────────────────────────
+test('player fields: the 0-based recap number and which free recap it is', () => {
+  assert.deepEqual(playerFields({ earlierRecaps: 0 }), { recapIndex: 0 });
+  assert.deepEqual(playerFields({ earlierRecaps: 7, freeSlot: 2 }), { recapIndex: 7, freeRecapNumber: 2 });
+  assert.deepEqual(playerFields({ earlierRecaps: 1, freeSlot: 1 }), { recapIndex: 1, freeRecapNumber: 1 });
+
+  // Only quota.ts's entitled slots (1..FREE_RECAPS) name a free recap; a pro row
+  // (no slot), a locked row (null) and out-of-range slots carry none.
+  assert.deepEqual(playerFields({ earlierRecaps: 3, freeSlot: null }), { recapIndex: 3 });
+  assert.deepEqual(playerFields({ earlierRecaps: 3, freeSlot: 0 }), { recapIndex: 3 });
+  assert.deepEqual(playerFields({ earlierRecaps: 3, freeSlot: 3 }), { recapIndex: 3 });
+
+  // Nonsense counts land on the first recap, never negative or fractional.
+  assert.equal(playerFields({ earlierRecaps: -2 }).recapIndex, 0);
+  assert.equal(playerFields({ earlierRecaps: Number.NaN }).recapIndex, 0);
+  assert.equal(playerFields({ earlierRecaps: 2.9 }).recapIndex, 2);
+
+  // Stored beside the payload, they read back off it (and off a stored row).
+  const p = { ...fixturePayload('normalWeek'), ...playerFields({ earlierRecaps: 4, freeSlot: 1 }) };
+  assert.equal(p.recapIndex, 4);
+  assert.equal(p.freeRecapNumber, 1);
+  assert.deepEqual(p.daily, fixturePayload('normalWeek').daily);
 });
 
 // ── The peak day the opener labels ───────────────────────────────────
