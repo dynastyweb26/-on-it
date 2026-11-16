@@ -15,11 +15,17 @@ import { validateAttachmentBytes } from '@/lib/estimates/file-type';
 import { ConfirmBodySchema } from '@/lib/estimates/schemas';
 import { isLocked, isUuid, loadOwnedQuote } from '@/lib/estimates/owner';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { PLAN_REQUIRED, planLockBody } from '@/lib/plan-lock';
 
 export const runtime = 'nodejs';
 
+// A plan refusal always carries the one typed lock shape (feature + plan that
+// opens it); every other code answers as it always has.
 const refuse = (status: number, code: string) =>
-  NextResponse.json({ error: code }, { status });
+  NextResponse.json(
+    code === PLAN_REQUIRED ? planLockBody('attachments') : { error: code },
+    { status },
+  );
 
 // Storage keys are plain, flat segments ("<userId>/<invoiceId>/<uuid>.<ext>").
 // Reject anything a browser, proxy or storage backend could normalise

@@ -14,6 +14,8 @@
 import type { createClient } from '@/lib/supabase/client';
 import type { EditorAttachment } from '@/components/AttachmentsEditor';
 import { ATTACHMENT_MAX, type PdfAttachment } from '@/lib/pdf/attachment-pages';
+import { planLockFromCode, type PlanLock } from '@/lib/plan-lock';
+import type { TierPlan } from '@/lib/entitlements';
 
 export { ATTACHMENT_MAX };
 
@@ -70,6 +72,16 @@ export function isPlanRefusal(
   const hint = typeof error?.hint === 'string' ? error.hint : '';
   const message = typeof error?.message === 'string' ? error.message : '';
   return hint === PLAN_ATTACHMENTS || message.includes(PLAN_ATTACHMENTS);
+}
+
+/** The plan refusal as a typed lock, completed with the plan the caller already
+ *  holds from /api/access. Null when the error was not a plan refusal, so a
+ *  caller never turns a real failure into an upgrade sheet. */
+export function attachmentPlanLock(
+  error: { hint?: unknown; message?: unknown } | null | undefined,
+  currentPlan: TierPlan,
+): PlanLock | null {
+  return isPlanRefusal(error) ? planLockFromCode('attachments', PLAN_ATTACHMENTS, currentPlan) : null;
 }
 
 /** Why an upload did or did not become a row. `planRequired` is kept apart from

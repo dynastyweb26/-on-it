@@ -12,6 +12,8 @@ import type { createClient } from '@/lib/supabase/client';
 import type { EditorAttachment } from '@/components/AttachmentsEditor';
 import { prepareAttachment } from '@/lib/attachment';
 import { ATTACHMENT_BUCKET, MAX_ATTACHMENT_BYTES, MAX_CAPTION_CHARS } from './limits';
+import { planLockFromCode, type PlanLock } from '@/lib/plan-lock';
+import type { TierPlan } from '@/lib/entitlements';
 import { isDeliverableAttachment } from './deliverable';
 
 type Db = ReturnType<typeof createClient>;
@@ -252,6 +254,13 @@ export type EstimateMaterializeResult = {
 
 /** The estimate routes' plan refusal, from the JSON `error` they return. */
 const PLAN_REQUIRED = 'plan_required';
+
+/** The same refusal as a typed lock for the screen (the thrown error's code is
+ *  the only thing the upload path carries). Null when it was not a plan
+ *  refusal — a real upload failure keeps its own error. */
+export function estimateAttachmentPlanLock(e: unknown, currentPlan: TierPlan): PlanLock | null {
+  return planLockFromCode('attachments', e instanceof Error ? e.message : null, currentPlan);
+}
 
 /** Store a quote draft's pending attachments (a freshly-picked blob, or a
  *  seed-time copy of another document's object) through the VERIFIED estimate

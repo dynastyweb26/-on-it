@@ -5,8 +5,13 @@
 import { NextResponse } from 'next/server';
 import { failure, type FailureKind, type PlaidRoute } from './failure';
 
-export function fail(route: PlaidRoute, kind: FailureKind, detail?: string | null): NextResponse {
-  const f = failure(route, kind, detail);
+export function fail(
+  route: PlaidRoute,
+  kind: FailureKind,
+  detail?: string | null,
+  extra?: Record<string, string>,
+): NextResponse {
+  const f = failure(route, kind, detail, extra);
   // A string, so a stray object can never dump a request body or token. A
   // disabled route is the gate, not a fault: answer 404 without a log line.
   if (!f.silent) console.error(f.line);

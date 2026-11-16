@@ -117,11 +117,18 @@ export type Failure = {
   silent: boolean;
 };
 
-export function failure(route: PlaidRoute, kind: FailureKind, detail?: string | null): Failure {
+export function failure(
+  route: PlaidRoute,
+  kind: FailureKind,
+  detail?: string | null,
+  /** Extra public fields for a typed refusal (the one plan lock shape). Codes
+   *  only, never a token, and never a different `error`. */
+  extra?: Record<string, string>,
+): Failure {
   const spec = SPEC[kind];
   const suffix = DETAILED.has(kind) ? cleanDetail(detail) : '';
   const reason = suffix ? `${kind}:${suffix}` : kind;
-  const body: Record<string, string> = { error: spec.error };
+  const body: Record<string, string> = { ...(extra ?? {}), error: spec.error };
   if (kind === 'already_linked') body.message = DUPLICATE_LINK_MESSAGE;
   if (kind === 'unauthorized' && route === 'exchange') body.message = SIGN_IN_AGAIN_MESSAGE;
   return {
