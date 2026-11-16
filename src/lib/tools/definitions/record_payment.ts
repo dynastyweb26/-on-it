@@ -121,6 +121,18 @@ export function invoiceBalance(row: Pick<InvoiceLite, 'total' | 'amount_paid'>):
 
 const labelOf = (row: Pick<InvoiceLite, 'kind' | 'invoice_number'>): string => docLabelOf(row);
 
+/**
+ * The app's own meaning of open (clients_saved_list): a live invoice that was
+ * sent or is overdue and still owes something. A draft has not been sent, and a
+ * void one was cancelled — neither can take a payment.
+ */
+export const OPEN_STATUSES = ['sent', 'overdue'] as const;
+
+const isOpen = (row: InvoiceLite): boolean =>
+  row.kind === 'invoice'
+  && (OPEN_STATUSES as readonly string[]).includes(row.status)
+  && invoiceBalance(row) > 0;
+
 /** Every live document of the caller, oldest number first. */
 async function liveInvoices(ctx: { db: ToolContext['db']; userId: string }): Promise<InvoiceLite[]> {
   const { data, error } = await ctx.db.select<Record<string, unknown>>('invoices', {
@@ -185,7 +197,12 @@ export const recordPaymentTool = defineWriteTool({
       if (row.status === 'draft') {
         return { ok: false, problem: `${labelOf(row)} is still a draft, so there is nothing to collect on it yet.` };
       }
-      if (!(invoiceBalance(row) > 0)) {
+      if (row.status === 'void') {
+        return { ok: false, problem: `${labelOf(row)} was voided, so it cannot take a payment.` };
+      }
+      // Sent or overdue with a balance is open; anything else (paid, or a status
+      // the app does not collect on) has nothing to take.
+      if (!(OPEN_STATUSES as readonly string[]).includes(row.status) || !(invoiceBalance(row) > 0)) {
         return { ok: false, problem: `${labelOf(row)} is already paid.` };
       }
     } else {
@@ -199,10 +216,7 @@ export const recordPaymentTool = defineWriteTool({
       }
 
       const open = all.filter((candidate) =>
-        candidate.kind === 'invoice'
-        && normName(candidate.client_name) === normName(resolution.name)
-        && candidate.status !== 'draft'
-        && invoiceBalance(candidate) > 0);
+        isOpen(candidate) && normName(candidate.client_name) === normName(resolution.name));
       if (open.length === 0) return { ok: false, problem: `${resolution.name} has no open invoices.` };
       if (open.length > 1) {
         // The founder's decision: never pick by amount, even when only one
@@ -287,6 +301,12 @@ export const recordPaymentTool = defineWriteTool({
     if (fresh.deleted_at) return { ok: false, problem: 'That invoice was deleted since I looked.' };
     if (fresh.kind !== 'invoice') return { ok: false, problem: `${r.label} changed since I looked. Ask me again.` };
     if (fresh.status === 'draft') return { ok: false, problem: `${r.label} is a draft again. Ask me again.` };
+    if (fresh.status === 'void') {
+      return { ok: false, problem: `${r.label} was voided, so it cannot take a payment.` };
+    }
+    if (!(OPEN_STATUSES as readonly string[]).includes(fresh.status)) {
+      return { ok: false, problem: `${r.label} is already paid.` };
+    }
 
     const balance = invoiceBalance(fresh);
     if (paymentExceedsBalance(r.amount, balance)) {

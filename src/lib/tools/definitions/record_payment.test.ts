@@ -95,6 +95,57 @@ test('a future day is refused', async () => {
   assert.match(prepared.problem, /has not happened yet/);
 });
 
+test('a void invoice is refused by number', async () => {
+  const prepared = await prepare(account([invoice({ status: 'void' })]), { invoice_number: 12, full: true });
+
+  assert.equal(prepared.ok, false);
+  if (prepared.ok) return;
+  assert.equal(prepared.problem, 'INV-0012 was voided, so it cannot take a payment.');
+});
+
+test('a void invoice is not an open invoice for its client', async () => {
+  // Sent plus void: the void one is not counted and the sent one is the answer.
+  const prepared = await prepare(account([
+    invoice({ id: 'inv-void', invoice_number: 13, status: 'void' }),
+    invoice(),
+  ]), { client: 'Maria Santos', full: true });
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal((prepared.resolved as { invoiceId: string }).invoiceId, 'inv-12');
+
+  // Nothing but void: the client has no open invoice at all.
+  const none = await prepare(account([invoice({ status: 'void' })]), { client: 'Maria Santos', full: true });
+  assert.equal(none.ok, false);
+  if (none.ok) return;
+  assert.equal(none.problem, 'Maria Santos has no open invoices.');
+});
+
+test('an invoice voided between the card and the confirm is refused', async () => {
+  const wdb = fixtureWriteDb(account([invoice()]) as never, OWNER);
+  const prepared = await recordPaymentTool.prepare!(
+    { db: wdb, userId: OWNER },
+    RecordPaymentInput.parse({ invoice_number: 12, amount: 60 }),
+  );
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+
+  (wdb.rows.invoices[0] as Record<string, unknown>).status = 'void';
+
+  const outcome = await recordPaymentTool.execute!({ db: wdb, userId: OWNER }, prepared.resolved, 'act-3');
+  assert.equal(outcome.ok, false);
+  if (outcome.ok) return;
+  assert.equal(outcome.problem, 'INV-0012 was voided, so it cannot take a payment.');
+  assert.equal(wdb.rows.invoice_payments?.length, 0, 'a void invoice took a payment');
+});
+
+test('an invoice already paid is refused by number', async () => {
+  const prepared = await prepare(account([invoice({ status: 'paid', amount_paid: 200 })]), { invoice_number: 12, full: true });
+
+  assert.equal(prepared.ok, false);
+  if (prepared.ok) return;
+  assert.equal(prepared.problem, 'INV-0012 is already paid.');
+});
+
 test('the balance is total minus the ledger, floored at zero', () => {
   assert.equal(invoiceBalance({ total: 200, amount_paid: 0 }), 200);
   assert.equal(invoiceBalance({ total: '200.00', amount_paid: '50.50' }), 149.5);
