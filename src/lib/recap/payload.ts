@@ -232,6 +232,17 @@ export function playerFields(input: {
   };
 }
 
+/** The affirmation line the slide shows: the one fixed with the row, or — for a
+ *  row stored before that was kept — today's pick at the row's recap number. A
+ *  stored line never changes, so growing the list cannot rewrite a recap the
+ *  owner has already seen. */
+export function affirmationFor(
+  p: Pick<RecapPayload, 'affirmationMark' | 'recapIndex'>,
+  userId: string,
+): string {
+  return p.affirmationMark ?? pickAffirmationMark(userId, p.recapIndex ?? 0);
+}
+
 /** The largest day of a daily series (earliest on a tie), or null when every
  *  day is $0 — the same day peakIndex() puts the peak label over. */
 export function peakDayOf(daily: number[]): { amount: number; index: number } | null {

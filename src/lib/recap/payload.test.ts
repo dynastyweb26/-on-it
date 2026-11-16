@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
-  nextRecapIndex, peakDayOf, playerFields, redesignSequence, sentInvoiceStamps, slidesWithData,
+  affirmationFor, nextRecapIndex, peakDayOf, playerFields, redesignSequence, sentInvoiceStamps, slidesWithData,
   recapRunNumbers, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
   type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
@@ -536,6 +536,38 @@ test('player fields: the recap number, the stored affirmation line, which free r
   assert.equal(p.freeRecapNumber, 1);
   assert.equal(p.affirmationMark, pickAffirmationMark(OWNER, 4));
   assert.deepEqual(p.daily, fixturePayload('normalWeek').daily);
+});
+
+test('affirmationFor: the stored line wins over what the picker would say today', () => {
+  const today = pickAffirmationMark(OWNER, 3);
+  const stored = (CEO_AFFIRMATION_MARKS as readonly string[]).find((mark) => mark !== today)!;
+  assert.notEqual(stored, today);
+  const p = { ...fixturePayload('normalWeek'), recapIndex: 3, affirmationMark: stored };
+  assert.equal(affirmationFor(p, OWNER), stored);
+  // A different recap number, or a picker answer that moved, changes nothing.
+  assert.equal(affirmationFor({ ...p, recapIndex: 27 }, OWNER), stored);
+  assert.equal(affirmationFor({ ...p }, '22222222-2222-4222-8222-222222222222'), stored);
+});
+
+test('affirmationFor: an old payload falls back to the picker', () => {
+  const old = { ...fixturePayload('normalWeek'), recapIndex: 5, affirmationMark: undefined };
+  assert.equal(old.affirmationMark, undefined);
+  assert.equal(affirmationFor(old, OWNER), pickAffirmationMark(OWNER, 5));
+  // A row stored before recapIndex too: the first line of the owner's walk.
+  assert.equal(affirmationFor({ ...old, recapIndex: undefined }, OWNER), pickAffirmationMark(OWNER, 0));
+});
+
+test('a stored recap keeps its line whatever the list does later', () => {
+  // Three rows built the real way, each with its own number.
+  const rows = [0, 1, 2].map((i) => ({
+    ...fixturePayload('normalWeek'),
+    ...playerFields({ userId: OWNER, earlierRecaps: i }),
+  }));
+  // The no-repeat walk gives a different line at a later number, so these were
+  // built before that answer existed; they keep what they were built with.
+  const later = pickAffirmationMark(OWNER, 7);
+  assert.ok(!rows.some((row) => row.affirmationMark === later));
+  for (const row of rows) assert.equal(affirmationFor(row, OWNER), row.affirmationMark);
 });
 
 test('buildOwnerRecaps stores the affirmation line with the row', () => {
