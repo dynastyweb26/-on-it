@@ -71,6 +71,22 @@ test('money in: an old payload shows income.total as money in', () => {
   assert.ok(t.includes(money(p.income.total)));
 });
 
+test('money out: spend.total, the category rows and the top store are the payload\'s; zero spend shows the designed card', () => {
+  for (const id of IDS) {
+    const p = redesignPayload(id);
+    const t = text(html('out', p));
+    assert.ok(t.includes(money(p.spend.total)), `${id} spent`);
+    if (p.spend.total > 0) {
+      for (const c of p.spend.categories.slice(0, 3)) assert.ok(t.includes(money(c.amount)), `${id} ${c.key}`);
+      if (p.topVendor) assert.ok(t.includes(p.topVendor.name) && t.includes(money(p.topVendor.amount)), `${id} vendor`);
+      assert.ok(!t.includes('Nothing spent'), id);
+    } else {
+      assert.ok(t.includes('Nothing spent this week.'), id);
+      assert.ok(!t.includes('Most of it at'), id);
+    }
+  }
+});
+
 test('opener: an old payload falls back to income.total and drops what it never had', () => {
   const p = old(redesignPayload('normalWeek'));
   const t = text(html('opener', p));
