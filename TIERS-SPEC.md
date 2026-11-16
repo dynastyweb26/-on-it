@@ -47,6 +47,39 @@ Status: planned. Nothing here is live. Every gate below ships behind
   `limit` answer with used, limit and the reset time.
 - The per-minute rate limit stays as it is.
 
+## Changing plans (founder decisions, 2026-11-15)
+
+- Upgrade (Pro to Plus): starts now. The user pays only the difference for the
+  days left in the paid period. Plus features open as soon as the billing
+  webhook writes `profiles.plan`; the screen waits for that, never guesses.
+- Downgrade (Plus to Pro): takes effect at the end of the paid period. Until
+  then the user keeps Plus. Settings > Plan says "Plus until {date}, then Pro",
+  with an undo. No refunds.
+- After a downgrade, rule 4 applies: existing attachments, recurring expenses
+  and a connected bank keep working; adding new ones needs Plus.
+- Entry points for an upgrade: every lock sheet, the AI limit card, and
+  Settings > Plan.
+
+## Cancel flow with two plans
+
+The live flow (CANCEL-FLOW-SPEC.md) stays: stats panel, optional reason, one
+offer per user per 12 months, cancel button always visible.
+
+| Reason | On Pro | On Plus |
+|---|---|---|
+| Too expensive | 50% off the next 2 months | Pick one: switch to Pro, or 50% off the next 2 months |
+| Slow season / not using it | Pause 1, 2 or 3 months | Same |
+| Missing something I need | Capture the request. If Plus has it, show Plus | Capture the request |
+| Switching / done, Other | No offer | No offer |
+
+- Switching to Pro from the cancel screen is a downgrade (end of period) and
+  counts as the offer taken.
+- Native stores (to confirm at the wrap, phase 5): the store owns the cancel
+  and the billing. The reason screen and offers stay in the app; the discount
+  becomes a store promotional offer through RevenueCat; the final cancel
+  button opens the store's manage-subscription page. Pause may not exist on
+  every store; where it does not, that reason offers the Pro switch instead.
+
 ## Phases
 
 1. Entitlements core (Freebuff). Additive migration: `profiles.plan`
