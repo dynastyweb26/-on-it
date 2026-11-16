@@ -88,6 +88,7 @@ export type RecapPayload = {
   invoicesSent?: number;
   /** Estimates approved inside the period (local days). */
   estimatesApproved?: number;
+  /** Kept, on the Books basis: collected.total − spend.total. */
   net: number;
   change: { prevNet: number; pct: number; direction: 'up' | 'down' | 'flat' } | null;
   /** The previous period's totals as stored (null = unknown). `income` sets the
@@ -271,9 +272,10 @@ export function buildRecapPayload(input: RecapInput): BuiltRecapPayload {
 
   const incomeTotal = r2(income);
   const spendTotal = r2(spend.total);
-  const net = r2(incomeTotal - spendTotal);
   const otherTotal = r2(otherReceived);
   const collectedTotal = r2(incomeTotal + otherTotal);
+  // Kept follows Books: what was collected (invoices + other income) minus spent.
+  const net = r2(collectedTotal - spendTotal);
 
   // Invoices paid per client in the period (the top client's "N invoices").
   const paidByClient = new Map<string, number>();

@@ -5,7 +5,10 @@ import {
   RECAP_PAYLOAD_VERSION, TRIPS_MAX, type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
-import { FIXTURE_TZ, fixturePayload, getScenario, INVOICE_COUNTS, redesignPayload, SCENARIOS, type ScenarioId } from './fixtures';
+import {
+  FIXTURE_TZ, fixturePayload, getScenario, INVOICE_COUNTS, redesignPayload, scenarioInput,
+  SCENARIOS, slowWeek, type ScenarioId,
+} from './fixtures';
 import { addDays, periodsEndingBefore, previousPeriod, zonedMidnight } from './dates';
 import { monthColumns } from './columns';
 import { booksTotals } from '@/lib/books-totals';
@@ -363,6 +366,24 @@ test('redesign fixtures: normal, slow, zero spent, one invoice, forty invoices',
   assert.equal(forty.owed.count, 40);
   assert.equal(forty.owed.invoices.length, 3); // the list caps, the count doesn't
   assert.equal(forty.viewedUnpaid, 23);
+});
+
+// ── Kept follows Books ───────────────────────────────────────────────
+test('net follows Books: collected − spent, for the same rows', () => {
+  const slow = redesignPayload('slowWeek');
+  assert.equal(slow.collected.total, 325); // 240 invoices + 85 other income
+  assert.equal(slow.spend.total, 96);
+  assert.equal(slow.net, 229);
+
+  const input = scenarioInput(slowWeek);
+  const books = booksTotals({
+    payments: input.payments.map((p) => ({ amount: p.amount })),
+    otherIncome: (input.otherIncome ?? []).map((o) => ({ amount: o.amount, classification: o.classification, deleted_at: o.deleted_at })),
+    expenses: input.expenses,
+    invoices: [],
+  });
+  assert.equal(slow.net, books.net);
+  assert.equal(books.net, 229);
 });
 
 // ── Old stored recaps still open ─────────────────────────────────────
