@@ -121,3 +121,16 @@ test('entitlements: a fresh object each call (a caller cannot poison the table)'
   a.aiDailyLimit = 5;
   assert.deepEqual(entitlementsFor('active', 'plus'), EXPECTED.plus);
 });
+
+test('planLabel: the name beside the Settings title', async () => {
+  const { planLabel } = await import('./entitlements');
+  assert.equal(planLabel('free', null), 'Free');
+  assert.equal(planLabel(null, null), 'Free');
+  assert.equal(planLabel('canceled', 'plus'), 'Free'); // stored plan, no access
+  assert.equal(planLabel('trialing', null), 'Pro');
+  assert.equal(planLabel('active', 'pro'), 'Pro');
+  assert.equal(planLabel('past_due', 'plus'), 'Plus');
+  assert.equal(planLabel('active', 'plus'), 'Plus');
+  assert.equal(planLabel('founder', null), 'Founder');
+  assert.equal(planLabel('founder', 'pro'), 'Founder');
+});

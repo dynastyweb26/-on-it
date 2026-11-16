@@ -14,6 +14,7 @@ import { trialDates, trialEligible } from '@/lib/trial';
 import { getSummary, resume, type CancelSummary } from '@/lib/subscription-actions';
 import { fmtPlanDate, freePlanAfterLine, offerNotice, pausedLine, type FreeLimits } from '@/lib/subscription/copy';
 import { SettingsGroup, SettingsRow, SettingsTitle } from './SettingsRows';
+import { planLabel } from '@/lib/entitlements';
 import { PayoutsIndex, PayoutDetail, PAYOUTS_INDEX } from './PayoutsScreens';
 import BankAccountsScreen from '@/components/bank/BankAccountsScreen';
 import PayoutLumpNotice from '@/components/settings/PayoutLumpNotice';
@@ -722,7 +723,18 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
   // click.
   const listPane = (
     <>
-      {heading('main')}
+      {/* The title with the account's plan beside it (Free, Pro, Plus or
+          Founder), read from the profile so it renders with the title. */}
+      <div className="flex items-center gap-2.5">
+        {heading('main')}
+        <span
+          className="status-chip shrink-0 bg-primary-container/20 text-on-background"
+          aria-label={`Your plan: ${planLabel(p?.access_tier, p?.plan)}`}
+          data-plan-label
+        >
+          {planLabel(p?.access_tier, p?.plan)}
+        </span>
+      </div>
       {banners}
 
       {/* The grouped main screen (release frames 0c). Clients and Products &
