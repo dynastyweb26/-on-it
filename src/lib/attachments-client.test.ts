@@ -31,10 +31,11 @@ test('attachmentObjectPath: two calls never collide', () => {
 // ── Fake client: enough of the Supabase surface for the copy path. Records
 //    every storage call and every row write so a test can prove the SOURCE is
 //    never written to.
-function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: { failUpload?: boolean; failUploadAfter?: number; downloadMissing?: boolean } = {}) {
+function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: { failUpload?: boolean; failUploadAfter?: number; downloadMissing?: boolean; insertPlanRefusal?: boolean } = {}) {
   const store = new Map<string, AttachmentRow[]>([[sourceInvoiceId, sourceRows.map((r) => ({ ...r }))]]);
   const storage: string[] = [];
   const inserts: { invoice_id: string; storage_path: string; position: number }[] = [];
+  const rpcCalls: { fn: string; args: Record<string, unknown> }[] = [];
   let seq = 0;
   let uploads = 0;
 
@@ -48,10 +49,14 @@ function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: 
         return { data: (store.get(inv) ?? []).slice().sort((a, b) => a.position - b.position) };
       }
       if (op === 'insert') {
+        // Tiers: the row trigger refuses a new attachment for a non-Plus user.
+        if (opts.insertPlanRefusal) {
+          return { data: null, error: { hint: 'PLAN_ATTACHMENTS', message: 'Attachments need the Plus plan' } };
+        }
         const row: AttachmentRow = { id: `n${++seq}`, storage_path: payload.storage_path, position: payload.position };
         store.set(payload.invoice_id, [...(store.get(payload.invoice_id) ?? []), row]);
         inserts.push({ invoice_id: payload.invoice_id, storage_path: payload.storage_path, position: payload.position });
-        return { data: [row] };
+        return { data: [row], error: null };
       }
       store.set(filters.invoice_id as string, []);
       return { data: null };
@@ -62,7 +67,10 @@ function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: 
       order: () => q,
       insert: (row: any) => { op = 'insert'; payload = row; return q; },
       delete: () => { op = 'delete'; return q; },
-      single: () => Promise.resolve({ data: (apply().data as AttachmentRow[])[0] ?? null }),
+      single: () => {
+        const out = apply() as { data: AttachmentRow[] | null; error: unknown };
+        return Promise.resolve({ data: out.data?.[0] ?? null, error: out.error });
+      },
       then: (res: any, rej: any) => Promise.resolve(apply()).then(res, rej),
     };
     return table && q;
@@ -70,6 +78,10 @@ function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: 
 
   const db: any = {
     from: (t: string) => query(t),
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+      return { error: null };
+    },
     storage: { from: () => ({
       upload: async (path: string) => {
         storage.push(`upload:${path}`);
@@ -82,7 +94,7 @@ function fakeClient(sourceInvoiceId: string, sourceRows: AttachmentRow[], opts: 
       remove: async (paths: string[]) => { storage.push(`remove:${paths.join(',')}`); return { error: null }; },
     }) },
   };
-  return { db, store, storage, inserts, sourceInvoiceId };
+  return { db, store, storage, inserts, rpcCalls, sourceInvoiceId };
 }
 
 const SRC = 'src-invoice';
@@ -155,7 +167,7 @@ test('copyAttachments: duplicates onto the target, 0..n-1, source untouched', as
     { id: 'r2', storage_path: 'u/src/2.jpg', position: 1 },
   ]);
   const res = await copyAttachments(db, 'u', SRC, 'inv-2');
-  assert.deepEqual(res, { ok: true, copied: 2 });
+  assert.deepEqual(res, { ok: true, copied: 2, attachmentsSkipped: 0 });
   assert.deepEqual(inserts.map((i) => i.position), [0, 1]);
   assert.ok(inserts.every((i) => i.invoice_id === 'inv-2'));
   assert.deepEqual(store.get(SRC)!.map((r) => r.id), ['r1', 'r2'], 'source rows untouched');
@@ -177,7 +189,7 @@ test('copyAttachments: a mid-way failure rolls back the TARGET only', async () =
 test('copyAttachments: a source with no attachments is a no-op success', async () => {
   const { db, storage } = fakeClient(SRC, []);
   const res = await copyAttachments(db, 'u', SRC, 'inv-2');
-  assert.deepEqual(res, { ok: true, copied: 0 });
+  assert.deepEqual(res, { ok: true, copied: 0, attachmentsSkipped: 0 });
   assert.equal(storage.length, 0);
 });
 
@@ -236,16 +248,16 @@ test('renumberAttachments: one checksummed row throws BEFORE any delete', async 
   assert.deepEqual(calls, [], 'a verified delete followed by a refused insert would wipe the rows');
 });
 
-test('renumberAttachments: unverified rows still renumber 0..n-1 with NULL verification', async () => {
-  const inserted: any[] = [];
+test('renumberAttachments: a reorder is one RPC — no delete, no insert, no UPDATE', async () => {
+  const calls: string[] = [];
+  const rpc: { fn: string; args: any }[] = [];
   const db: any = {
     from: () => ({
-      delete: () => ({ eq: async () => ({ data: null }) }),
-      insert: (rows: any[]) => {
-        inserted.push(...rows);
-        return { select: () => Promise.resolve({ data: rows.map((r, i) => ({ id: `n${i}`, ...r })) }) };
-      },
+      delete: () => { calls.push('delete'); return { eq: async () => ({ data: null }) }; },
+      insert: () => { calls.push('insert'); return { select: () => Promise.resolve({ data: [] }) }; },
+      update: () => { calls.push('update'); return { eq: async () => ({ data: null }) }; },
     }),
+    rpc: async (fn: string, args: any) => { rpc.push({ fn, args }); return { error: null }; },
   };
 
   const out = await renumberAttachments(db, 'u', 'inv-1', [
@@ -253,8 +265,42 @@ test('renumberAttachments: unverified rows still renumber 0..n-1 with NULL verif
     { id: 'r1', storage_path: 'u/inv-1/one.jpg', position: 1 },
   ]);
 
-  assert.deepEqual(inserted.map((r) => r.position), [0, 1]);
-  assert.deepEqual(inserted.map((r) => r.storage_path), ['u/inv-1/one.jpg', 'u/inv-1/two.jpg']);
-  assert.ok(inserted.every((r) => r.mime_type === null && r.size_bytes === null && r.checksum === null));
+  assert.deepEqual(calls, [], 'a reorder never writes rows from the client');
+  assert.equal(rpc.length, 1);
+  assert.equal(rpc[0].fn, 'reorder_invoice_attachments');
+  assert.equal(rpc[0].args.p_invoice_id, 'inv-1');
+  // Array order is the new order: one.jpg was position 1, so it comes first.
+  assert.deepEqual(rpc[0].args.p_ids, ['r1', 'r2']);
+  assert.deepEqual(out.map((r) => r.id), ['r1', 'r2']);
   assert.deepEqual(out.map((r) => r.position), [0, 1]);
+});
+
+// ── Tiers: a plan refusal is a SKIP on the copy paths, never a failure ────
+test('materializeAttachments: a plan refusal skips the copies and saves the document', async () => {
+  const { db, storage, inserts } = fakeClient(SRC, [
+    { id: 'r1', storage_path: 'u/src/1.jpg', position: 0 },
+    { id: 'r2', storage_path: 'u/src/2.jpg', position: 1 },
+  ], { insertPlanRefusal: true });
+  const copies = await loadAttachmentCopies(db, SRC);
+  const res = await materializeAttachments(db, 'u', 'new-invoice', copies);
+
+  assert.equal(res.failedId, undefined, 'a plan refusal is not a failure: the send goes on');
+  assert.equal(res.attachmentsSkipped, 2);
+  assert.equal(res.saved.size, 0);
+  assert.equal(inserts.length, 0);
+  // Every object uploaded before the refusal is cleaned up again.
+  const uploads = storage.filter((s) => s.startsWith('upload:')).length;
+  const removals = storage.filter((s) => s.startsWith('remove:')).length;
+  assert.equal(removals, uploads, 'no orphan object is left behind');
+});
+
+test('copyAttachments: a non-Plus Revise succeeds with attachmentsSkipped', async () => {
+  const { db, store } = fakeClient(SRC, [
+    { id: 'r1', storage_path: 'u/src/1.jpg', position: 0 },
+    { id: 'r2', storage_path: 'u/src/2.jpg', position: 1 },
+  ], { insertPlanRefusal: true });
+  const res = await copyAttachments(db, 'u', SRC, 'inv-2');
+
+  assert.deepEqual(res, { ok: true, copied: 0, attachmentsSkipped: 2 });
+  assert.deepEqual(store.get(SRC)!.map((r) => r.id), ['r1', 'r2'], 'source rows untouched');
 });

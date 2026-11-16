@@ -18,6 +18,8 @@ import {
 import { isDuplicateLink, type LinkedBank } from '@/lib/plaid/link';
 import { PlaidApiError, plaidClientFromEnv, type PlaidAccount } from '@/lib/plaid/client';
 import { fail } from '@/lib/plaid/respond';
+import { newPlaidLinkAllowed } from '@/lib/plaid/plan-server';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 export const runtime = 'nodejs';
 
@@ -59,6 +61,13 @@ export async function POST(req: NextRequest) {
 
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return fail('exchange', 'invalid_request');
+
+  // Tiers: an exchange is always a NEW link (update mode never comes through
+  // here), so it is gated before the public token is exchanged — nothing is
+  // created at Plaid when the plan is refused.
+  if (!(await newPlaidLinkAllowed(supabase, user.id, NEXT_PUBLIC_TIERS))) {
+    return fail('exchange', 'plan_required');
+  }
 
   const admin = adminClient();
   let accessToken: string;

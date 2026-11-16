@@ -26,6 +26,8 @@ export type FailureKind =
   | 'link_token_failed'
   | 'exchange_failed'
   | 'already_linked'
+  // Tiers: a NEW bank link needs Plus (create-mode link token / exchange only).
+  | 'plan_required'
   | 'bad_state'
   | 'db_read_failed'
   | 'db_insert_failed'
@@ -64,6 +66,8 @@ const SPEC: Record<FailureKind, Spec> = {
   link_token_failed: { status: 502, error: 'link_token_failed' },
   exchange_failed: { status: 502, error: 'exchange_failed' },
   already_linked: { status: 409, error: 'already_linked' },
+  // 403: the caller is signed in but their plan does not include bank activity.
+  plan_required: { status: 403, error: 'plan_required' },
   bad_state: { status: 409, error: 'bad_state' },
   db_read_failed: { status: 500, error: 'exchange_failed' },
   db_insert_failed: { status: 500, error: 'exchange_failed' },

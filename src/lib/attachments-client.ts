@@ -59,24 +59,55 @@ export async function signedAttachmentUrl(supabase: Db, path: string): Promise<s
   return data?.signedUrl ?? null;
 }
 
+/** The row trigger's plan refusal (tiers): a NEW attachment needs Plus. */
+export const PLAN_ATTACHMENTS = 'PLAN_ATTACHMENTS';
+
+/** A plan refusal from enforce_plus_attachments(), read off PostgREST's hint.
+ *  Not a failure: a copy path skips the file and the document still saves. */
+export function isPlanRefusal(
+  error: { hint?: unknown; message?: unknown } | null | undefined,
+): boolean {
+  const hint = typeof error?.hint === 'string' ? error.hint : '';
+  const message = typeof error?.message === 'string' ? error.message : '';
+  return hint === PLAN_ATTACHMENTS || message.includes(PLAN_ATTACHMENTS);
+}
+
+/** Why an upload did or did not become a row. `planRequired` is kept apart from
+ *  `failed` so the caller can save the document without that file instead of
+ *  aborting it. */
+export type UploadOutcome =
+  | { row: AttachmentRow }
+  | { planRequired: true }
+  | { failed: true };
+
 /** Upload one compressed JPEG and record its row at `position`. Rolls the object
- *  back if the row insert fails, so a half-written attachment never lingers. */
-export async function uploadAttachment(
+ *  back if the row insert is refused, so a half-written attachment never
+ *  lingers — including when the refusal is the plan gate. */
+export async function uploadAttachmentOutcome(
   supabase: Db, userId: string, invoiceId: string, position: number, blob: Blob,
-): Promise<AttachmentRow | null> {
+): Promise<UploadOutcome> {
   const path = attachmentObjectPath(userId, invoiceId);
   const up = await supabase.storage.from(ATTACHMENT_BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
-  if (up.error) return null;
-  const { data } = await supabase
+  if (up.error) return { failed: true };
+  const { data, error } = await supabase
     .from('invoice_attachments')
     .insert({ user_id: userId, invoice_id: invoiceId, storage_path: path, position })
     .select('id, storage_path, position')
     .single();
   if (!data) {
     await supabase.storage.from(ATTACHMENT_BUCKET).remove([path]);
-    return null;
+    return isPlanRefusal(error) ? { planRequired: true } : { failed: true };
   }
-  return data as AttachmentRow;
+  return { row: data as AttachmentRow };
+}
+
+/** Upload one compressed JPEG and record its row; null when it could not be
+ *  saved for any reason (see uploadAttachmentOutcome for the reason). */
+export async function uploadAttachment(
+  supabase: Db, userId: string, invoiceId: string, position: number, blob: Blob,
+): Promise<AttachmentRow | null> {
+  const outcome = await uploadAttachmentOutcome(supabase, userId, invoiceId, position, blob);
+  return 'row' in outcome ? outcome.row : null;
 }
 
 /** Delete one attachment's row and stored object. */
@@ -86,33 +117,32 @@ export async function deleteAttachment(supabase: Db, row: AttachmentRow): Promis
 }
 
 /**
- * Renumber `rows` to 0..n-1 in their current order. Because
- * unique(invoice_id, position) is checked per statement, a run of sequential
- * position UPDATEs would collide transiently — so this deletes the invoice's
- * rows and re-inserts the survivors (a single set-based rewrite). Object paths
- * are preserved, so the files are untouched. Returns the new rows.
+ * Renumber `rows` to 0..n-1 in their current order.
+ *
+ * A reorder is an UPDATE of positions, never a row rewrite: authenticated holds
+ * no UPDATE on invoice_attachments, so the one way is the SECURITY DEFINER
+ * reorder_invoice_attachments() (20261116120100). It checks the invoice is the
+ * caller's, sets every position in one statement (the unique constraint is
+ * deferred so trading places can't collide), and respects the 0..9 slots and
+ * the signed/converted-estimate lock. Nothing is deleted or inserted — which is
+ * what lets a lapsed user reorder attachments they already have. Returns the
+ * rows in their new order.
  */
 export async function renumberAttachments(
   supabase: Db, userId: string, invoiceId: string, rows: readonly AttachmentRow[],
 ): Promise<AttachmentRow[]> {
   const ordered = [...rows].sort((a, b) => a.position - b.position);
-  // Server-verified rows (estimate attachments) carry mime_type/size_bytes/
-  // checksum, which only the service-role confirm path may write. This helper
-  // deletes before it re-inserts, so a refused re-insert would leave the
-  // document with no attachments at all — refuse the whole reorder up front.
+  // Server-verified rows (estimate attachments) keep their server-owned
+  // columns; this helper only ever moves positions now, but the estimate path
+  // still owns its order through the routes, so the guard stays.
   if (ordered.some((r) => r.checksum)) throw new Error(ATTACHMENT_RENUMBER_VERIFIED);
   if (ordered.every((r, i) => r.position === i)) return ordered;
-  await supabase.from('invoice_attachments').delete().eq('invoice_id', invoiceId);
-  const { data } = await supabase
-    .from('invoice_attachments')
-    .insert(ordered.map((r, position) => ({
-      user_id: userId, invoice_id: invoiceId, storage_path: r.storage_path, position,
-      mime_type: r.mime_type ?? null,
-      size_bytes: r.size_bytes ?? null,
-      checksum: r.checksum ?? null,
-    })))
-    .select('id, storage_path, position, mime_type, size_bytes, checksum');
-  return ((data ?? []) as AttachmentRow[]).sort((a, b) => a.position - b.position);
+  const { error } = await supabase.rpc('reorder_invoice_attachments', {
+    p_invoice_id: invoiceId,
+    p_ids: ordered.map((r) => r.id),
+  });
+  if (error) throw error;
+  return ordered.map((r, position) => ({ ...r, position }));
 }
 
 /** Thrown when an attachment's bytes can't be read while a PDF is being built.
@@ -182,6 +212,9 @@ export interface MaterializeResult {
   saved: Map<string, { storagePath: string; rowId: string }>;
   /** The id of the first entry that could NOT be materialized (send aborts). */
   failedId?: string;
+  /** Copies the plan gate refused (non-Plus, tiers on). The document is saved
+   *  without them and keeps going; this is never a failure. */
+  attachmentsSkipped: number;
 }
 
 /** Duplicate every pending entry — a freshly-picked blob or a seed-time copy —
@@ -194,7 +227,7 @@ export async function materializeAttachments(
 ): Promise<MaterializeResult> {
   const saved = new Map<string, { storagePath: string; rowId: string }>();
   const pending = items.filter((a) => !a.storagePath && (a.blob || a.copyFromPath));
-  if (!pending.length) return { items: [...items], saved };
+  if (!pending.length) return { items: [...items], saved, attachmentsSkipped: 0 };
 
   const existing = await listAttachmentRows(supabase, invoiceId);
   let position = nextAttachmentPosition(existing);
@@ -203,12 +236,24 @@ export async function materializeAttachments(
   // the failed entry and everything after it stay pending.
   const partial = () => items.map((a) => done.get(a.id) ?? a);
 
-  for (const a of pending) {
-    if (position >= ATTACHMENT_MAX) return { items: partial(), saved, failedId: a.id };
+  for (let i = 0; i < pending.length; i++) {
+    const a = pending[i];
+    if (position >= ATTACHMENT_MAX) {
+      return { items: partial(), saved, failedId: a.id, attachmentsSkipped: 0 };
+    }
     const blob = a.blob ?? await downloadAttachmentBlob(supabase, a.copyFromPath);
-    if (!blob) return { items: partial(), saved, failedId: a.id };
-    const row = await uploadAttachment(supabase, userId, invoiceId, position, blob);
-    if (!row) return { items: partial(), saved, failedId: a.id };
+    if (!blob) return { items: partial(), saved, failedId: a.id, attachmentsSkipped: 0 };
+    const outcome = await uploadAttachmentOutcome(supabase, userId, invoiceId, position, blob);
+    if ('planRequired' in outcome) {
+      // The plan refuses this one and every one after it: save the document
+      // without them rather than failing the send. The object this attempt
+      // uploaded has already been removed.
+      return { items: partial(), saved, attachmentsSkipped: pending.length - i };
+    }
+    if ('failed' in outcome) {
+      return { items: partial(), saved, failedId: a.id, attachmentsSkipped: 0 };
+    }
+    const row = outcome.row;
     saved.set(a.id, { storagePath: row.storage_path, rowId: row.id });
     // Repoint the thumbnail at the NEW object (the source URL is short-lived).
     const url = await signedAttachmentUrl(supabase, row.storage_path);
@@ -219,7 +264,7 @@ export async function materializeAttachments(
     position++;
   }
 
-  return { items: partial(), saved };
+  return { items: partial(), saved, attachmentsSkipped: 0 };
 }
 
 /** Remove every attachment row + object of ONE invoice. Used to roll back a
@@ -235,6 +280,8 @@ export async function deleteInvoiceAttachments(supabase: Db, invoiceId: string):
 export interface CopyResult {
   ok: boolean;
   copied: number;
+  /** Files the plan gate refused: the target is created without them. */
+  attachmentsSkipped: number;
 }
 
 /** Copy a document's attachments onto ANOTHER, already-created document (D4:
@@ -246,13 +293,14 @@ export async function copyAttachments(
   supabase: Db, userId: string, fromInvoiceId: string, toInvoiceId: string,
 ): Promise<CopyResult> {
   const copies = await loadAttachmentCopies(supabase, fromInvoiceId);
-  if (!copies.length) return { ok: true, copied: 0 };
+  if (!copies.length) return { ok: true, copied: 0, attachmentsSkipped: 0 };
   const res = await materializeAttachments(supabase, userId, toInvoiceId, copies);
   if (res.failedId) {
     try { await deleteInvoiceAttachments(supabase, toInvoiceId); } catch { /* best effort */ }
-    return { ok: false, copied: 0 };
+    return { ok: false, copied: 0, attachmentsSkipped: 0 };
   }
-  return { ok: true, copied: res.saved.size };
+  // A plan refusal is not a failure: the document exists, without those files.
+  return { ok: true, copied: res.saved.size, attachmentsSkipped: res.attachmentsSkipped };
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

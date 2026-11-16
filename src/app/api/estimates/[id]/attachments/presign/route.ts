@@ -9,6 +9,8 @@ import { validateDeclaredAttachment } from '@/lib/estimates/file-type';
 import { PresignBodySchema } from '@/lib/estimates/schemas';
 import { isLocked, isUuid, loadOwnedQuote } from '@/lib/estimates/owner';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
+import { currentPlanIsPlus } from '@/lib/plan-gate-server';
 
 export const runtime = 'nodejs';
 
@@ -30,6 +32,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const declared = validateDeclaredAttachment(body.data.mime_type, body.data.size_bytes);
   if (!declared.ok) {
     return refuse(declared.code === 'too_large' ? 413 : 400, declared.code);
+  }
+
+  // Tiers: a NEW upload needs Plus. This route only ever mints a new object, so
+  // it is the estimate path's new-file boundary (confirm and
+  // add_estimate_attachment check again). Existing files still load, reorder,
+  // delete and print.
+  if (NEXT_PUBLIC_TIERS && !(await currentPlanIsPlus(supabase, user.id))) {
+    return refuse(403, 'plan_required');
   }
 
   try {

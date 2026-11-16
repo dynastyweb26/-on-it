@@ -244,7 +244,14 @@ export type EstimateMaterializeResult = {
   saved: Map<string, { storagePath: string; rowId: string }>;
   /** The id of the first entry that could NOT be saved (the send aborts). */
   failedId?: string;
+  /** Uploads the plan gate refused (non-Plus, tiers on: presign and
+   *  add_estimate_attachment answer plan_required). The estimate is still
+   *  created, without them. */
+  attachmentsSkipped: number;
 };
+
+/** The estimate routes' plan refusal, from the JSON `error` they return. */
+const PLAN_REQUIRED = 'plan_required';
 
 /** Store a quote draft's pending attachments (a freshly-picked blob, or a
  *  seed-time copy of another document's object) through the VERIFIED estimate
@@ -262,24 +269,31 @@ export async function materializeEstimateAttachments(
 ): Promise<EstimateMaterializeResult> {
   const saved = new Map<string, { storagePath: string; rowId: string }>();
   const pending = items.filter((a) => !a.storagePath && (a.blob || a.copyFromPath));
-  if (!pending.length) return { items: [...items], saved };
+  if (!pending.length) return { items: [...items], saved, attachmentsSkipped: 0 };
 
   const done = new Map<string, EditorAttachment>();
   const partial = () => items.map((a) => done.get(a.id) ?? a);
 
-  for (const a of pending) {
+  for (let i = 0; i < pending.length; i++) {
+    const a = pending[i];
     let blob: Blob | null = a.blob ?? null;
     if (!blob && a.copyFromPath) {
       const { data } = await supabase.storage.from(ATTACHMENT_BUCKET).download(a.copyFromPath);
       blob = data ?? null;
     }
-    if (!blob) return { items: partial(), saved, failedId: a.id };
+    if (!blob) return { items: partial(), saved, failedId: a.id, attachmentsSkipped: 0 };
 
     let uploaded: Awaited<ReturnType<typeof uploadEstimateBlob>>;
     try {
       uploaded = await uploadEstimateBlob({ estimateId, blob, mimeType: blobMime(blob) });
-    } catch {
-      return { items: partial(), saved, failedId: a.id };
+    } catch (e) {
+      // The plan refuses this file and every one after it. The estimate is
+      // still created without them: skip, never abort (presign refused before
+      // anything was stored, and a refused confirm cleans its own object up).
+      if (e instanceof Error && e.message === PLAN_REQUIRED) {
+        return { items: partial(), saved, attachmentsSkipped: pending.length - i };
+      }
+      return { items: partial(), saved, failedId: a.id, attachmentsSkipped: 0 };
     }
 
     saved.set(a.id, { storagePath: uploaded.path, rowId: uploaded.id });
@@ -292,7 +306,7 @@ export async function materializeEstimateAttachments(
     });
   }
 
-  return { items: partial(), saved };
+  return { items: partial(), saved, attachmentsSkipped: 0 };
 }
 
 /** The signed upload endpoint takes the same multipart shape storage-js sends,

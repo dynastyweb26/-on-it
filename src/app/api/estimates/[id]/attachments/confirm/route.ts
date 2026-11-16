@@ -110,6 +110,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         case 'total_too_large':
         case 'duplicate':
           return refuse(409, result.code);
+        case 'plan_required':
+          // Tiers: the commit is refused because a NEW attachment needs Plus.
+          // The object was removed above, so nothing is left behind.
+          return refuse(403, 'plan_required');
         case 'unavailable':
           return refuse(404, 'not_found');
         default:

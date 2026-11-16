@@ -29,7 +29,8 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { MODEL } from '@/lib/ai';
-import { AI_TOOLS, aiToolsForEnv } from '@/lib/feature-flags';
+import { AI_TOOLS, NEXT_PUBLIC_TIERS, aiToolsForEnv } from '@/lib/feature-flags';
+import { aiLimitForUserId } from '@/lib/ai-limit-usage';
 import { createTurnBudget } from '@/lib/tools/budget';
 import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
 import { supabaseToolDb } from '@/lib/tools/db';
@@ -52,7 +53,7 @@ import {
 } from '@/lib/tools/history';
 import { isAffirmationOnly, TAP_CONFIRM_REPLY } from '@/lib/tools/affirm';
 import { REGISTRY } from '@/lib/tools/registry';
-import { askResponseBody } from '@/lib/ask-response';
+import { askLimitBody, askResponseBody } from '@/lib/ask-response';
 import { runToolTurn, type TurnResult } from '@/lib/tools/turn';
 import type { UnpaidSummary } from '@/lib/tools/unpaid';
 
@@ -111,6 +112,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: 'Say that again?' }, { status: 400, ...NO_STORE });
   }
   const question = parsed.data.question;
+
+  // Tiers: the daily AI limit, checked before the affirmation shortcut and
+  // before any model call. Flag off → no profile read and no count query, so
+  // this route is exactly today's. A count that fails returns null and the
+  // question is answered (fail-open: a meter never blocks the assistant).
+  if (NEXT_PUBLIC_TIERS) {
+    const limit = await aiLimitForUserId(supabase, user.id);
+    if (limit && !limit.allowed) {
+      // No model call, no chat_messages row: only the typed answer.
+      return NextResponse.json(
+        askLimitBody({ used: limit.used, limit: limit.limit, resetsAt: limit.resetsAt }),
+        NO_STORE,
+      );
+    }
+  }
 
   // The shared budget for this user turn; without the header it is per request.
   const budget = createTurnBudget({ userId: user.id, turnId: req.headers.get('x-turn-id') });
