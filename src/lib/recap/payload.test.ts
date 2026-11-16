@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildRecapPayload, changeVs, recapAnnounces, recapFlags, recapSequence,
-  TRIPS_MAX, type RecapInput, type RecapSlide,
+  buildRecapPayload, changeVs, recapAnnounces, recapFlags, recapSequence, slidesWithData,
+  RECAP_PAYLOAD_VERSION, TRIPS_MAX, type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
+import { playable } from './rows';
 import { FIXTURE_TZ, fixturePayload, getScenario, INVOICE_COUNTS, SCENARIOS, type ScenarioId } from './fixtures';
 import { addDays, periodsEndingBefore, previousPeriod, zonedMidnight } from './dates';
 import { monthColumns } from './columns';
@@ -334,6 +335,40 @@ test('periods: Monday → previous week; the 1st → previous month; previousPer
   assert.deepEqual(previousPeriod({ kind: 'week', start: '2026-09-21', end: '2026-09-27' }), { kind: 'week', start: '2026-09-14', end: '2026-09-20' });
   assert.deepEqual(previousPeriod({ kind: 'month', start: '2026-03-01', end: '2026-03-31' }), { kind: 'month', start: '2026-02-01', end: '2026-02-28' });
   assert.deepEqual(previousPeriod({ kind: 'month', start: '2026-01-01', end: '2026-01-31' }), { kind: 'month', start: '2025-12-01', end: '2025-12-31' });
+});
+
+// ── Old stored recaps still open ─────────────────────────────────────
+test('a payload stored before the redesign still reads, and its empty slides are skipped', () => {
+  // Exactly what a v1 payload looked like before the redesign fields existed.
+  const old: RecapPayload = {
+    v: RECAP_PAYLOAD_VERSION, kind: 'week', start: '2026-09-21', end: '2026-09-27',
+    income: { total: 500, payments: 1, clients: 1 },
+    spend: { total: 100, count: 1, categories: [{ key: 'fuel', amount: 100 }], receipts: [] },
+    net: 400, change: null, previous: null, daily: [0, 0, 500, 0, 0, 0, 0],
+    topClient: { name: 'Ana Cruz', amount: 500 },
+    topVendor: null, paymentMethods: [{ method: 'zelle', amount: 500 }],
+    owed: { total: 0, count: 0, invoices: [] }, viewedUnpaid: 0, quotesPending: 0,
+    paid: { total: 500, count: 1, invoices: [{ client: 'Ana Cruz', amount: 500, status: 'paid', date: '2026-09-23' }] },
+  };
+  // The story opens on the version gate, never throws on a missing field…
+  assert.ok(playable({
+    id: 'r1', kind: 'week', period_start: old.start, period_end: old.end,
+    income: 500, expenses: 100, net: 400, seen_at: null, prompted_at: null, created_at: '',
+    payload: old, payload_version: RECAP_PAYLOAD_VERSION,
+  }));
+  // …and only the slides its data can fill are listed.
+  assert.deepEqual(slidesWithData(old), ['topClient']);
+  assert.equal(old.collected, undefined);
+  assert.equal(old.invoicesSent, undefined);
+  assert.equal(old.estimatesApproved, undefined);
+});
+
+test('redesign slides are listed only when they have data', () => {
+  assert.deepEqual(slidesWithData(fixturePayload('normalWeek')), ['collectedSplit', 'topClient']);
+  assert.deepEqual(slidesWithData(fixturePayload('quietWeek')), []); // $0 in, nothing to split or name
+  assert.deepEqual(slidesWithData(fixturePayload('nothing')), []);
+  const sent = buildRecapPayload(base({ sentInvoices: ['2026-09-22T15:00:00Z'], estimatesApproved: ['2026-09-23T15:00:00Z'] }));
+  assert.deepEqual(slidesWithData(sent), ['invoicesSent', 'estimatesApproved']);
 });
 
 test('bank transfer payments keep their own method (not folded into other)', () => {

@@ -6,7 +6,7 @@
 // (e.g. the monthly top client isn't one of the generated payments), so the
 // tests assert only the fields each scenario's rows actually determine.
 import { addDays, zonedMidnight, type RecapPeriod } from './dates';
-import { buildRecapPayload, type RecapInput, type RecapPayload } from './payload';
+import { buildRecapPayload, type BuiltRecapPayload, type RecapInput, type RecapPayload } from './payload';
 
 type Inv = { id: string; client: string; amount: number; status: 'viewed' | 'sent' | 'paid'; date: string };
 export type Scenario = {
@@ -275,8 +275,8 @@ export function scenarioInput(s: Scenario): RecapInput {
   };
 }
 
-export const fixturePayload = (id: ScenarioId, invoiceCount?: number): RecapPayload =>
+export const fixturePayload = (id: ScenarioId, invoiceCount?: number): BuiltRecapPayload =>
   buildRecapPayload(scenarioInput(getScenario(id, invoiceCount)));
 
 /** Any scenario object (e.g. onePaymentWeek) through the real payload builder. */
-export const scenarioPayload = (s: Scenario): RecapPayload => buildRecapPayload(scenarioInput(s));
+export const scenarioPayload = (s: Scenario): BuiltRecapPayload => buildRecapPayload(scenarioInput(s));

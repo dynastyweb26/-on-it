@@ -73,26 +73,21 @@ export type RecapPayload = {
   end: string;
   income: { total: number; payments: number; clients: number };
   /** The Books "Collected" number, composed here so the story and the Books
-   *  tab cannot disagree: invoice payments + the other_income rows Books counts. */
-  collected: {
-    total: number;      // collected_total
-    invoices: number;   // invoices_paid_total
-    other: number;      // other_received_total
-    payments: number;   // money-in rows: payments + counted other income
-    clients: number;
-  };
+   *  tab cannot disagree: invoice payments + the other_income rows Books counts.
+   *  Optional on read: payloads stored before the redesign do not have it. */
+  collected?: RecapCollected;
   spend: {
     total: number;
     count: number;
     categories: { key: string; amount: number }[];                        // ≤ 4 + "other", desc ("other" last)
     receipts: { vendor: string | null; amount: number; category: string }[]; // ≤ 3 largest
     /** Categories folded past the four named ones ("+2 more"). */
-    moreCategories: number;
+    moreCategories?: number;
   };
   /** Invoices first sent inside the period (local days). */
-  invoicesSent: number;
+  invoicesSent?: number;
   /** Estimates approved inside the period (local days). */
-  estimatesApproved: number;
+  estimatesApproved?: number;
   net: number;
   change: { prevNet: number; pct: number; direction: 'up' | 'down' | 'flat' } | null;
   /** The previous period's totals as stored (null = unknown). `income` sets the
@@ -103,13 +98,32 @@ export type RecapPayload = {
   daily: number[];               // income per local day: 7 (week) or 28–31 (month)
   /** By money collected in the period (invoice payments + other income with a
    *  client name); ties broken by name. pct is of collected.total. */
-  topClient: { name: string; amount: number; pct: number; invoiceCount: number } | null;
+  topClient: { name: string; amount: number; pct?: number; invoiceCount?: number } | null;
   topVendor: { name: string; amount: number; category: string; tripCount: number; trips: number[] } | null;
   paymentMethods: { method: PaymentMethodKey; amount: number }[]; // desc, > 0 only
   owed: { total: number; count: number; invoices: RecapInvoiceItem[] };  // ≤ 3 largest
   viewedUnpaid: number;
   quotesPending: number;
   paid: { total: number; count: number; invoices: RecapInvoiceItem[] };  // ≤ 3 largest
+};
+
+export type RecapCollected = {
+  total: number;      // collected_total
+  invoices: number;   // invoices_paid_total
+  other: number;      // other_received_total
+  payments: number;   // money-in rows: payments + counted other income
+  clients: number;
+};
+
+/** What buildRecapPayload always writes. Stored payloads from before the
+ *  redesign read as RecapPayload, where these fields stay optional — so an old
+ *  recap opens, and the player skips what it cannot fill. */
+export type BuiltRecapPayload = RecapPayload & {
+  collected: RecapCollected;
+  invoicesSent: number;
+  estimatesApproved: number;
+  spend: RecapPayload['spend'] & { moreCategories: number };
+  topClient: { name: string; amount: number; pct: number; invoiceCount: number } | null;
 };
 
 const num = (v: Num | null | undefined) => Number(v) || 0;
@@ -134,7 +148,7 @@ const countTimestamps = (at: (string | null)[], tz: string, inRange: (day: strin
   return n;
 };
 
-export function buildRecapPayload(input: RecapInput): RecapPayload {
+export function buildRecapPayload(input: RecapInput): BuiltRecapPayload {
   const { period, tz } = input;
   const days = daysBetween(period.start, period.end) + 1;
   const inRange = (day: string) => day >= period.start && day <= period.end;
@@ -267,7 +281,7 @@ export function buildRecapPayload(input: RecapInput): RecapPayload {
     const k = item.client.toLowerCase();
     paidByClient.set(k, (paidByClient.get(k) ?? 0) + 1);
   }
-  const topClient: RecapPayload['topClient'] = topClientName ? {
+  const topClient: BuiltRecapPayload['topClient'] = topClientName ? {
     name: topClientName.name,
     amount: r2(topClientName.amount),
     pct: collectedTotal > 0 ? Math.round((topClientName.amount / collectedTotal) * 100) : 0,
@@ -353,6 +367,21 @@ export function recapSequence(p: RecapPayload): RecapSlide[] {
   if (p.kind === 'month' && p.income.total > 0) s.push('glance');
   s.push(f.caughtUp ? 'caughtUp' : 'owed');
   return s;
+}
+
+/** The redesign's slides that have data in this payload. A payload stored
+ *  before a field existed lists fewer, so the player skips those slides instead
+ *  of drawing one empty. Money slides need money; a named top client needs one. */
+export type RecapDataSlide = 'collectedSplit' | 'invoicesSent' | 'estimatesApproved' | 'topClient';
+
+export function slidesWithData(p: RecapPayload): RecapDataSlide[] {
+  const out: RecapDataSlide[] = [];
+  const c = p.collected;
+  if (c && r2(c.invoices) + r2(c.other) > 0) out.push('collectedSplit');
+  if ((p.invoicesSent ?? 0) > 0) out.push('invoicesSent');
+  if ((p.estimatesApproved ?? 0) > 0) out.push('estimatesApproved');
+  if (p.topClient && p.topClient.amount > 0) out.push('topClient');
+  return out;
 }
 
 /** Whether this recap earns a push and the in-app "Your week is ready" prompt. */
