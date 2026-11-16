@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 28, 2026**
+**Last updated: November 15, 2026**
 
 On It is an invoicing and bookkeeping app for tradespeople and home service businesses, operated by Brandon Fotsing Talla, doing business as Dynasty Web ("we," "us," "our"). This policy explains what information we collect, why we collect it, who we share it with, how long we keep it, and the choices you have.
 
@@ -157,6 +157,14 @@ On It uses artificial intelligence to understand what you type, say, paste, or p
 - AI does not decide whether an expense is tax deductible.
 - AI does not read the images you attach to an invoice or estimate. They are only printed on your PDF.
 
+### What we keep from the chat
+
+When you ask On It a question or ask it to change something, we save your message, On It's reply (shortened), which actions it ran, and how much AI processing it used, together with your account. If you rate a reply, we save your rating, the reasons you picked, and any note. If On It could not do what you asked, we save the request so we know what to build next. Only you and we can read these records. We use them to review answers, fix mistakes, and improve On It, never to train AI models. They are kept while your account is open and deleted with it. Email us if you want them deleted sooner.
+
+### Changes On It makes for you
+
+On It can add a client, save an item, edit or delete an expense or draft, change an invoice's details, and record a payment. **Nothing is saved until you tap Confirm** on the card On It shows you.
+
 ### AI makes mistakes
 
 AI can mishear an amount, misread a receipt, put a description next to the wrong price, or get a name wrong. **Always review an invoice or expense before you save or send it.** You are responsible for what your invoices say.
@@ -272,7 +280,7 @@ We keep your account and records for as long as your account is open.
 
 **Deleting your account.** You can delete your account yourself: **Settings, then Delete account.** It takes effect immediately and cancels any active subscription. If you cannot get into the app, email brandon@dynastyweb.co and we will do it for you within 30 days.
 
-When your account is deleted, we remove your profile, customers, invoices, estimates, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, feedback you sent, uploaded files, receipts, invoice attachment images, logo, and stored payment details including your Zelle handle and bank details.
+When your account is deleted, we remove your profile, customers, invoices, estimates, expenses, saved items, recurring expenses, recaps, payment records, push subscriptions, feedback you sent, chat history and ratings, uploaded files, receipts, invoice attachment images, logo, and stored payment details including your Zelle handle and bank details.
 
 Some information is kept after deletion:
 
