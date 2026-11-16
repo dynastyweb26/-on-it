@@ -17,6 +17,7 @@ import { PlaidApiError, plaidClientFromEnv } from '@/lib/plaid/client';
 import { plaidAccessToken } from '@/lib/plaid/items';
 import { fail } from '@/lib/plaid/respond';
 import { newPlaidLinkAllowed } from '@/lib/plaid/plan-server';
+import { planLockBody } from '@/lib/plan-lock';
 import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 export const runtime = 'nodejs';
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
   // is never gated — a bank already connected keeps working after a lapse, and
   // it is checked before any Plaid call or token decryption.
   if (!parsed.data.item_id && !(await newPlaidLinkAllowed(supabase, user.id, NEXT_PUBLIC_TIERS))) {
-    return fail('link-token', 'plan_required');
+    // The one typed lock shape: { error, feature, planRequired }.
+    return fail('link-token', 'plan_required', null, planLockBody('bank'));
   }
 
   let accessToken: string | undefined;

@@ -14,6 +14,10 @@
 
 export type TierPlan = 'free' | 'pro' | 'plus';
 
+/** The plan names the user reads, kept here with the limits so a rename is one
+ *  edit. lib/plan-catalog.ts re-exports them as the catalog's display names. */
+export const PLAN_NAMES = { free: 'Free', pro: 'Pro', plus: 'Plus' } as const satisfies Record<TierPlan, string>;
+
 export interface Entitlements {
   plan: TierPlan;
   aiDailyLimit: 5 | 30 | 100;
@@ -94,6 +98,5 @@ export function isPlusPlan(
 export type PlanLabel = 'Free' | 'Pro' | 'Plus' | 'Founder';
 export function planLabel(tier: string | null | undefined, plan: string | null | undefined): PlanLabel {
   if (tier === 'founder') return 'Founder';
-  const name = entitlementsFor(tier, plan).plan;
-  return name === 'plus' ? 'Plus' : name === 'pro' ? 'Pro' : 'Free';
+  return PLAN_NAMES[entitlementsFor(tier, plan).plan];
 }

@@ -30,7 +30,8 @@ import { createClient } from '@/lib/supabase/server';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { MODEL } from '@/lib/ai';
 import { AI_TOOLS, NEXT_PUBLIC_TIERS, aiToolsForEnv } from '@/lib/feature-flags';
-import { aiLimitForUserId } from '@/lib/ai-limit-usage';
+import { aiLimitForUserId, type AiLimitUsage } from '@/lib/ai-limit-usage';
+import { aiMeterAfterTurn } from '@/lib/ai-limit';
 import { createTurnBudget } from '@/lib/tools/budget';
 import { UNPAID_TOOL_NAME } from '@/lib/tools/definitions/unpaid';
 import { supabaseToolDb } from '@/lib/tools/db';
@@ -117,12 +118,15 @@ export async function POST(req: NextRequest) {
   // before any model call. Flag off → no profile read and no count query, so
   // this route is exactly today's. A count that fails returns null and the
   // question is answered (fail-open: a meter never blocks the assistant).
+  // The same read is the meter every answer carries below, so the screen never
+  // re-fetches /api/access between questions: one count per turn.
+  let aiUsage: AiLimitUsage | null = null;
   if (NEXT_PUBLIC_TIERS) {
-    const limit = await aiLimitForUserId(supabase, user.id);
-    if (limit && !limit.allowed) {
+    aiUsage = await aiLimitForUserId(supabase, user.id);
+    if (aiUsage && !aiUsage.allowed) {
       // No model call, no chat_messages row: only the typed answer.
       return NextResponse.json(
-        askLimitBody({ used: limit.used, limit: limit.limit, resetsAt: limit.resetsAt }),
+        askLimitBody({ used: aiUsage.used, limit: aiUsage.limit, resetsAt: aiUsage.resetsAt }),
         NO_STORE,
       );
     }
@@ -178,6 +182,7 @@ export async function POST(req: NextRequest) {
         fallback: null,
         tool: null,
         pending: null,
+        ai: aiUsage ? aiMeterAfterTurn(aiUsage, messageId !== null) : null,
       }),
       NO_STORE,
     );
@@ -294,6 +299,7 @@ export async function POST(req: NextRequest) {
         }
         : null,
       pending: result.pending,
+      ai: aiUsage ? aiMeterAfterTurn(aiUsage, messageId !== null) : null,
     }),
     NO_STORE
   );

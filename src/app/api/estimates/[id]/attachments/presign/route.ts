@@ -11,11 +11,17 @@ import { isLocked, isUuid, loadOwnedQuote } from '@/lib/estimates/owner';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { currentPlanIsPlus } from '@/lib/plan-gate-server';
+import { PLAN_REQUIRED, planLockBody } from '@/lib/plan-lock';
 
 export const runtime = 'nodejs';
 
+// A plan refusal always carries the one typed lock shape (feature + plan that
+// opens it); every other code answers as it always has.
 const refuse = (status: number, code: string) =>
-  NextResponse.json({ error: code }, { status });
+  NextResponse.json(
+    code === PLAN_REQUIRED ? planLockBody('attachments') : { error: code },
+    { status },
+  );
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();

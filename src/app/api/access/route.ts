@@ -13,6 +13,7 @@ import { aiLimitForUser } from '@/lib/ai-limit-usage';
 import { aiLimitWindow } from '@/lib/ai-limit';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { trialEligible } from '@/lib/trial';
+import { PLAN_CATALOG } from '@/lib/plan-catalog';
 import { subscriptionsEnabled } from '@/lib/subscriptions';
 
 const MEASURE = process.env.VERCEL_ENV === 'preview';
@@ -86,6 +87,9 @@ export async function GET(req: NextRequest) {
         aiUsedToday: ai?.used ?? 0,
         aiLimit: ai?.limit ?? access.entitlements.aiDailyLimit,
         aiResetsAt: ai?.resetsAt ?? aiLimitWindow(profile?.timezone ?? null, new Date()).resetsAt,
+        // The plan screens' one source: display names, prices, trial length and
+        // the Free / Pro / Plus comparison rows (lib/plan-catalog).
+        planCatalog: PLAN_CATALOG,
       }
       : {}),
   });

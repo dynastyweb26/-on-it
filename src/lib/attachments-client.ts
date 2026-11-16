@@ -14,6 +14,9 @@
 import type { createClient } from '@/lib/supabase/client';
 import type { EditorAttachment } from '@/components/AttachmentsEditor';
 import { ATTACHMENT_MAX, type PdfAttachment } from '@/lib/pdf/attachment-pages';
+import { planLockFromCode, type PlanLock } from '@/lib/plan-lock';
+import type { TierPlan } from '@/lib/entitlements';
+import { formatDocNumber } from '@/lib/documents';
 
 export { ATTACHMENT_MAX };
 
@@ -70,6 +73,16 @@ export function isPlanRefusal(
   const hint = typeof error?.hint === 'string' ? error.hint : '';
   const message = typeof error?.message === 'string' ? error.message : '';
   return hint === PLAN_ATTACHMENTS || message.includes(PLAN_ATTACHMENTS);
+}
+
+/** The plan refusal as a typed lock, completed with the plan the caller already
+ *  holds from /api/access. Null when the error was not a plan refusal, so a
+ *  caller never turns a real failure into an upgrade sheet. */
+export function attachmentPlanLock(
+  error: { hint?: unknown; message?: unknown } | null | undefined,
+  currentPlan: TierPlan,
+): PlanLock | null {
+  return isPlanRefusal(error) ? planLockFromCode('attachments', PLAN_ATTACHMENTS, currentPlan) : null;
 }
 
 /** Why an upload did or did not become a row. `planRequired` is kept apart from
@@ -284,23 +297,81 @@ export interface CopyResult {
   attachmentsSkipped: number;
 }
 
-/** Copy a document's attachments onto ANOTHER, already-created document (D4:
- *  quote→invoice). Reads the source (list + download) and writes only under
- *  `toInvoiceId`. If any file fails, the copies already made on the target are
- *  removed, so the target is left exactly as it was — the source is never
- *  touched. The caller reports `ok:false` and undoes its own new row. */
-export async function copyAttachments(
+/** What the plan refused to copy, and the document that kept it (design/tiers
+ *  05: "Photos weren't copied… E-0051 keeps them"). */
+export interface SkippedAttachments {
+  count: number;
+  /** The source document's own number, formatted; null when nothing was
+   *  skipped or the source row could not be read. */
+  sourceDocNumber: string | null;
+}
+
+export interface CopyReport {
+  ok: boolean;
+  copied: number;
+  skipped: SkippedAttachments;
+}
+
+const nothingSkipped = (): SkippedAttachments => ({ count: 0, sourceDocNumber: null });
+
+/** The source document's number, formatted through the shared helper (the word
+ *  on screen is "estimate"; a stored kind is never printed). A failed read
+ *  leaves it null — the count is still reported. */
+async function sourceDocNumber(supabase: Db, invoiceId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('invoices')
+      .select('kind, invoice_number')
+      .eq('id', invoiceId)
+      .maybeSingle();
+    const no = data?.invoice_number;
+    if (typeof no !== 'number') return null;
+    // The stored kind goes straight to the shared formatter: it maps the kind
+    // to E- / INV-, and nothing here prints it.
+    return formatDocNumber(data?.kind, no);
+  } catch {
+    return null;
+  }
+}
+
+/** The copy a Revise or a convert made (D4: quote→invoice). Reads the source
+ *  (list + download) and writes only under `toInvoiceId`; if any file fails the
+ *  copies already made on the target are removed, so the target is left exactly
+ *  as it was and the source is never touched. Reports what the plan refused to
+ *  copy and the document those photos stayed on, so the note (design/tiers 05)
+ *  never re-derives it.
+ */
+export async function copyAttachmentsOutcome(
   supabase: Db, userId: string, fromInvoiceId: string, toInvoiceId: string,
-): Promise<CopyResult> {
+): Promise<CopyReport> {
   const copies = await loadAttachmentCopies(supabase, fromInvoiceId);
-  if (!copies.length) return { ok: true, copied: 0, attachmentsSkipped: 0 };
+  if (!copies.length) return { ok: true, copied: 0, skipped: nothingSkipped() };
   const res = await materializeAttachments(supabase, userId, toInvoiceId, copies);
   if (res.failedId) {
     try { await deleteInvoiceAttachments(supabase, toInvoiceId); } catch { /* best effort */ }
-    return { ok: false, copied: 0, attachmentsSkipped: 0 };
+    return { ok: false, copied: 0, skipped: nothingSkipped() };
   }
   // A plan refusal is not a failure: the document exists, without those files.
-  return { ok: true, copied: res.saved.size, attachmentsSkipped: res.attachmentsSkipped };
+  // The source is read only when something was skipped, so a normal copy pays
+  // no extra query.
+  const count = res.attachmentsSkipped;
+  return {
+    ok: true,
+    copied: res.saved.size,
+    skipped: count > 0
+      ? { count, sourceDocNumber: await sourceDocNumber(supabase, fromInvoiceId) }
+      : nothingSkipped(),
+  };
+}
+
+/** Copy a document's attachments onto ANOTHER, already-created document (D4:
+ *  quote→invoice). Same copy as copyAttachmentsOutcome, in the count-only shape
+ *  existing callers use. */
+export async function copyAttachments(
+  supabase: Db, userId: string, fromInvoiceId: string, toInvoiceId: string,
+): Promise<CopyResult> {
+  const report = await copyAttachmentsOutcome(supabase, userId, fromInvoiceId, toInvoiceId);
+  return { ok: report.ok, copied: report.copied, attachmentsSkipped: report.skipped.count };
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {

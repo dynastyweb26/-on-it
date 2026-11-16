@@ -7,12 +7,20 @@
 // The card never decides paywall or errors itself: this returns the reason and
 // the caller shows it (or opens the estimate, where the paywall lives).
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { copyAttachments } from '@/lib/attachments-client';
+import { copyAttachmentsOutcome, type SkippedAttachments } from '@/lib/attachments-client';
 import { defaultDueDate } from '@/lib/dates';
-import { convertedDepositColumns } from '@/lib/estimates/convert';
+import { attachmentsSkippedColumns, convertedDepositColumns } from '@/lib/estimates/convert';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 export type ConvertOutcome =
-  | { ok: true; id: string; number: number | null; existed: boolean }
+  | {
+    ok: true;
+    id: string;
+    number: number | null;
+    existed: boolean;
+    /** Photos the plan did not copy onto the new invoice (design/tiers 05). */
+    attachmentsSkipped: SkippedAttachments;
+  }
   | { ok: false; reason: 'paywall' | 'not_signed' | 'not_found' | 'signed_out' | 'error' };
 
 export type ConvertErrorLike = { code?: string; hint?: string } | null | undefined;
@@ -27,11 +35,14 @@ export function convertErrorReason(error: ConvertErrorLike): 'paywall' | 'duplic
 export const convertKey = (estimateId: string): string => `convert-${estimateId}`;
 
 const COLUMNS =
-  'id, user_id, kind, client_id, client_name, client_address, client_phone, client_email, line_items, subtotal, tax_rate, tax_amount, total, notes, deposit_type, deposit_value, deposit_amount, approved_at, deleted_at';
+  'id, user_id, kind, invoice_number, client_id, client_name, client_address, client_phone, client_email, line_items, subtotal, tax_rate, tax_amount, total, notes, deposit_type, deposit_value, deposit_amount, approved_at, deleted_at';
 
 export async function convertEstimateToInvoice(
   supabase: SupabaseClient,
   estimateId: string,
+  /** The tiers flag, defaulted to the build-time one so a test can prove both
+   *  branches (off = nothing is written, exactly as today). */
+  enforced: boolean = NEXT_PUBLIC_TIERS,
 ): Promise<ConvertOutcome> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, reason: 'signed_out' };
@@ -76,17 +87,50 @@ export async function convertEstimateToInvoice(
         if (existing.deleted_at) {
           await supabase.from('invoices').update({ deleted_at: null }).eq('id', existing.id);
         }
-        return { ok: true, id: existing.id, number: existing.invoice_number ?? null, existed: true };
+        // Nothing was copied: the invoice already existed.
+        return {
+          ok: true,
+          id: existing.id,
+          number: existing.invoice_number ?? null,
+          existed: true,
+          attachmentsSkipped: { count: 0, sourceDocNumber: null },
+        };
       }
     }
     return { ok: false, reason: 'error' };
   }
   if (!created) return { ok: false, reason: 'error' };
 
-  const copy = await copyAttachments(supabase, est.user_id, est.id, created.id);
+  const copy = await copyAttachmentsOutcome(supabase, est.user_id, est.id, created.id);
   if (!copy.ok) {
     await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
     return { ok: false, reason: 'error' };
   }
-  return { ok: true, id: created.id, number: created.invoice_number ?? null, existed: false };
+
+  // Tiers: the copy may have left photos behind. Store how many and the source
+  // document's number on the NEW invoice, so the note (design/tiers 05) still
+  // shows after a reload. Flag off — or nothing skipped — writes nothing at
+  // all, so today's conversion is unchanged. A failed note never fails the
+  // conversion: the invoice exists and is about to be shown.
+  const skippedColumns = attachmentsSkippedColumns(enforced, {
+    count: copy.skipped.count,
+    sourceNumber: typeof est.invoice_number === 'number' ? est.invoice_number : null,
+  });
+  if (skippedColumns) {
+    const { error: noteError } = await supabase
+      .from('invoices')
+      .update(skippedColumns)
+      .eq('id', created.id);
+    if (noteError) {
+      console.error('[convert] skipped-photos note not stored', noteError.code ?? noteError.message);
+    }
+  }
+
+  return {
+    ok: true,
+    id: created.id,
+    number: created.invoice_number ?? null,
+    existed: false,
+    attachmentsSkipped: copy.skipped,
+  };
 }

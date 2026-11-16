@@ -16,6 +16,15 @@ export interface AiLimitState {
   resetsAt: string;
 }
 
+/** The numbers a meter shows: what /api/access and every /api/ask answer both
+ *  send, so the screen never re-fetches the access route between questions. */
+export interface AiMeter {
+  used: number;
+  limit: number;
+  /** The next local midnight, ISO — when `used` starts over. */
+  resetsAt: string;
+}
+
 export interface AiLimitWindow {
   /** The owner's local midnight today, ISO — the lower bound for the count. */
   since: string;
@@ -81,6 +90,22 @@ export function aiLimitWindow(timezone: string | null | undefined, now: Date): A
   const next = new Date(Date.UTC(today.y, today.mo - 1, today.d + 1));
   const resets = localMidnight(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), zone);
   return { since: since.toISOString(), resetsAt: resets.toISOString() };
+}
+
+/**
+ * The meter after this turn. `logged` is whether the turn wrote its
+ * chat_messages row: a log that failed (best effort) must not inflate the
+ * count the screen shows, and a refused turn wrote nothing at all.
+ */
+export function aiMeterAfterTurn(
+  state: Pick<AiLimitState, 'used' | 'limit' | 'resetsAt'>,
+  logged: boolean,
+): AiMeter {
+  return {
+    used: state.used + (logged ? 1 : 0),
+    limit: state.limit,
+    resetsAt: state.resetsAt,
+  };
 }
 
 /**

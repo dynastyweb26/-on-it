@@ -902,6 +902,32 @@ results(id, ok, expected, actual) as (
   where p.pronamespace = 'public'::regnamespace
     and p.proname in ('get_public_invoice', 'get_public_invoice_checkout')
 
+  -- W. invoices.attachments_skipped / _from (20261116140000, tiers). SKIP until
+  --    pushed. Owner-only display metadata for the skipped-photos note: two
+  --    nullable integers and the non-negative check. No grant is added: the
+  --    table-level authenticated grant plus RLS owns the row, and nothing
+  --    reads these to decide access, money or what the public page shows.
+  union all
+  select 'W3 invoices.attachments_skipped columns',
+    case when not exists (select 1 from applied where version = '20261116140000') then null
+      else (select count(*) = 2 from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name in ('attachments_skipped', 'attachments_skipped_from')
+            and data_type = 'integer' and is_nullable = 'YES')
+        and exists (select 1 from pg_constraint
+          where conname = 'invoices_attachments_skipped_nonneg'
+            and conrelid = 'public.invoices'::regclass) end,
+    '2 integer null columns + invoices_attachments_skipped_nonneg check',
+    case when not exists (select 1 from applied where version = '20261116140000') then 'not applied yet'
+      else coalesce((select string_agg(column_name || ' ' || data_type || ' null', ', ' order by column_name)
+          from information_schema.columns
+          where table_schema = 'public' and table_name = 'invoices'
+            and column_name in ('attachments_skipped', 'attachments_skipped_from')), 'missing')
+        || case when exists (select 1 from pg_constraint
+          where conname = 'invoices_attachments_skipped_nonneg'
+            and conrelid = 'public.invoices'::regclass)
+          then ' +check' else ' no check' end end
+
   -- X. Bank transfer (20261015200000). SKIP until pushed. X4: no client role
   --    can UPDATE or INSERT any bank column (also in B). The bank columns
   --    are on the privileged list (B): written only by /api/bank through
