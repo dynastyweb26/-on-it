@@ -51,3 +51,19 @@ export async function callUnattached(
   }
   return { ok: false, message: unattachedErrorMessage(res.status, json?.error) };
 }
+
+/** The POST body for saving a payment with no invoice. The client name rides along even when the title is blank. */
+export function unattachedSaveBody(
+  input: { amount: number; method: string; paidOn: string; title: string; clientName: string },
+  idempotencyKey: string,
+) {
+  return {
+    amount: input.amount, method: input.method, received_on: input.paidOn,
+    title: input.title, client_name: input.clientName.trim(), idempotency_key: idempotencyKey,
+  };
+}
+
+/** The title the recorded card shows: what the server saved, then what was typed, then the payer, then the neutral one. */
+export function unattachedCardTitle(saved: string, typed: string, clientName: string, neutral: string): string {
+  return saved.trim() || typed.trim() || clientName.trim() || neutral;
+}

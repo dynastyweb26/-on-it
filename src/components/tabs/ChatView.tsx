@@ -78,7 +78,7 @@ import { clearTemplate, loadTemplate, clearTemplateRow, loadTemplateRow, saveTem
 import { escapeLike, templateSummary } from '@/lib/template-send';
 import SavePromptCard, { type PromptSaveResult } from '@/components/SavePromptCard';
 import PaymentCard, { UnattachedPaymentCard } from '@/components/chat/PaymentCard';
-import { callUnattached } from '@/lib/unattached-client';
+import { callUnattached, unattachedCardTitle, unattachedSaveBody } from '@/lib/unattached-client';
 import { UNATTACHED_PAYMENT_TITLE, unattachedPaymentKey } from '@/lib/unattached-payment';
 import PaymentProposalCard, { type PaymentProposal, type PickerData, type ProposalInvoice } from '@/components/chat/PaymentProposalCard';
 import { normalizeSummary } from '@/lib/clients';
@@ -5330,16 +5330,14 @@ export default function Chat({ active = true }: { active?: boolean }) {
                 // every retry, so a lost response can never become a second row.
                 let key = unattachedKeysRef.current.get(m.id);
                 if (!key) { key = unattachedPaymentKey(); unattachedKeysRef.current.set(m.id, key); }
-                const out = await callUnattached('POST', {
-                  amount: input.amount, method: input.method, received_on: input.paidOn, title: input.title, idempotency_key: key,
-                });
+                const out = await callUnattached('POST', unattachedSaveBody(input, key));
                 if (!out.ok) return out;
                 unattachedKeysRef.current.delete(m.id);
                 setMessages((msgs) => msgs.map((x) => (x.id === m.id
                   ? {
                     ...x,
                     payProposal: undefined,
-                    unattachedCard: { id: out.id, title: input.title || UNATTACHED_PAYMENT_TITLE, amount: input.amount, method: input.method, paidOn: input.paidOn, removed: false },
+                    unattachedCard: { id: out.id, title: unattachedCardTitle(out.title, input.title, input.clientName, UNATTACHED_PAYMENT_TITLE), amount: input.amount, method: input.method, paidOn: input.paidOn, removed: false },
                     content: 'Payment recorded.',
                   }
                   : x)));
