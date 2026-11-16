@@ -11,6 +11,7 @@ import { redesignSequence, type RecapPayload, type RedesignSlide } from '@/lib/r
 import { createClock } from '@/components/recap/clock';
 import { money } from '@/components/recap/copy';
 import { designTiming } from '@/components/recap/design/timing';
+import { payMark } from '@/lib/recap/paymarks';
 import { pickAffirmation } from '@/lib/recap/ceo-affirmations';
 import { isShareCancel, shareErrorMessage, shareRoute } from '@/components/recap/design/share-image';
 import { DESIGN_SLIDES } from '@/components/recap/design/slides';
@@ -197,6 +198,16 @@ test('share: the sheet when files can be shared, a saved file when not; a closed
   assert.equal(isShareCancel(new Error('boom')), false);
   assert.equal(shareErrorMessage(new Error('canvas is tainted')), 'Couldn’t make the image: canvas is tainted');
   assert.equal(shareErrorMessage('?'), 'Couldn’t make the image.');
+});
+
+test('money in: bank, PayPal and Venmo keep the old slide\'s colours and marks', () => {
+  const p = { ...redesignPayload('normalWeek'), paymentMethods: [
+    { method: 'bank' as const, amount: 300 }, { method: 'paypal' as const, amount: 200 }, { method: 'venmo' as const, amount: 100 },
+  ] };
+  const h = html('in', p);
+  assert.ok(h.includes('background:#5b77a8') && h.includes('account_balance'), 'bank');
+  assert.ok(h.includes(`background:${payMark('paypal').color}`) && h.includes(`background:${payMark('venmo').color}`), 'brand colours');
+  assert.equal((h.match(/<svg role="img"/g) ?? []).length, 2, 'paypal and venmo draw their marks');
 });
 
 test('opener: an old payload falls back to income.total and drops what it never had', () => {

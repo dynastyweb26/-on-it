@@ -9,13 +9,19 @@ import { clientsCount, collectedOf, invoicesPaidTotal, otherReceivedTotal, payme
 import { iconStyle, s } from '@/components/recap/design/css';
 import Stage from '@/components/recap/design/Stage';
 import type { PaymentMethodKey } from '@/lib/recap/payload';
+import { payMark, segmentInk } from '@/lib/recap/paymarks';
 
 // label, colour, icon: the design's table, plus the three methods it doesn't draw.
 const METHOD: Record<PaymentMethodKey, [string, string, string]> = {
   zelle: ['Zelle', '#5b77a8', 'swap_horiz'], card: ['Card', '#2f8a83', 'credit_card'], cashapp: ['Cash App', '#6f8c5c', 'smartphone'],
   check: ['Check', '#c0693f', 'receipt_long'], cash: ['Cash', '#d4af37', 'payments'], other: ['Other', '#a39a86', 'more_horiz'],
-  bank: ['Bank', '#6f8c5c', 'account_balance'], paypal: ['PayPal', '#5b77a8', 'payments'], venmo: ['Venmo', '#2f8a83', 'payments'],
+  // Bank, PayPal and Venmo are not in the design: they keep what the old Money in slide used (lib/recap/paymarks.ts).
+  bank: ['Bank', '#5b77a8', 'account_balance'], paypal: ['PayPal', brandHex('paypal'), ''], venmo: ['Venmo', brandHex('venmo'), ''],
 };
+function brandHex(m: string) { const k = payMark(m); return k.color; }
+/** The brand's own mark (paypal, venmo) as an SVG path; the design's methods use a glyph. */
+const brandPath = (m: PaymentMethodKey) => { const k = payMark(m); return k.kind === 'brand' ? k.icon.path : null; };
+const inkOn = (m: PaymentMethodKey, c: string) => (brandPath(m) ? segmentInk(c) === 'ink' : c === '#d4af37' || c === '#a39a86');
 
 const CARD = 'padding:12px 14px;border-radius:16px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 12px 24px -20px rgba(115,92,0,.5)';
 const CARD_LABEL = 'display:flex;align-items:center;gap:6px;font:600 12px/16px Inter,system-ui,sans-serif;color:#4d4635';
@@ -58,12 +64,15 @@ export default function DesignIn({ payload: p, clock, reduced }: SlideProps) {
               <div style={s('margin-top:10px;display:flex;flex-wrap:wrap;gap:6px')}>
                 {methods.map((m, i) => {
                   const [label, c, icon] = METHOD[m.method];
-                  const ink = c === '#d4af37' || c === '#a39a86';
+                  const ink = inkOn(m.method, c);
+                  const path = brandPath(m.method);
                   return (
                     <div key={m.method} data-a="up" data-d={1750 + i * 80}
                       style={s('height:34px;padding:0 10px 0 4px;border-radius:999px;background:#fff;border:1px solid #d0c5af;display:flex;align-items:center;gap:6px;font:600 12.5px/1 Inter,system-ui,sans-serif')}>
                       <span style={s(`width:26px;height:26px;border-radius:999px;background:${c};color:${ink ? '#1f1b13' : '#fff'};display:grid;place-items:center;flex:none`)}>
-                        <span style={iconStyle(16)}>{icon}</span>
+                        {path
+                          ? <svg role="img" aria-label={label} viewBox="0 0 24 24" width={16} height={16}><path d={path} fill="currentColor" /></svg>
+                          : <span style={iconStyle(16)}>{icon}</span>}
                       </span>
                       <span data-f="method_name">{label}</span>
                       <span data-f="method_amount" style={s('font-weight:400;color:#4d4635;font-variant-numeric:tabular-nums')}>{money(m.amount)}</span>
@@ -74,7 +83,7 @@ export default function DesignIn({ payload: p, clock, reduced }: SlideProps) {
               <div style={s('margin-top:12px;height:44px;border-radius:14px;background:#efe6d6;overflow:hidden;display:flex;box-shadow:inset 0 2px 6px rgba(31,27,19,.12);flex:none')}>
                 {methods.map((m, i) => {
                   const c = METHOD[m.method][1];
-                  const ink = c === '#d4af37' || c === '#a39a86';
+                  const ink = inkOn(m.method, c);
                   const share = m.amount / mt;
                   return (
                     <div key={m.method} data-a="wipe" data-d={1950 + i * 110} data-dur="600"
