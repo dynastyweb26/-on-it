@@ -196,7 +196,7 @@ export async function loadRecapInput(
 ): Promise<RecapInput> {
   const from = zonedMidnight(period.start, tz).toISOString();
   const until = zonedMidnight(addDays(period.end, 1), tz).toISOString();
-  const [owed, paid, quotes, converted, previous] = await Promise.all([
+  const [owed, paid, quotes, converted, previous, sent, approved, otherIncome] = await Promise.all([
     // Still owed: the Books "Still owed" rows (sent/overdue invoices, not deleted).
     fetchAll((f, t) => admin.from('invoices')
       .select('id, client_name, total, amount_paid, viewed_at, sent_at, first_sent_at')
@@ -218,6 +218,26 @@ export async function loadRecapInput(
       .eq('user_id', userId).not('converted_from', 'is', null)
       .order('id', { ascending: true }).range(f, t)),
     loadNumbers(admin, userId, previousPeriod(period), tz),
+    // Invoices first sent in the period (the redesign's "Invoices sent").
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id, sent_at, first_sent_at')
+      .eq('user_id', userId).eq('kind', 'invoice').is('deleted_at', null)
+      .gte('first_sent_at', from).lt('first_sent_at', until)
+      .order('id', { ascending: true }).range(f, t)),
+    // Estimates approved in the period ("Estimates approved").
+    fetchAll((f, t) => admin.from('invoices')
+      .select('id, approved_at')
+      .eq('user_id', userId).eq('kind', 'quote').is('deleted_at', null)
+      .not('approved_at', 'is', null)
+      .gte('approved_at', from).lt('approved_at', until)
+      .order('id', { ascending: true }).range(f, t)),
+    // Other money received: Collected counts these, so the story does too. One
+    // day of slack each side; the payload files each row by local day itself.
+    fetchAll((f, t) => admin.from('other_income')
+      .select('id, amount, received_on, client_name, classification, deleted_at')
+      .eq('user_id', userId).is('deleted_at', null)
+      .gte('received_on', addDays(period.start, -1)).lte('received_on', addDays(period.end, 1))
+      .order('id', { ascending: true }).range(f, t)),
   ]);
   const answered = new Set(converted.map((r) => r.converted_from as string));
 
@@ -249,6 +269,15 @@ export async function loadRecapInput(
       paid_at: p.paid_at as string,
     })),
     quotesPending: quotes.filter((q) => !answered.has(q.id as string)).length,
+    otherIncome: otherIncome.map((r) => ({
+      amount: r.amount as number | string,
+      received_on: r.received_on as string,
+      client_name: (r.client_name as string | null) ?? null,
+      classification: (r.classification as string | null) ?? null,
+      deleted_at: (r.deleted_at as string | null) ?? null,
+    })),
+    sentInvoices: sent.map((r) => ((r.sent_at ?? r.first_sent_at) as string | null) ?? null),
+    estimatesApproved: approved.map((r) => (r.approved_at as string | null) ?? null),
     previous: { income: previous.income, expenses: previous.expenses },
   };
 }

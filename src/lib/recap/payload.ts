@@ -7,12 +7,16 @@
 // Money rules match Books / the Summary PDFs:
 //   • income = invoice_payments (invoices only, not deleted), bucketed by the
 //     owner's local day of paid_at;
+//   • collected (redesign) = income + the other_income rows Books counts, so the
+//     story's Collected number is the Books tab's, by construction;
 //   • spend  = non-deleted expenses by spent_on, rolled up by summarize();
 //   • still owed = sent/overdue invoices, max(0, total − amount_paid), AS OF
 //     the build (not period-bound), the same formula as the Books tile.
 import { summarize } from '@/lib/tax-summary';
 import { isExpenseCategory } from '@/lib/expenses';
 import { roundCurrency } from '@/lib/financials';
+import { booksDay } from '@/lib/books-period';
+import { countsAsIncome } from '@/lib/other-income';
 import { daysBetween, localYmd, type RecapKind, type RecapPeriod } from './dates';
 
 export const RECAP_PAYLOAD_VERSION = 1;
@@ -32,6 +36,14 @@ export type RecapExpenseRow = { amount: Num; category: string | null; vendor: st
 export type RecapOwedRow = { client_name: string | null; total: Num; amount_paid: Num | null; viewed_at: string | null; sent_at: string | null };
 /** An invoice whose status is paid and whose paid_at falls in the period. */
 export type RecapPaidRow = { client_name: string | null; total: Num; paid_at: string };
+/** One other_income row — the non-invoice money Collected counts (Books rule). */
+export type RecapOtherIncomeRow = {
+  amount: Num;
+  received_on: string;
+  client_name: string | null;
+  classification?: string | null;
+  deleted_at?: string | null;
+};
 
 export type RecapInput = {
   period: RecapPeriod;
@@ -43,6 +55,12 @@ export type RecapInput = {
   quotesPending: number;
   /** The previous period's totals, for the change chip (null = unknown). */
   previous: { income: number; expenses: number } | null;
+  /** Other money received (optional: older callers and fixtures have none). */
+  otherIncome?: RecapOtherIncomeRow[];
+  /** coalesce(sent_at, first_sent_at) of the owner's live invoices. */
+  sentInvoices?: (string | null)[];
+  /** approved_at of the owner's live estimates. */
+  estimatesApproved?: (string | null)[];
 };
 
 // ── Output (stored as recaps.payload) ────────────────────────────────
@@ -54,12 +72,27 @@ export type RecapPayload = {
   start: string;                 // local yyyy-mm-dd, inclusive
   end: string;
   income: { total: number; payments: number; clients: number };
+  /** The Books "Collected" number, composed here so the story and the Books
+   *  tab cannot disagree: invoice payments + the other_income rows Books counts. */
+  collected: {
+    total: number;      // collected_total
+    invoices: number;   // invoices_paid_total
+    other: number;      // other_received_total
+    payments: number;   // money-in rows: payments + counted other income
+    clients: number;
+  };
   spend: {
     total: number;
     count: number;
     categories: { key: string; amount: number }[];                        // ≤ 4 + "other", desc ("other" last)
     receipts: { vendor: string | null; amount: number; category: string }[]; // ≤ 3 largest
+    /** Categories folded past the four named ones ("+2 more"). */
+    moreCategories: number;
   };
+  /** Invoices first sent inside the period (local days). */
+  invoicesSent: number;
+  /** Estimates approved inside the period (local days). */
+  estimatesApproved: number;
   net: number;
   change: { prevNet: number; pct: number; direction: 'up' | 'down' | 'flat' } | null;
   /** The previous period's totals as stored (null = unknown). `income` sets the
@@ -68,7 +101,9 @@ export type RecapPayload = {
    *  payload had been stored in production yet. */
   previous: { income: number; expenses: number } | null;
   daily: number[];               // income per local day: 7 (week) or 28–31 (month)
-  topClient: { name: string; amount: number } | null;
+  /** By money collected in the period (invoice payments + other income with a
+   *  client name); ties broken by name. pct is of collected.total. */
+  topClient: { name: string; amount: number; pct: number; invoiceCount: number } | null;
   topVendor: { name: string; amount: number; category: string; tripCount: number; trips: number[] } | null;
   paymentMethods: { method: PaymentMethodKey; amount: number }[]; // desc, > 0 only
   owed: { total: number; count: number; invoices: RecapInvoiceItem[] };  // ≤ 3 largest
@@ -87,6 +122,17 @@ const categoryKey = (c: string | null) => (isExpenseCategory(c) ? c : 'other');
 const methodKey = (m: string | null): PaymentMethodKey =>
   (PAYMENT_METHODS as readonly string[]).includes(m ?? '') ? (m as PaymentMethodKey) : 'other';
 const byAmountDesc = <T extends { amount: number }>(a: T, b: T) => b.amount - a.amount;
+/** How many of these instants land on a local day inside the period. */
+const countTimestamps = (at: (string | null)[], tz: string, inRange: (day: string) => boolean) => {
+  let n = 0;
+  for (const iso of at) {
+    if (!iso) continue;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) continue;
+    if (inRange(localYmd(tz, date))) n += 1;
+  }
+  return n;
+};
 
 export function buildRecapPayload(input: RecapInput): RecapPayload {
   const { period, tz } = input;
@@ -111,8 +157,38 @@ export function buildRecapPayload(input: RecapInput): RecapPayload {
     const m = methodKey(p.method);
     byMethod.set(m, (byMethod.get(m) ?? 0) + amt);
   }
-  let topClient: RecapPayload['topClient'] = null;
-  for (const [name, amount] of byClient) if (!topClient || amount > topClient.amount) topClient = { name, amount };
+  // Other money received: the rows Books counts (an income classification, never
+  // soft-deleted, a positive amount), filed under the owner's local day the way
+  // booksDay files it. Money with no client name is Collected, not a client.
+  const byClientCollected = new Map<string, { name: string; amount: number }>();
+  for (const [name, amount] of byClient) byClientCollected.set(name.toLowerCase(), { name, amount });
+  let otherReceived = 0;
+  let otherRows = 0;
+  for (const r of input.otherIncome ?? []) {
+    if (r.deleted_at) continue;
+    if (r.classification != null && !countsAsIncome(r.classification)) continue;
+    const amt = num(r.amount);
+    if (!(amt > 0)) continue;
+    if (!inRange(booksDay('other_income', r.received_on, tz))) continue;
+    otherReceived += amt;
+    otherRows += 1;
+    const name = String(r.client_name ?? '').trim().slice(0, NAME_MAX);
+    if (!name) continue;
+    const k = name.toLowerCase();
+    const cur = byClientCollected.get(k) ?? { name, amount: 0 };
+    cur.amount += amt;
+    byClientCollected.set(k, cur);
+  }
+
+  // Top client by money collected; equal money is settled by name, so the same
+  // period always names the same client.
+  let topClientName: { name: string; amount: number } | null = null;
+  for (const c of byClientCollected.values()) {
+    if (!topClientName || c.amount > topClientName.amount
+      || (c.amount === topClientName.amount && c.name.localeCompare(topClientName.name) < 0)) {
+      topClientName = { name: c.name, amount: c.amount };
+    }
+  }
 
   // Spend: summarize() for the category keys/rollup (same as Books), then fold.
   const expenses = input.expenses.filter((e) => inRange(e.spent_on));
@@ -121,6 +197,7 @@ export function buildRecapPayload(input: RecapInput): RecapPayload {
   const folded = spend.total - named.reduce((s, r) => s + r.total, 0);
   const categories = named.map((r) => ({ key: r.category as string, amount: r2(r.total) }));
   if (r2(folded) > 0) categories.push({ key: 'other', amount: r2(folded) });
+  const moreCategories = Math.max(0, new Set(expenses.map((e) => categoryKey(e.category))).size - named.length);
 
   const receipts = expenses
     .map((e, i) => ({ i, vendor: String(e.vendor ?? '').trim().slice(0, NAME_MAX) || null, amount: num(e.amount), category: categoryKey(e.category), day: e.spent_on }))
@@ -181,6 +258,21 @@ export function buildRecapPayload(input: RecapInput): RecapPayload {
   const incomeTotal = r2(income);
   const spendTotal = r2(spend.total);
   const net = r2(incomeTotal - spendTotal);
+  const otherTotal = r2(otherReceived);
+  const collectedTotal = r2(incomeTotal + otherTotal);
+
+  // Invoices paid per client in the period (the top client's "N invoices").
+  const paidByClient = new Map<string, number>();
+  for (const item of paidItems) {
+    const k = item.client.toLowerCase();
+    paidByClient.set(k, (paidByClient.get(k) ?? 0) + 1);
+  }
+  const topClient: RecapPayload['topClient'] = topClientName ? {
+    name: topClientName.name,
+    amount: r2(topClientName.amount),
+    pct: collectedTotal > 0 ? Math.round((topClientName.amount / collectedTotal) * 100) : 0,
+    invoiceCount: paidByClient.get(topClientName.name.toLowerCase()) ?? 0,
+  } : null;
 
   return {
     v: RECAP_PAYLOAD_VERSION,
@@ -188,12 +280,21 @@ export function buildRecapPayload(input: RecapInput): RecapPayload {
     start: period.start,
     end: period.end,
     income: { total: incomeTotal, payments, clients: byClient.size },
-    spend: { total: spendTotal, count: spend.count, categories, receipts },
+    collected: {
+      total: collectedTotal,
+      invoices: incomeTotal,
+      other: otherTotal,
+      payments: payments + otherRows,
+      clients: byClientCollected.size,
+    },
+    spend: { total: spendTotal, count: spend.count, categories, receipts, moreCategories },
+    invoicesSent: countTimestamps(input.sentInvoices ?? [], tz, inRange),
+    estimatesApproved: countTimestamps(input.estimatesApproved ?? [], tz, inRange),
     net,
     change: changeVs(net, input.previous),
     previous: input.previous ? { income: r2(num(input.previous.income)), expenses: r2(num(input.previous.expenses)) } : null,
     daily: daily.map(r2),
-    topClient: topClient ? { name: topClient.name, amount: r2(topClient.amount) } : null,
+    topClient,
     topVendor,
     paymentMethods: [...byMethod].map(([method, amount]) => ({ method, amount: r2(amount) }))
       .filter((m) => m.amount > 0).sort(byAmountDesc),

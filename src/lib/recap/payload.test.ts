@@ -7,6 +7,7 @@ import {
 import { FIXTURE_TZ, fixturePayload, getScenario, INVOICE_COUNTS, SCENARIOS, type ScenarioId } from './fixtures';
 import { addDays, periodsEndingBefore, previousPeriod, zonedMidnight } from './dates';
 import { monthColumns } from './columns';
+import { booksTotals } from '@/lib/books-totals';
 
 const IDS = Object.keys(SCENARIOS) as ScenarioId[];
 const key = (name: string) => name.toLowerCase();
@@ -80,17 +81,21 @@ for (const id of IDS) {
 test('normal week: top client, clients, payments and methods', () => {
   const p = fixturePayload('normalWeek');
   assert.deepEqual(p.income, { total: 1850, payments: 4, clients: 3 });
-  assert.deepEqual(p.topClient, { name: 'Mike Davis', amount: 1250 });
+  assert.deepEqual(p.topClient, { name: 'Mike Davis', amount: 1250, pct: 68, invoiceCount: 2 });
   assert.deepEqual(p.paymentMethods, [{ method: 'zelle', amount: 1000 }, { method: 'card', amount: 450 }, { method: 'cashapp', amount: 400 }]);
   assert.equal(p.spend.receipts.length, 3);
   assert.equal(p.spend.receipts[0].amount, 58);
   assert.equal(p.spend.receipts[0].vendor, 'Home Depot');
   assert.equal(p.paid.total, 1850);
   assert.deepEqual(p.paid.invoices.map((i) => i.amount), [800, 450, 400]);
+  // No other income: Collected is the invoice money, and nothing else.
+  assert.deepEqual(p.collected, { total: 1850, invoices: 1850, other: 0, payments: 4, clients: 3 });
+  assert.equal(p.invoicesSent, 0);
+  assert.equal(p.estimatesApproved, 0);
 });
 
 test('investment week: top client', () => {
-  assert.deepEqual(fixturePayload('investmentWeek').topClient, { name: 'Sarah Lee', amount: 400 });
+  assert.deepEqual(fixturePayload('investmentWeek').topClient, { name: 'Sarah Lee', amount: 400, pct: 63, invoiceCount: 1 });
 });
 
 for (const n of INVOICE_COUNTS) {
@@ -152,6 +157,7 @@ test('categories: top 4 named, the rest (and "other") fold into "other", last', 
     { key: 'other', amount: 60 + 50 + 40 + 30 + 5 },
   ]);
   assert.equal(p.spend.count, 9);
+  assert.equal(p.spend.moreCategories, 4); // travel, maintenance, phone, other… past the four named
   assert.equal(p.topVendor, null); // no vendors at all
 });
 
@@ -255,6 +261,69 @@ test('payload stays small: the worst case is well under the 16 KB column cap', (
     previous: { income: 1, expenses: 0 },
   }));
   assert.ok(JSON.stringify(p).length < 4096, `payload is ${JSON.stringify(p).length} bytes`);
+});
+
+// ── The redesign's money split (Books parity) ────────────────────────
+test('collected = invoice payments + the other income Books counts', () => {
+  const payments = [
+    { amount: 400, paid_at: '2026-09-22T17:00:00Z', method: 'zelle', client_name: 'Ana Cruz' },
+    { amount: 100.25, paid_at: '2026-09-23T17:00:00Z', method: 'card', client_name: 'Ben Park' },
+  ];
+  const otherIncome = [
+    { amount: 250, received_on: '2026-09-24', client_name: 'Side job', classification: 'other_income' },
+    { amount: 90.5, received_on: '2026-09-25', client_name: null, classification: 'customer_payment' },
+    // Counts nowhere: not an income classification, soft-deleted, or out of period.
+    { amount: 1000, received_on: '2026-09-25', client_name: 'Refund', classification: 'vendor_refund' },
+    { amount: 700, received_on: '2026-09-26', client_name: 'Deleted', classification: 'other_income', deleted_at: '2026-09-27' },
+    { amount: 500, received_on: '2026-09-14', client_name: 'Last week', classification: 'other_income' },
+  ];
+  const p = buildRecapPayload(base({ payments, otherIncome }));
+  assert.deepEqual(p.collected, { total: 840.75, invoices: 500.25, other: 340.5, payments: 4, clients: 3 });
+  assert.equal(p.income.total, 500.25); // invoices only, unchanged
+
+  // The same rows through Books' own calculation give the same Collected.
+  const books = booksTotals({
+    payments: payments.map((x) => ({ amount: x.amount })),
+    otherIncome: otherIncome.slice(0, 2),
+    expenses: [],
+    invoices: [],
+  });
+  assert.equal(p.collected.total, books.collected);
+});
+
+test('other income files received_on by the local day, as Books does', () => {
+  const row = { amount: 100, received_on: '2026-09-27', client_name: null, classification: 'other_income' };
+  assert.equal(buildRecapPayload(base({ otherIncome: [row] })).collected.other, 100);
+  // +14: noon UTC on Sep 27 is already Sep 28 locally, so it is next week's money.
+  assert.equal(buildRecapPayload(base({ tz: 'Pacific/Kiritimati', otherIncome: [row] })).collected.other, 0);
+});
+
+test('top client: by money collected, ties by name, with pct and invoice count', () => {
+  const p = buildRecapPayload(base({
+    payments: [
+      { amount: 300, paid_at: '2026-09-22T17:00:00Z', method: 'zelle', client_name: 'Zoe Reed' },
+      { amount: 300, paid_at: '2026-09-23T17:00:00Z', method: 'card', client_name: 'Ana Cruz' },
+    ],
+    otherIncome: [{ amount: 100, received_on: '2026-09-24', client_name: 'Ana Cruz', classification: 'other_income' }],
+    paid: [
+      { client_name: 'Zoe Reed', total: 300, paid_at: '2026-09-22T17:00:00Z' },
+      { client_name: 'Ana Cruz', total: 300, paid_at: '2026-09-23T17:00:00Z' },
+    ],
+  }));
+  // Zoe came first in the rows and tied on invoice money; Ana wins on
+  // collected (and on the name, which settles an exact tie).
+  assert.deepEqual(p.topClient, { name: 'Ana Cruz', amount: 400, pct: 57, invoiceCount: 1 });
+  assert.equal(p.collected.total, 700);
+});
+
+test('invoices sent and estimates approved count inside the period, by local day', () => {
+  const p = buildRecapPayload(base({
+    sentInvoices: ['2026-09-22T15:00:00Z', '2026-09-28T03:00:00Z', null, '2026-09-21T04:30:00Z'],
+    estimatesApproved: ['2026-09-24T12:00:00Z', '2026-10-01T12:00:00Z'],
+  }));
+  // Sep 28 03:00Z is still Sep 27 in Chicago; Sep 21 04:30Z was already Sunday.
+  assert.equal(p.invoicesSent, 2);
+  assert.equal(p.estimatesApproved, 1);
 });
 
 // ── Periods ──────────────────────────────────────────────────────────
