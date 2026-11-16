@@ -41,9 +41,13 @@ export async function GET(req: NextRequest) {
   // "$9.99/month, recurring"). The same rule as /api/checkout's first check;
   // checkout also asks Stripe, and Stripe's Checkout page shows the final terms.
   const h0 = performance.now();
-  const [access, { data: profile }] = await Promise.all([
+  const [access, { data: profile }, { data: billing }] = await Promise.all([
     hasAccess(user.id, timing),
     step('trialProfile', supabase.from('profiles').select('trial_ends_at, subscription_status, timezone').eq('id', user.id).maybeSingle()),
+    // The store-billing facts (RevenueCat, phase 5a). Its own query on purpose:
+    // on a database before the migration these columns don't exist, this one
+    // select fails alone, and all three read as null — nothing above changes.
+    step('billing', supabase.from('profiles').select('billing_source, plan_change_to, plan_change_at').eq('id', user.id).maybeSingle()),
   ]);
   if (timing) {
     timing.hasAccessWall = Math.round(performance.now() - h0);
@@ -66,10 +70,17 @@ export async function GET(req: NextRequest) {
   // subscriptionsEnabled: is Stripe subscription checkout open in this
   // deployment? The paywall, Settings' Plan row and the upgrade nudges read it
   // here instead of a browser-side env read (the value is not NEXT_PUBLIC).
+  const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
   return NextResponse.json({
     ...access,
     trialEligible: trialEligible(profile),
     subscriptionsEnabled: subscriptionsEnabled(),
+    // Additive: which system bills this profile ('stripe' | 'app_store' |
+    // 'play_store' | null) and a scheduled store plan change, if any. Null on a
+    // database without the RevenueCat migration, so the client shape is stable.
+    billingSource: text(billing?.billing_source),
+    planChangeTo: text(billing?.plan_change_to),
+    planChangeAt: text(billing?.plan_change_at),
     ...(NEXT_PUBLIC_TIERS
       ? {
         aiUsedToday: ai?.used ?? 0,
