@@ -34,3 +34,14 @@ Founder decisions, 2026-11-15 (after the slide-order audit):
     investment slide is not used, and there is no new design round.
 12. Monthly keeps the old month opener and the 4-week glance, then the new
     slides from money in through the affirmation.
+
+Affirmation type system, 2026-11-16 (Claude Design round 2, founder-approved):
+
+13. The affirmation slide's text follows `Affirmation_System.dc.html` and the
+    `affLayout` function in `RecapPlayer.dc.html`: key phrases Montserrat 800
+    at K, other words 600 at 0.72K, balanced lines with no single-word line,
+    gold brush under the first key phrase, diamond divider, K stepping down
+    until the text fits (400px box in the app, 320px in the share image, 32px
+    clear above Share). Port `affLayout` as-is. Only this slide changed in
+    this round. Key phrases come from `CEO_AFFIRMATION_MARKS` in
+    `src/lib/recap/ceo-affirmations.ts`, written in [brackets].

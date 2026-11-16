@@ -9,7 +9,7 @@
 <x-dc>
 <helmet>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:wght@400;600&family=Caveat:wght@600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;600&family=Caveat:wght@600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
 <style>body{margin:0}a{color:#735c00}a:hover{color:#1f1b13}</style>
 </helmet>
 <div style="display:inline-block;padding:9px;vertical-align:top">
@@ -355,8 +355,19 @@
   <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column;align-items:center;text-align:center">
     <div style="flex:1 1 0"></div>
     <sc-if value="{{ aff.mont }}" hint-placeholder-val="{{ true }}">
-      <div data-f="affirmation_text" data-affit="54" data-lh="1.11" data-max="400" style="display:flex;flex-wrap:wrap;justify-content:center;gap:0 .26em;font:800 54px/60px Montserrat,system-ui,sans-serif;letter-spacing:-.025em">
-        <sc-for list="{{ aff.words }}" as="w" hint-placeholder-count="10"><span data-a="up" data-d="{{ w.d }}" data-dur="420">{{ w.w }}</span></sc-for>
+      <div data-f="affirmation_text" style="display:flex;flex-direction:column;align-items:center;width:100%;color:#1f1b13">
+        <sc-for list="{{ aff.lines }}" as="l" hint-placeholder-count="4">
+          <div style="{{ l.st }}">
+            <sc-for list="{{ l.segs }}" as="g" hint-placeholder-count="1">
+              <span style="{{ g.st }}">
+                <sc-if value="{{ g.under }}" hint-placeholder-val="{{ false }}">
+                  <span data-a="wipe" data-d="{{ g.ud }}" data-dur="700" style="position:absolute;left:-6%;width:112%;bottom:-.07em;height:.2em;z-index:0;pointer-events:none;transform:rotate(-1.4deg)"><i style="position:absolute;left:0;right:0;top:0;height:.13em;border-radius:50%;background:linear-gradient(90deg,rgba(212,175,55,0),#d4af37 14%,#c9a42c 62%,#dcb94a 86%,rgba(220,185,74,0))"></i><i style="position:absolute;left:16%;right:6%;top:.1em;height:.05em;border-radius:50%;background:linear-gradient(90deg,rgba(212,175,55,0),rgba(201,164,44,.7) 30%,rgba(212,175,55,0))"></i></span>
+                </sc-if>
+                <sc-for list="{{ g.words }}" as="w" hint-placeholder-count="2"><span data-a="up" data-d="{{ w.d }}" data-dur="420" style="position:relative;z-index:1">{{ w.w }}</span></sc-for>
+              </span>
+            </sc-for>
+          </div>
+        </sc-for>
       </div>
     </sc-if>
     <sc-if value="{{ aff.hand }}" hint-placeholder-val="{{ false }}">
@@ -364,14 +375,14 @@
         <sc-for list="{{ aff.words }}" as="w" hint-placeholder-count="10"><span data-a="up" data-d="{{ w.d }}" data-dur="420">{{ w.w }}</span></sc-for>
       </div>
     </sc-if>
-    <div data-a="gx" data-d="1700" data-dur="500" style="margin-top:24px;width:44px;height:3px;border-radius:999px;background:#d4af37;transform-origin:center"></div>
+    <div data-a="gx" data-d="{{ aff.divD }}" data-dur="500" style="margin-top:26px;display:flex;align-items:center;gap:9px;transform-origin:center"><i style="display:block;width:30px;height:1.5px;border-radius:999px;background:linear-gradient(90deg,rgba(212,175,55,0),#d4af37)"></i><i style="display:block;width:6px;height:6px;background:#d4af37;transform:rotate(45deg)"></i><i style="display:block;width:30px;height:1.5px;border-radius:999px;background:linear-gradient(90deg,#d4af37,rgba(212,175,55,0))"></i></div>
     <sc-if value="{{ aff.typed }}" hint-placeholder-val="{{ false }}">
       <div data-a="up" data-d="2150" style="margin-top:10px"><div data-f="signer_name" style="font:600 14px/18px Inter,system-ui,sans-serif">Deffeu</div><div data-f="signer_title" style="font:400 12px/16px Inter,system-ui,sans-serif;color:#4d4635">CEO of On It</div></div>
     </sc-if>
     <sc-if value="{{ aff.handSig }}" hint-placeholder-val="{{ false }}">
       <div data-a="wipe" data-d="1850" data-dur="800" data-f="signer_name, signer_title" style="margin-top:14px;font:600 30px/36px Caveat,cursive;color:#4d4635;padding:0 6px">Deffeu, CEO of On It</div>
     </sc-if>
-    <div style="flex:1.6 1 0"></div>
+    <div style="flex:1.6 1 0;min-height:32px"></div>
     <sc-if value="{{ show.share }}" hint-placeholder-val="{{ true }}">
       <button data-a="up" data-d="2300" data-act="1" onClick="{{ actShare }}" style="width:100%;height:52px;border:0;border-radius:999px;background:linear-gradient(180deg,#dcb94a,#d4af37 50%,#c9a42c);color:#1f1b13;font:700 16px/1 Montserrat,system-ui,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 24px -10px rgba(212,175,55,.6),inset 0 1px 0 rgba(255,255,255,.35)" style-active="transform:scale(.97)"><span style="font:400 20px/1 'Material Symbols Outlined';width:20px;height:20px;overflow:hidden;display:block;white-space:nowrap">ios_share</span>Share</button>
       <div data-a="fade" data-d="2500" data-dur="300" style="margin-top:14px;font:400 13px/18px Inter,system-ui,sans-serif;color:#4d4635;white-space:nowrap">-by Onit CEO</div>
@@ -413,7 +424,7 @@
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:408,&quot;height&quot;:862},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;slow&quot;,&quot;big&quot;,&quot;month&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;'normal'|'slow'|'big'|'month'&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pro&quot;,&quot;free&quot;],&quot;default&quot;:&quot;pro&quot;,&quot;tsType&quot;:&quot;'pro'|'free'&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;bank&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;freeRecapNumber&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:2,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;startSlide&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;opener&quot;,&quot;in&quot;,&quot;out&quot;,&quot;kept&quot;,&quot;inv&quot;,&quot;client&quot;,&quot;bank&quot;,&quot;waiting&quot;,&quot;free&quot;,&quot;aff&quot;],&quot;default&quot;:&quot;opener&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;autoplay&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;affVariant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;,&quot;C&quot;,&quot;D&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A'|'B'|'C'|'D'&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;showFields&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;exportMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:408,&quot;height&quot;:862},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;slow&quot;,&quot;big&quot;,&quot;month&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;'normal'|'slow'|'big'|'month'&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pro&quot;,&quot;free&quot;],&quot;default&quot;:&quot;pro&quot;,&quot;tsType&quot;:&quot;'pro'|'free'&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;bank&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;freeRecapNumber&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:2,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;startSlide&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;opener&quot;,&quot;in&quot;,&quot;out&quot;,&quot;kept&quot;,&quot;inv&quot;,&quot;client&quot;,&quot;bank&quot;,&quot;waiting&quot;,&quot;free&quot;,&quot;aff&quot;],&quot;default&quot;:&quot;opener&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;autoplay&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;affVariant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;,&quot;C&quot;,&quot;D&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A'|'B'|'C'|'D'&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;showFields&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;affQuote&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;exportMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;}}">
 class Component extends DCLogic {
   state = { idx: null, muted: false, paused: false, toast: '', tags: [] };
   frame = React.createRef();
@@ -423,7 +434,7 @@ class Component extends DCLogic {
     if (this._d) return this._d;
     const M = { zelle: ['Zelle', '#5b77a8', 'swap_horiz'], card: ['Card', '#2f8a83', 'credit_card'], cashapp: ['Cash App', '#6f8c5c', 'smartphone'], check: ['Check', '#c0693f', 'receipt_long'], cash: ['Cash', '#d4af37', 'payments'], other: ['Other', '#a39a86', 'more_horiz'] };
     const m = (k, a) => ({ label: M[k][0], c: M[k][1], icon: M[k][2], amount: a });
-    const AFF = 'You showed up this week. That’s what builds a business.';
+    const AFF = 'You [showed up] this week. That’s what [builds a business].';
     const week = { kind: 'week', title: 'Your week:', range: 'Nov 9 – 15', labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], labelAt: [0, 1, 2, 3, 4, 5, 6], scale: 1000, aff: AFF };
     const normal = { ...week, line: 'A solid week. Here’s how it went.', daily: [0, 450, 0, 800, 400, 0, 200], collected: 1850, invPaid: 1450, other: 400, payments: 4, clients: 3,
       methods: [m('zelle', 1000), m('card', 450), m('cashapp', 400)], spent: 214, cats: [['Supplies', 154], ['Fuel', 38], ['Tools', 22]], vendor: { name: 'Home Depot', amount: 132, trips: 3 },
@@ -443,7 +454,7 @@ class Component extends DCLogic {
       methods: [m('zelle', 3560), m('card', 2450), m('cashapp', 1410)], spent: 860, cats: [['Supplies', 520], ['Fuel', 210], ['Tools', 130]], vendor: { name: 'Home Depot', amount: 410, trips: 9 },
       kept: 6560, change: { dir: 'up', text: 'Up 9% from September' }, sent: 22, paid: 17, est: 6, client: { name: 'Mike Davis', amount: 3150, invoices: 4 },
       bank: { name: 'Chase ···· 4821', total: 58, auto: 41, autoIn: 12, autoOut: 29, pending: 4, items: [['Shell', 'Oct 30'], ['Home Depot', 'Oct 29'], ['Deposit', 'Oct 28']] },
-      aff: 'You showed up this month. That’s what builds a business.' };
+      aff: 'You [showed up] this month. That’s what [builds a business].' };
     return (this._d = { normal, slow, big, month });
   }
   sc() { const D = this.data(); return D[this.props.scenario] || D.normal; }
@@ -479,8 +490,8 @@ class Component extends DCLogic {
     this._sig = this.sig();
     this.tagSync(); this.run(false); this.segs(); this._sf = this.props.showFields;
     if (document.fonts && document.fonts.load) {
-      const refit = () => { if (this.frame.current) { this.fit(); this.tagLater(3400); } };
-      Promise.all(['800 88px Montserrat', '700 22px Montserrat', '600 12px Inter', '400 15px Inter', '700 46px Caveat'].map((f) => document.fonts.load(f).catch(() => 0))).then(refit);
+      const refit = () => { if (this.frame.current) { this._fv = (this._fv || 0) + 1; this.forceUpdate(); this.fit(); this.tagLater(3400); } };
+      Promise.all(['800 54px Montserrat', '600 38px Montserrat', '800 88px Montserrat', '700 22px Montserrat', '600 12px Inter', '400 15px Inter', '700 46px Caveat'].map((f) => document.fonts.load(f).catch(() => 0))).then(refit);
       if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', refit);
     }
     this.tagLater();
@@ -501,7 +512,7 @@ class Component extends DCLogic {
     this._raf = requestAnimationFrame(loop);
   }
   componentWillUnmount() { cancelAnimationFrame(this._raf); clearTimeout(this._tl); this.runId++; if (this.io) this.io.disconnect(); clearTimeout(this._tt); clearTimeout(this._hold); }
-  sig() { const P = this.props, c = this.cur(); return [c.idx, c.k.join(), P.scenario, P.plan, P.bank, P.affVariant, P.freeRecapNumber].join('|'); }
+  sig() { const P = this.props, c = this.cur(); return [c.idx, c.k.join(), P.scenario, P.plan, P.bank, P.affVariant, P.freeRecapNumber, P.affQuote].join('|'); }
   componentDidUpdate() {
     const g = this.sig();
     if (g !== this._sig) { this._sig = g; this.t = 0; this.fit(); this.tagSync(); this.run(true); this.tagLater(); }
@@ -517,6 +528,80 @@ class Component extends DCLogic {
       const v = i < idx ? 1 : i > idx ? 0 : auto ? Math.min(1, Math.max(0, (this.t - 2800) / 3400)) : 1;
       el.style.transform = 'scaleX(' + v + ')';
     });
+  }
+  // Affirmation type system. Input: quote with 1-2 key phrases in [brackets].
+  // Key phrases Montserrat 800 at K, other words 600 at .72K. Lines are chosen by DP:
+  // balanced widths, no one-word lines, prefer breaks at punctuation / phrase edges,
+  // avoid splitting a phrase or ending on a function word. K steps down until it fits W x H.
+  affLayout(q, ex) {
+    const ck = q + '|' + ex + '|' + (this._fv || 0);
+    if (this._al && this._al.k === ck) return this._al.v;
+    const words = []; let ki = -1, inK = false;
+    q.replace(/\s+/g, ' ').trim().split(' ').forEach((tok) => {
+      if (tok.includes('[')) { ki++; inK = true; }
+      const t = tok.replace(/[\[\]]/g, '');
+      if (t) words.push({ t, k: inK && ki < 2 ? ki : -1 });
+      if (tok.includes(']')) inK = false;
+    });
+    const n = words.length;
+    const cv = this._cv || (this._cv = document.createElement('canvas').getContext('2d'));
+    const MF = 'Montserrat, system-ui, sans-serif';
+    const mw = (t, key, z) => { cv.font = (key ? 800 : 600) + ' ' + z + 'px ' + MF; return cv.measureText(t).width + t.length * z * (key ? -0.02 : -0.01); };
+    const W = ex ? 300 : 330, H = ex ? 320 : 400, R = .72;
+    const FN = new Set('a an the of and or to for in on at with by your my our is if'.split(' '));
+    const brk = (i) => { const a = words[i], b = words[i + 1]; let p = 0;
+      if (a.k >= 0 && a.k === b.k) p += 18;
+      if (/[,.;:?!—–]$/.test(a.t)) p -= 14; else if (a.k !== b.k) p -= 4; else p += 5;
+      if (FN.has(a.t.toLowerCase())) p += 10;
+      return p; };
+    const midP = (i, j) => { let p = 0; for (let x = i; x < j - 1; x++) if (/[.;:?!]$/.test(words[x].t)) p += 40; else if (/,$/.test(words[x].t)) p += 6; return p; };
+    const start = n <= 5 ? 60 : n <= 10 ? 52 : n <= 14 ? 44 : 40;
+    let out = null;
+    for (let K = start; K >= 22; K -= 2) {
+      const P2 = Math.round(K * R);
+      const ws = words.map((w) => mw(w.t, w.k >= 0, w.k >= 0 ? K : P2));
+      const info = (i, j) => { let w = 0, key = false; for (let x = i; x < j; x++) { w += ws[x]; if (words[x].k >= 0) key = true; }
+        const gap = key ? K * .24 : P2 * .3; return { w: w + gap * (j - i - 1), gap, key, lh: key ? Math.round(K * 1.08) : Math.round(P2 * 1.26) }; };
+      const tot = info(0, n).w;
+      let best = null;
+      for (let k = 1; k <= 8; k++) {
+        if (n > 1 && n < 2 * k) break;
+        const T = tot / k, f = [], bp = [];
+        for (let c = 0; c <= k; c++) { f.push(new Array(n + 1).fill(Infinity)); bp.push(new Array(n + 1).fill(-1)); }
+        f[0][0] = 0;
+        for (let c = 1; c <= k; c++) for (let j = 1; j <= n; j++) for (let i = 0; i < j; i++) {
+          if (f[c - 1][i] === Infinity || (n > 1 && j - i < 2)) continue;
+          const L = info(i, j); if (L.w > W) continue;
+          const v = f[c - 1][i] + 100 * Math.pow((L.w - T) / W, 2) + (j < n ? brk(j - 1) : 0) + midP(i, j);
+          if (v < f[c][j]) { f[c][j] = v; bp[c][j] = i; }
+        }
+        if (f[k][n] === Infinity) continue;
+        const cuts = []; for (let c = k, j = n; c > 0; c--) { const i = bp[c][j]; cuts.unshift([i, j]); j = i; }
+        const ls = cuts.map(([i, j]) => ({ i, j, ...info(i, j) }));
+        if (ls.reduce((a, l) => a + l.lh, 0) > H && K > 22) continue;
+        const score = f[k][n] + k;
+        if (!best || score < best.score) best = { score, ls };
+      }
+      if (best) { const tot2 = best.score + 2.2 * (start - K); if (!out || tot2 < out.s) out = { K, P2, ls: best.ls, s: tot2 }; }
+    }
+    if (!out) out = { K: 22, P2: 16, ls: [{ i: 0, j: n, gap: 5, key: true, lh: 24 }] };
+    const { K, P2 } = out;
+    let ud = 0;
+    const lines = out.ls.map((l) => {
+      const segs = [];
+      for (let x = l.i; x < l.j; x++) {
+        const w = words[x], key = w.k >= 0, last = segs[segs.length - 1];
+        const word = { w: w.t, d: 550 + x * 85 };
+        if (last && last.k === w.k) { last.words.push(word); continue; }
+        segs.push({ k: w.k, words: [word], under: w.k === 0, st: { position: 'relative', display: 'inline-flex', alignItems: 'baseline', columnGap: l.gap, font: (key ? 800 : 600) + ' ' + (key ? K : P2) + 'px/' + l.lh + 'px ' + MF, letterSpacing: key ? '-.02em' : '-.01em', color: key ? '#1f1b13' : '#3b3527' } });
+      }
+      segs.forEach((g) => { if (g.under) ud = Math.max(ud, g.words[g.words.length - 1].d + 260); });
+      return { segs, st: { display: 'flex', justifyContent: 'center', alignItems: 'baseline', columnGap: l.gap, whiteSpace: 'nowrap' } };
+    });
+    lines.forEach((l) => l.segs.forEach((g) => { g.ud = ud; }));
+    const v = { lines, divD: 550 + n * 85 + 250, plain: words.map((w) => w.t).join(' ') };
+    this._al = { k: ck, v };
+    return v;
   }
   fmt(kind) {
     const money = (n) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
@@ -690,7 +775,8 @@ class Component extends DCLogic {
     const used = Math.min(2, Math.max(1, P.freeRecapNumber ?? 2));
     const freePips = [1, 2].map((i) => ({ d: 200 + i * 180, icon: i <= used ? 'check' : 'remove', st: { width: 44, height: 44, borderRadius: 999, display: 'grid', placeItems: 'center', background: i <= used ? 'linear-gradient(180deg,#f1d57c,#d4af37)' : '#efe6d6', color: i <= used ? '#1f1b13' : '#7f7663' } }));
     const v = P.affVariant || 'A';
-    const aff = { mont: v === 'A' || v === 'B', hand: v === 'C' || v === 'D', sig: v === 'A' || v === 'C', typed: v === 'C', handSig: v === 'B' || v === 'D', words: s.aff.split(' ').map((w, i) => ({ w, d: 550 + i * 90 })) };
+    const AL = this.affLayout((P.affQuote && P.affQuote.trim()) || s.aff, !!P.exportMode);
+    const aff = { mont: v === 'A' || v === 'B', hand: v === 'C' || v === 'D', sig: v === 'A' || v === 'C', typed: v === 'C', handSig: v === 'B' || v === 'D', lines: AL.lines, divD: AL.divD, words: AL.plain.split(' ').map((w, i) => ({ w, d: 550 + i * 90 })) };
 
     const on = (name) => key === name;
     const act = (msg) => (e) => { e.stopPropagation(); this.toast(msg); };
