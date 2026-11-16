@@ -41,7 +41,11 @@ privileged(col) as (values
   ('cancel_at_period_end'), ('paused_until'), ('retention_offer_used_at'),
   -- Tiers (20261116090000): the paid plan. Written only by the Stripe webhook /
   -- subscription sync on the service role; BI1-BI2 assert it.
-  ('plan')
+  ('plan'),
+  -- Tiers phase 5a (20261116130000): who bills this profile, and a store
+  -- downgrade waiting for renewal. Written only by the webhooks on the service
+  -- role; BK1-BK2 assert them.
+  ('billing_source'), ('plan_change_to'), ('plan_change_at')
 ),
 -- Profiles columns onboarding may INSERT (B). Every other column: no INSERT.
 onboarding(col) as (values
@@ -2617,6 +2621,70 @@ results(id, ok, expected, actual) as (
         from pg_trigger t
         where not t.tgisinternal and t.tgrelid = 'public.invoice_attachments'::regclass
           and t.tgname = 'enforce_plus_attachments'), 'missing') end
+
+  -- BK. Tiers phase 5a: RevenueCat billing ownership (20261116130000). SKIP
+  --     until pushed. BK1: the three columns and their checks. BK2: no client
+  --     write. BK3: revenuecat_events is service-role only — RLS on, zero
+  --     policies, no table privileges for either client role.
+  union all
+  select 'BK1 profiles billing columns',
+    case when not exists (select 1 from applied where version = '20261116130000') then null
+      else (select count(*) from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'profiles'
+          and c.column_name in ('billing_source', 'plan_change_to', 'plan_change_at')
+          and c.is_nullable = 'YES') = 3
+        and exists (select 1 from pg_constraint
+          where conrelid = 'public.profiles'::regclass and conname = 'profiles_billing_source_chk'
+            and pg_get_constraintdef(oid) ilike '%''stripe''%'
+            and pg_get_constraintdef(oid) ilike '%''app_store''%'
+            and pg_get_constraintdef(oid) ilike '%''play_store''%')
+        and exists (select 1 from pg_constraint
+          where conrelid = 'public.profiles'::regclass and conname = 'profiles_plan_change_to_chk'
+            and pg_get_constraintdef(oid) ilike '%''pro''%'
+            and pg_get_constraintdef(oid) ilike '%''plus''%')
+        and exists (select 1 from pg_constraint
+          where conrelid = 'public.profiles'::regclass and conname = 'profiles_plan_change_pair_chk') end,
+    'billing_source text null (stripe|app_store|play_store); plan_change_to text null (pro|plus); plan_change_at timestamptz null; pair check',
+    case when not exists (select 1 from applied where version = '20261116130000') then 'not applied yet'
+      else coalesce((select string_agg(c.column_name || ':' || c.data_type || ' null=' || c.is_nullable, ', '
+          order by c.column_name)
+        from information_schema.columns c
+        where c.table_schema = 'public' and c.table_name = 'profiles'
+          and c.column_name in ('billing_source', 'plan_change_to', 'plan_change_at')), 'missing') end
+  union all
+  select 'BK2 billing columns no client write',
+    case when not exists (select 1 from applied where version = '20261116130000') then null
+      else not exists (
+        select 1 from (values ('billing_source'), ('plan_change_to'), ('plan_change_at')) c(col)
+        cross join (values ('anon'), ('authenticated')) r(role)
+        where has_column_privilege(r.role, 'public.profiles', c.col, 'UPDATE')
+          or has_column_privilege(r.role, 'public.profiles', c.col, 'INSERT')) end,
+    'billing_source / plan_change_to / plan_change_at: no UPDATE, no INSERT for anon/authenticated',
+    case when not exists (select 1 from applied where version = '20261116130000') then 'not applied yet'
+      else coalesce((select string_agg(c.col || ':' || r.role, ', ' order by c.col, r.role)
+        from (values ('billing_source'), ('plan_change_to'), ('plan_change_at')) c(col)
+        cross join (values ('anon'), ('authenticated')) r(role)
+        where has_column_privilege(r.role, 'public.profiles', c.col, 'UPDATE')
+          or has_column_privilege(r.role, 'public.profiles', c.col, 'INSERT')), 'no write') end
+  union all
+  select 'BK3 revenuecat_events locked',
+    case when not exists (select 1 from applied where version = '20261116130000') then null
+      else (select c.relrowsecurity from pg_class c where c.oid = to_regclass('public.revenuecat_events'))
+        and (select count(*) from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'revenuecat_events') = 0
+        and exists (select 1 from information_schema.columns c
+          where c.table_schema = 'public' and c.table_name = 'revenuecat_events'
+            and c.column_name = 'event_id')
+        and not coalesce(has_table_privilege('anon', to_regclass('public.revenuecat_events'), 'SELECT'), true)
+        and not coalesce(has_table_privilege('authenticated', to_regclass('public.revenuecat_events'), 'SELECT'), true) end,
+    'RLS on, 0 policies, event_id keyed, no anon/authenticated privileges',
+    case when not exists (select 1 from applied where version = '20261116130000') then 'not applied yet'
+      else coalesce((select 'rls=' || c.relrowsecurity
+        from pg_class c where c.oid = to_regclass('public.revenuecat_events')), 'missing')
+        || ' policies=' || coalesce((select count(*)::text from pg_policies p
+          where p.schemaname = 'public' and p.tablename = 'revenuecat_events'), '0')
+        || ' anon_sel=' || coalesce(has_table_privilege('anon', to_regclass('public.revenuecat_events'), 'SELECT')::text, 'missing')
+        || ' auth_sel=' || coalesce(has_table_privilege('authenticated', to_regclass('public.revenuecat_events'), 'SELECT')::text, 'missing') end
 
 )
 select id as check_id,
