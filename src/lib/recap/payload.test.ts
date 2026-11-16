@@ -387,6 +387,49 @@ test('net follows Books: collected − spent, for the same rows', () => {
   assert.equal(books.net, 229);
 });
 
+// ── A week alive on other income ─────────────────────────────────────
+test('a week whose only money is other income is alive, not quiet', () => {
+  const p = buildRecapPayload(base({
+    otherIncome: [{ amount: 500, received_on: '2026-09-24', client_name: null, classification: 'other_income' }],
+  }));
+  assert.equal(p.income.total, 0); // no invoice money at all
+  assert.equal(p.collected.total, 500);
+  assert.deepEqual(recapFlags(p), { nothing: false, quiet: false, investment: false, caughtUp: true });
+  assert.equal(recapAnnounces(p), true);
+  assert.deepEqual(recapSequence(p), ['opener', 'moneyIn', 'caughtUp']);
+});
+
+test('flags on a payload stored before collected fall back to invoice income', () => {
+  const old: RecapPayload = {
+    v: RECAP_PAYLOAD_VERSION, kind: 'week', start: '2026-09-21', end: '2026-09-27',
+    income: { total: 500, payments: 1, clients: 1 },
+    spend: { total: 100, count: 1, categories: [{ key: 'fuel', amount: 100 }], receipts: [] },
+    net: 400, change: null, previous: null, daily: [0, 0, 500, 0, 0, 0, 0],
+    topClient: { name: 'Ana Cruz', amount: 500 },
+    topVendor: null, paymentMethods: [{ method: 'zelle', amount: 500 }],
+    owed: { total: 0, count: 0, invoices: [] }, viewedUnpaid: 0, quotesPending: 0,
+    paid: { total: 0, count: 0, invoices: [] },
+  };
+  assert.equal(old.collected, undefined);
+  assert.deepEqual(recapFlags(old), { nothing: false, quiet: false, investment: false, caughtUp: true });
+
+  // Nothing in, nothing out, nothing owed or paid: still the quiet card.
+  const empty: RecapPayload = {
+    ...old, income: { total: 0, payments: 0, clients: 0 },
+    spend: { total: 0, count: 0, categories: [], receipts: [] }, net: 0, daily: [0, 0, 0, 0, 0, 0, 0],
+    topClient: null, paymentMethods: [],
+  };
+  assert.deepEqual(recapFlags(empty), { nothing: true, quiet: false, investment: false, caughtUp: false });
+  assert.deepEqual(recapSequence(empty), ['quiet']);
+
+  // Spent only: the calm Money in slide, exactly as before.
+  const spentOnly: RecapPayload = {
+    ...old, income: { total: 0, payments: 0, clients: 0 }, net: -100, daily: [0, 0, 0, 0, 0, 0, 0], topClient: null, paymentMethods: [],
+  };
+  assert.deepEqual(recapFlags(spentOnly), { nothing: false, quiet: true, investment: true, caughtUp: true });
+  assert.deepEqual(recapSequence(spentOnly), ['opener', 'moneyInZero', 'moneyOut', 'keptInvest', 'caughtUp']);
+});
+
 // ── One basis everywhere ─────────────────────────────────────────────
 test('the daily series counts other income on its local day', () => {
   const p = buildRecapPayload(base({

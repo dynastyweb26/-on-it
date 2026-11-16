@@ -388,11 +388,18 @@ export type RecapFlags = {
   caughtUp: boolean;
 };
 
-export function recapFlags(p: Pick<RecapPayload, 'income' | 'spend' | 'net' | 'owed' | 'paid'>): RecapFlags {
-  const nothing = p.income.total === 0 && p.spend.total === 0 && p.owed.count === 0 && p.paid.count === 0;
+/** Money in on the Books basis: Collected when the payload has it, else the
+ *  invoice income alone, which is all a payload stored before it carries. */
+const collectedIn = (p: Pick<RecapPayload, 'income' | 'collected'>) => p.collected?.total ?? p.income.total;
+
+export function recapFlags(p: Pick<RecapPayload, 'income' | 'collected' | 'spend' | 'net' | 'owed' | 'paid'>): RecapFlags {
+  // Collected, not invoice income: a week whose only money was other income is
+  // a normal week, never "Quiet week" or a nothing-at-all period.
+  const inTotal = collectedIn(p);
+  const nothing = inTotal === 0 && p.spend.total === 0 && p.owed.count === 0 && p.paid.count === 0;
   return {
     nothing,
-    quiet: !nothing && p.income.total === 0,
+    quiet: !nothing && inTotal === 0,
     investment: !nothing && p.spend.total > 0 && p.net < 0,
     caughtUp: !nothing && p.owed.count === 0,
   };
