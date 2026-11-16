@@ -425,6 +425,29 @@ export function recapSequence(p: RecapPayload): RecapSlide[] {
   return s;
 }
 
+/** The redesign's slide order (design keys(), RULES 9–12). 'bank' and 'waiting'
+ *  are deliberately absent: they wait for the tiers work (RULE 7). */
+export type RedesignSlide =
+  | 'opener' | 'glance' | 'in' | 'out' | 'kept' | 'inv' | 'client' | 'free' | 'aff' | 'quiet';
+
+export type RedesignPlan = 'free' | 'pro';
+
+/** The slides the redesign player shows, in order (RULE 9).
+ *  - nothing at all → the quiet slide, then the affirmation (RULE 10);
+ *  - in, out, kept and inv always show, zero states included, and a loss week
+ *    still uses kept (RULE 11);
+ *  - client only with a named top client, free only on the free plan;
+ *  - a month keeps the old opener and the glance, then in … aff (RULE 12). */
+export function redesignSequence(p: RecapPayload, ctx: { plan: RedesignPlan }): RedesignSlide[] {
+  if (recapFlags(p).nothing) return ['quiet', 'aff'];
+  const k: RedesignSlide[] = p.kind === 'month' ? ['opener', 'glance'] : ['opener'];
+  k.push('in', 'out', 'kept', 'inv');
+  if (slidesWithData(p).includes('topClient')) k.push('client');
+  if (ctx.plan === 'free') k.push('free');
+  k.push('aff');
+  return k;
+}
+
 /** The redesign's slides that have data in this payload. A payload stored
  *  before a field existed lists fewer, so the player skips those slides instead
  *  of drawing one empty. Money slides need money; a named top client needs one. */

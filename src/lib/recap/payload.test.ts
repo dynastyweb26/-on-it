@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
-  sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
+  redesignSequence, sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
   type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
@@ -488,6 +488,63 @@ test('sequence on a payload stored before collected is unchanged', () => {
     ...old, income: { total: 0, payments: 0, clients: 0 }, net: -100, daily: [0, 0, 0, 0, 0, 0, 0], topClient: null, paymentMethods: [],
   };
   assert.deepEqual(recapSequence(spentOnly), ['opener', 'moneyInZero', 'moneyOut', 'keptInvest', 'caughtUp']);
+});
+
+// ── The redesign's slide order (RULES 9–12) ──────────────────────────
+test('redesign order: opener, in, out, kept, inv, client, free, aff', () => {
+  const week = fixturePayload('normalWeek');
+  assert.deepEqual(redesignSequence(week, { plan: 'pro' }), ['opener', 'in', 'out', 'kept', 'inv', 'client', 'aff']);
+  assert.deepEqual(redesignSequence(week, { plan: 'free' }), ['opener', 'in', 'out', 'kept', 'inv', 'client', 'free', 'aff']);
+  // Never the bank or waiting slides, on either plan (RULE 7).
+  for (const plan of ['free', 'pro'] as const) {
+    const k = redesignSequence(week, { plan });
+    assert.ok(!k.includes('bank' as never) && !k.includes('waiting' as never));
+  }
+});
+
+test('redesign order: a nothing week is the quiet slide, then the affirmation', () => {
+  for (const plan of ['free', 'pro'] as const) {
+    assert.deepEqual(redesignSequence(fixturePayload('nothing'), { plan }), ['quiet', 'aff']);
+  }
+});
+
+test('redesign order: a loss week still uses kept, and in/out/inv always show', () => {
+  const loss = buildRecapPayload(base({
+    expenses: [{ amount: 400, category: 'tools', vendor: "Lowe's", spent_on: '2026-09-23' }],
+  }));
+  assert.ok(loss.net < 0);
+  const k = redesignSequence(loss, { plan: 'pro' });
+  assert.deepEqual(k, ['opener', 'in', 'out', 'kept', 'inv', 'aff']); // no named client, no free
+  assert.ok(!k.includes('keptInvest' as never));
+});
+
+test('redesign order: no named client, no client slide', () => {
+  const quiet = fixturePayload('quietWeek');
+  assert.equal(quiet.topClient, null);
+  assert.deepEqual(redesignSequence(quiet, { plan: 'pro' }), ['opener', 'in', 'out', 'kept', 'inv', 'aff']);
+});
+
+test('redesign order: a month keeps its opener and glance first (RULE 12)', () => {
+  const month = fixturePayload('busyMonth');
+  assert.deepEqual(redesignSequence(month, { plan: 'pro' }),
+    ['opener', 'glance', 'in', 'out', 'kept', 'inv', 'client', 'aff']);
+  assert.deepEqual(redesignSequence(month, { plan: 'free' }),
+    ['opener', 'glance', 'in', 'out', 'kept', 'inv', 'client', 'free', 'aff']);
+});
+
+test('redesign order works on a stored payload without collected', () => {
+  const old: RecapPayload = {
+    v: RECAP_PAYLOAD_VERSION, kind: 'week', start: '2026-09-21', end: '2026-09-27',
+    income: { total: 500, payments: 1, clients: 1 },
+    spend: { total: 100, count: 1, categories: [{ key: 'fuel', amount: 100 }], receipts: [] },
+    net: 400, change: null, previous: null, daily: [0, 0, 500, 0, 0, 0, 0],
+    topClient: { name: 'Ana Cruz', amount: 500 },
+    topVendor: null, paymentMethods: [{ method: 'zelle', amount: 500 }],
+    owed: { total: 0, count: 0, invoices: [] }, viewedUnpaid: 0, quotesPending: 0,
+    paid: { total: 0, count: 0, invoices: [] },
+  };
+  assert.equal(old.collected, undefined);
+  assert.deepEqual(redesignSequence(old, { plan: 'pro' }), ['opener', 'in', 'out', 'kept', 'inv', 'client', 'aff']);
 });
 
 // ── One basis everywhere ─────────────────────────────────────────────
