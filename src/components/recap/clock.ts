@@ -27,7 +27,7 @@ export function createClock(): SlideClock {
 }
 
 /** `data-act` values a slide's buttons can raise (the player routes them). */
-export type RecapAction = 'view-invoices' | 'new-invoice';
+export type RecapAction = 'view-invoices' | 'new-invoice' | 'upgrade';
 
 export type SlideProps = {
   payload: RecapPayload;
@@ -39,6 +39,8 @@ export type SlideProps = {
   /** How many times a recap story has been opened on this device (the
    *  opener's affirmation rotates on it). */
   opens: number;
+  /** The owner (the affirmation slide's pickAffirmation seed). */
+  userId?: string;
   onAction: (a: RecapAction) => void;
 };
 

@@ -27,11 +27,13 @@ import { createPortal } from 'react-dom';
 import Icon from '@/components/Icon';
 import { RECAP_CONFIG } from '@/lib/recap/config';
 import { recapAudio } from '@/lib/recap/audio';
-import { recapSequence, type RecapPayload } from '@/lib/recap/payload';
+import { redesignSequence, type RecapPayload, type RedesignPlan, type RedesignSlide } from '@/lib/recap/payload';
 import { slideTiming, type Cue, type SlideTiming } from '@/lib/recap/timing';
 import { createClock, type RecapAction, type SlideClock } from '@/components/recap/clock';
 import { RECAP_SLIDE_NAMES } from '@/components/recap/names';
 import { SLIDES } from '@/components/recap/slides';
+import { DESIGN_SLIDES } from '@/components/recap/design/slides';
+import { designTiming } from '@/components/recap/design/timing';
 import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
 import './recap.css';
 
@@ -59,15 +61,28 @@ export type RecapStoryProps = {
   reducedMotion?: boolean;
   /** Open on this slide (clamped); default the first. */
   startAt?: number;
+  /** The owner's plan: the free slide only plays on the free plan. */
+  plan?: RedesignPlan;
+  /** The owner, for the last slide's affirmation (pickAffirmation). */
+  userId?: string;
 };
 
-export default function RecapStory({ payload, onClose, onAction, onCue, reducedMotion, startAt = 0 }: RecapStoryProps) {
+// Weekly uses the redesign; a month keeps its old opener and the glance, and a
+// week with nothing at all keeps the quiet slide (RULES 3, 10, 12).
+const keepsOld = (key: RedesignSlide, p: RecapPayload) =>
+  key === 'quiet' || key === 'glance' || (key === 'opener' && p.kind === 'month');
+const timingFor = (key: RedesignSlide, p: RecapPayload, reduced: boolean): SlideTiming =>
+  keepsOld(key, p) ? slideTiming(key as 'opener' | 'glance' | 'quiet', p, reduced) : designTiming();
+const slideFor = (key: RedesignSlide, p: RecapPayload) =>
+  keepsOld(key, p) ? SLIDES[key as 'opener' | 'glance' | 'quiet'] : DESIGN_SLIDES[key];
+
+export default function RecapStory({ payload, onClose, onAction, onCue, reducedMotion, startAt = 0, plan = 'pro', userId = '' }: RecapStoryProps) {
   const osReduced = usePrefersReducedMotion();
   const reduced = reducedMotion ?? osReduced;
-  const keys = useMemo(() => recapSequence(payload), [payload]);
-  const timings = useMemo(() => keys.map((k) => slideTiming(k, payload, reduced)), [keys, payload, reduced]);
+  const keys = useMemo(() => redesignSequence(payload, { plan }), [payload, plan]);
+  const timings = useMemo(() => keys.map((k) => timingFor(k, payload, reduced)), [keys, payload, reduced]);
   const n = keys.length;
-  const quietOnly = n === 1 && keys[0] === 'quiet';
+  const quietOnly = false;   // the quiet week is followed by the affirmation (RULE 10)
   const first = Math.min(Math.max(0, startAt), n - 1);
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -344,14 +359,14 @@ export default function RecapStory({ payload, onClose, onAction, onCue, reducedM
       onContextMenu={(e) => e.preventDefault()}
     >
       {entries.map((e, i) => {
-        const Slide = SLIDES[e.timing.key];
+        const Slide = slideFor(keys[e.idx], payload);
         const outgoing = i > 0;
         return (
           <div key={e.key} className="rc-layer" style={{ zIndex: outgoing ? 2 : 1 }} aria-hidden={outgoing || undefined}>
             <div className="rc-wipe-clip" ref={(el) => { slot(e.key).clip = el; }}>
               <div className="rc-wipe-inner" ref={(el) => { slot(e.key).inner = el; }}>
                 <div className="rc-slide" data-theme={e.timing.theme}>
-                  <Slide payload={payload} timing={e.timing} clock={e.clock} reduced={reduced} index={e.idx} count={n} opens={opens} onAction={action} />
+                  <Slide payload={payload} timing={e.timing} clock={e.clock} reduced={reduced} index={e.idx} count={n} opens={opens} userId={userId} onAction={action} />
                 </div>
               </div>
               {/* Inside the moving clip box, so it dims only the outgoing slide. */}

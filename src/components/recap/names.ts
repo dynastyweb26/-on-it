@@ -1,9 +1,8 @@
-import type { RecapSlide } from '@/lib/recap/payload';
+import type { RedesignSlide } from '@/lib/recap/payload';
 
-// Slide names (RECAP-SPEC §1), for the placeholder slides and the
+// Slide names (RECAP-SPEC §1 and the redesign's screen labels), for the
 // screen-reader announcement on each slide change.
-export const RECAP_SLIDE_NAMES: Record<RecapSlide, string> = {
-  opener: 'Opener', moneyIn: 'Money in', moneyInZero: 'Money in', moneyOut: 'Money out',
-  kept: 'What you kept', keptInvest: 'What you kept', glance: 'Month at a glance',
-  owed: 'Still on the table', caughtUp: 'All caught up', quiet: 'Nothing at all',
+export const RECAP_SLIDE_NAMES: Record<RedesignSlide, string> = {
+  opener: 'Overview', glance: 'Month at a glance', in: 'Money in', out: 'Money out', kept: 'What you kept',
+  inv: 'Invoices and estimates', client: 'Top client', free: 'Free plan', aff: 'Affirmation', quiet: 'Nothing at all',
 };
