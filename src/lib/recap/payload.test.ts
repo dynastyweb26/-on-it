@@ -5,7 +5,7 @@ import {
   RECAP_PAYLOAD_VERSION, TRIPS_MAX, type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
-import { FIXTURE_TZ, fixturePayload, getScenario, INVOICE_COUNTS, SCENARIOS, type ScenarioId } from './fixtures';
+import { FIXTURE_TZ, fixturePayload, getScenario, INVOICE_COUNTS, redesignPayload, SCENARIOS, type ScenarioId } from './fixtures';
 import { addDays, periodsEndingBefore, previousPeriod, zonedMidnight } from './dates';
 import { monthColumns } from './columns';
 import { booksTotals } from '@/lib/books-totals';
@@ -335,6 +335,34 @@ test('periods: Monday → previous week; the 1st → previous month; previousPer
   assert.deepEqual(previousPeriod({ kind: 'week', start: '2026-09-21', end: '2026-09-27' }), { kind: 'week', start: '2026-09-14', end: '2026-09-20' });
   assert.deepEqual(previousPeriod({ kind: 'month', start: '2026-03-01', end: '2026-03-31' }), { kind: 'month', start: '2026-02-01', end: '2026-02-28' });
   assert.deepEqual(previousPeriod({ kind: 'month', start: '2026-01-01', end: '2026-01-31' }), { kind: 'month', start: '2025-12-01', end: '2025-12-31' });
+});
+
+// ── The redesign's five fixtures ────────────────────────────────────
+test('redesign fixtures: normal, slow, zero spent, one invoice, forty invoices', () => {
+  const normal = redesignPayload('normalWeek');
+  assert.deepEqual(normal.collected, { total: 1850, invoices: 1850, other: 0, payments: 4, clients: 3 });
+
+  const slow = redesignPayload('slowWeek');
+  assert.deepEqual(
+    { invoices: slow.collected.invoices, other: slow.collected.other, total: slow.collected.total },
+    { invoices: 240, other: 85, total: 325 });
+  assert.equal(slow.collected.payments, 3); // two payments + one other-income row
+  assert.equal(slow.topClient?.name, 'Ana Cruz');
+  assert.equal(slow.owed.count, 1);
+
+  const zero = redesignPayload('zeroSpentWeek');
+  assert.equal(zero.spend.total, 0);
+  assert.equal(zero.topVendor, null);
+  assert.deepEqual(recapSequence(zero), ['opener', 'moneyIn', 'kept', 'owed']);
+
+  const one = redesignPayload('oneInvoiceWeek');
+  assert.equal(one.owed.count, 1);
+  assert.equal(one.owed.invoices.length, 1);
+
+  const forty = redesignPayload('fortyInvoicesWeek');
+  assert.equal(forty.owed.count, 40);
+  assert.equal(forty.owed.invoices.length, 3); // the list caps, the count doesn't
+  assert.equal(forty.viewedUnpaid, 23);
 });
 
 // ── Old stored recaps still open ─────────────────────────────────────
