@@ -52,6 +52,25 @@ test('opener: Collected is collected.total, Kept is net, Spent is spend.total', 
   }
 });
 
+test('money in: the big number is collected.total; the cards and chips are the payload\'s', () => {
+  for (const id of IDS) {
+    const p = redesignPayload(id);
+    const t = text(html('in', p));
+    assert.ok(t.includes(money(p.collected.total)), `${id} collected`);
+    assert.ok(t.includes(money(p.collected.invoices)), `${id} invoices paid`);
+    assert.ok(t.includes(money(p.collected.other)), `${id} other`);
+    for (const m of p.paymentMethods) assert.ok(t.includes(money(m.amount)), `${id} ${m.method}`);
+    assert.ok(t.includes(`${p.collected.payments} payment`), `${id} caption`);
+    if (!p.paymentMethods.length) assert.ok(!t.includes('How it came in'));
+  }
+});
+
+test('money in: an old payload shows income.total as money in', () => {
+  const p = old(redesignPayload('normalWeek'));
+  const t = text(html('in', p));
+  assert.ok(t.includes(money(p.income.total)));
+});
+
 test('opener: an old payload falls back to income.total and drops what it never had', () => {
   const p = old(redesignPayload('normalWeek'));
   const t = text(html('opener', p));
