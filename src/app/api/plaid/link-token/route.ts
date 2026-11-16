@@ -16,6 +16,8 @@ import { linkTokenRequest } from '@/lib/plaid/link';
 import { PlaidApiError, plaidClientFromEnv } from '@/lib/plaid/client';
 import { plaidAccessToken } from '@/lib/plaid/items';
 import { fail } from '@/lib/plaid/respond';
+import { newPlaidLinkAllowed } from '@/lib/plaid/plan-server';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 export const runtime = 'nodejs';
 
@@ -38,6 +40,13 @@ export async function POST(req: NextRequest) {
 
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return fail('link-token', 'invalid_request');
+
+  // Tiers: only a NEW link needs Plus. Update mode (an item_id the caller owns)
+  // is never gated — a bank already connected keeps working after a lapse, and
+  // it is checked before any Plaid call or token decryption.
+  if (!parsed.data.item_id && !(await newPlaidLinkAllowed(supabase, user.id, NEXT_PUBLIC_TIERS))) {
+    return fail('link-token', 'plan_required');
+  }
 
   let accessToken: string | undefined;
   if (parsed.data.item_id) {

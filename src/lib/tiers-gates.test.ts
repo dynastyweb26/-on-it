@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const ASK = read('../../src/app/api/ask/route.ts');
 const ACCESS = read('../../src/app/api/access/route.ts');
+const LINK_TOKEN = read('../../src/app/api/plaid/link-token/route.ts');
+const EXCHANGE = read('../../src/app/api/plaid/exchange/route.ts');
 
 const indexOf = (source: string, needle: string): number => {
   const found = source.indexOf(needle);
@@ -39,6 +41,42 @@ test('ask: the count is read only behind the flag', () => {
   const call = indexOf(ASK, 'aiLimitForUserId(supabase, user.id)');
   const flag = indexOf(ASK, 'if (NEXT_PUBLIC_TIERS) {');
   assert.ok(flag < call, 'the only count call sits inside the flag branch');
+});
+
+test('plaid: only a NEW link is gated; update mode never asks', () => {
+  // One gate, and it only runs when no item_id was sent.
+  assert.equal(LINK_TOKEN.match(/newPlaidLinkAllowed\(/g)?.length, 1);
+  assert.match(
+    LINK_TOKEN,
+    /if \(!parsed\.data\.item_id && !\(await newPlaidLinkAllowed\(supabase, user\.id, NEXT_PUBLIC_TIERS\)\)\)/,
+  );
+  // The update-mode branch (the item ownership read) still has no plan check.
+  const updateBranch = LINK_TOKEN.slice(
+    indexOf(LINK_TOKEN, 'if (parsed.data.item_id) {'),
+    indexOf(LINK_TOKEN, 'try {'),
+  );
+  assert.doesNotMatch(updateBranch, /newPlaidLinkAllowed|plan_required/);
+});
+
+test('plaid: the exchange is gated before the public token is exchanged', () => {
+  const gate = indexOf(EXCHANGE, 'newPlaidLinkAllowed(supabase, user.id, NEXT_PUBLIC_TIERS)');
+  const exchangeCall = indexOf(EXCHANGE, 'itemPublicTokenExchange');
+  assert.ok(gate < exchangeCall, 'a refused plan creates nothing at Plaid');
+  assert.match(EXCHANGE.slice(gate - 200, exchangeCall), /plan_required/);
+});
+
+test('plaid: every other route stays ungated', () => {
+  for (const path of [
+    '../../src/app/api/plaid/sync/route.ts',
+    '../../src/app/api/plaid/review/route.ts',
+    '../../src/app/api/plaid/transactions/route.ts',
+    '../../src/app/api/plaid/deposits/route.ts',
+    '../../src/app/api/plaid/disconnect/route.ts',
+    '../../src/app/api/plaid/webhook/route.ts',
+  ]) {
+    const source = read(path);
+    assert.doesNotMatch(source, /newPlaidLinkAllowed|PLAN_REQUIRED/, path);
+  }
 });
 
 test('access: the AI meter fields appear only when the flag is on', () => {
