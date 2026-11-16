@@ -5,7 +5,8 @@
 //   • the founder guard (optional): access_tier is null or not 'founder';
 //   • the source rule (always): billing_source is null, is this writer, or the
 //     profile is not on a live tier (plus the store-wins-over-Stripe
-//     exception). The same UPDATE sets billing_source to this writer.
+//     exception, which exists only for a write that is itself live). The same
+//     UPDATE sets billing_source to this writer.
 //
 // A zero-row result is not an error: it means someone else owns the profile.
 // It is explained in one log line, and the caller carries on — a webhook must
@@ -58,11 +59,16 @@ export async function writeBillingFields(
   supabase: SupabaseClient,
   write: BillingWrite,
 ): Promise<boolean> {
+  // The tier this UPDATE is writing. It gates the store-over-Stripe exception:
+  // a store may take a live Stripe subscriber over by granting access, never by
+  // cancelling it.
+  const writtenTier = typeof write.fields.access_tier === 'string' ? write.fields.access_tier : null;
+
   // A store write over a live Stripe subscription is the one deliberate
   // override. Log it, then write (the WHERE already allows it).
-  if (isStoreSource(write.writer)) {
+  if (isStoreSource(write.writer) && isLiveTier(writtenTier)) {
     const owner = await currentBillingOwner(supabase, write.match);
-    if (owner && isDoubleBilling(write.writer, owner.billing_source, owner.access_tier)) {
+    if (owner && isDoubleBilling(write.writer, owner.billing_source, owner.access_tier, writtenTier)) {
       console.warn('double_billing', JSON.stringify({
         userId: owner.id,
         store: write.writer,
@@ -78,7 +84,7 @@ export async function writeBillingFields(
     .update({ ...write.fields, billing_source: write.writer });
   q = where(write.match, q);
   if (write.guardFounder) q = q.or('access_tier.is.null,access_tier.neq.founder');
-  q = q.or(billingSourceOr(write.writer)).select('id');
+  q = q.or(billingSourceOr(write.writer, writtenTier)).select('id');
 
   const { data, error } = await q;
   if (error) throw error;
@@ -89,10 +95,13 @@ export async function writeBillingFields(
   if (owner?.access_tier === 'founder') {
     console.warn('[billing] write skipped: founder', JSON.stringify({ userId: owner.id, writer: write.writer }));
   } else if (owner && isLiveTier(owner.access_tier) && owner.billing_source && owner.billing_source !== write.writer) {
+    // Includes the store vs live-Stripe case when the store write is NOT live:
+    // a lapsed store subscription cannot cancel a Stripe subscriber.
     console.warn('[billing] write skipped: another source owns a live subscription', JSON.stringify({
       userId: owner.id,
       writer: write.writer,
       owner: owner.billing_source,
+      writtenTier,
     }));
   } else {
     console.warn('[billing] write matched no row', JSON.stringify({ writer: write.writer }));

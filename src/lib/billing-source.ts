@@ -8,10 +8,14 @@
 //   • nobody owns the profile yet (billing_source is null), or
 //   • it already owns it, or
 //   • the profile is not on a live tier (a lapsed row is fair game).
-// One exception, deliberate: a store purchase always wins over a LIVE Stripe
+// One exception, deliberate: a store purchase wins over a LIVE Stripe
 // subscription — the user paid the store and must get access. That write is
 // logged as double_billing so the Stripe side can be refunded.
-
+//
+// The exception is about GRANTING access, so it only exists for a write that
+// leaves the profile live (trialing, active, past_due). A store event that
+// derives "nothing active" must not be able to cancel a Stripe subscriber who
+// already moved off the store: for that write the plain rule applies.
 export type BillingSource = 'stripe' | 'app_store' | 'play_store';
 
 /** Tiers that mean "this profile is on a live subscription right now". */
@@ -26,16 +30,23 @@ export function isStoreSource(source: BillingSource): boolean {
   return source !== 'stripe';
 }
 
-/** The rule, in TS. billingSourceOr() below is the same rule in SQL. */
+/**
+ * The rule, in TS. billingSourceOr() below is the same rule in SQL.
+ *
+ * @param tier        the profile's current access_tier (the row's WHERE)
+ * @param writtenTier the access_tier this write is putting there
+ */
 export function mayWriteBilling(
   writer: BillingSource,
   currentSource: string | null | undefined,
   tier: string | null | undefined,
+  writtenTier: string | null | undefined,
 ): boolean {
   if (currentSource == null || currentSource === writer) return true;
   if (!isLiveTier(tier)) return true;
-  // The store exception: it always outranks a live Stripe subscription.
-  return isStoreSource(writer) && currentSource === 'stripe';
+  // The store exception: it outranks a live Stripe subscription — but only
+  // when it is writing a live state, never to cancel one.
+  return isStoreSource(writer) && currentSource === 'stripe' && isLiveTier(writtenTier);
 }
 
 /** Would this write take a paying Stripe subscriber over to a store? */
@@ -43,16 +54,26 @@ export function isDoubleBilling(
   writer: BillingSource,
   currentSource: string | null | undefined,
   tier: string | null | undefined,
+  writtenTier: string | null | undefined,
 ): boolean {
-  return isStoreSource(writer) && currentSource === 'stripe' && isLiveTier(tier);
+  return (
+    isStoreSource(writer) &&
+    currentSource === 'stripe' &&
+    isLiveTier(tier) &&
+    isLiveTier(writtenTier)
+  );
 }
 
 /**
  * The same rule as a PostgREST `or=` filter, for the UPDATE's WHERE. Multiple
  * .or() calls in supabase-js are ANDed, so this can sit beside the founder
- * guard.
+ * guard. `writtenTier` is the access_tier in the same UPDATE (a static value,
+ * not a column), which is what makes the store exception safe to encode here.
  */
-export function billingSourceOr(writer: BillingSource): string {
+export function billingSourceOr(
+  writer: BillingSource,
+  writtenTier: string | null | undefined,
+): string {
   const clauses = [
     'billing_source.is.null',
     `billing_source.eq.${writer}`,
@@ -60,6 +81,6 @@ export function billingSourceOr(writer: BillingSource): string {
     'access_tier.is.null',
     `access_tier.not.in.(${LIVE_TIERS.join(',')})`,
   ];
-  if (isStoreSource(writer)) clauses.push('billing_source.eq.stripe');
+  if (isStoreSource(writer) && isLiveTier(writtenTier)) clauses.push('billing_source.eq.stripe');
   return clauses.join(',');
 }

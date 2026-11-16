@@ -83,6 +83,23 @@ test('derive: a store we do not bill through leaves billingSource null', () => {
   assert.deepEqual(logged, ['unknown_store']);
 });
 
+test('derive: an active entitlement takes its store from its own subscription, not the newest', () => {
+  const state = deriveRevenueCatState({
+    entitlements: {
+      pro: { product_identifier: 'onit_pro_monthly', expires_date: '2026-11-01T12:00:00Z' },
+      plus: { product_identifier: 'onit_plus_monthly', expires_date: '2027-02-15T12:00:00Z' },
+    },
+    subscriptions: {
+      onit_pro_monthly: { expires_date: '2026-11-01T12:00:00Z', store: 'app_store' },
+      onit_plus_monthly: { expires_date: '2027-02-15T12:00:00Z', store: 'play_store', period_type: 'normal' },
+      // A later, unrelated lapsed row must not decide the billing source.
+      onit_pro_yearly: { expires_date: '2027-06-01T12:00:00Z', store: 'app_store' },
+    },
+  }, NOW);
+  assert.equal(state.plan, 'plus');
+  assert.equal(state.billingSource, 'play_store');
+});
+
 test('derive: a family-shared promo with no subscription is never a plan', () => {
   const state = deriveRevenueCatState({
     entitlements: { plus: { product_identifier: 'rc_promo_plus', expires_date: '2027-01-01T00:00:00Z' } },
