@@ -87,3 +87,13 @@ export function isPlusPlan(
 ): boolean {
   return entitlementsFor(tier, plan).plan === 'plus';
 }
+
+/** The plan name shown beside the Settings title. A founder reads "Founder"
+ *  (they hold Plus through a code, not a purchase); everyone else reads the
+ *  plan their access resolves to, so a canceled or unknown tier is "Free". */
+export type PlanLabel = 'Free' | 'Pro' | 'Plus' | 'Founder';
+export function planLabel(tier: string | null | undefined, plan: string | null | undefined): PlanLabel {
+  if (tier === 'founder') return 'Founder';
+  const name = entitlementsFor(tier, plan).plan;
+  return name === 'plus' ? 'Plus' : name === 'pro' ? 'Pro' : 'Free';
+}
