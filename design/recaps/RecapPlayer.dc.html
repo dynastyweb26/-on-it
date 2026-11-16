@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:wght@400;600&family=Caveat:wght@600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
+<style>body{margin:0}a{color:#735c00}a:hover{color:#1f1b13}</style>
+</helmet>
+<div style="display:inline-block;padding:9px;vertical-align:top">
+<div ref="{{ frame }}" tabindex="0" onPointerDown="{{ onDown }}" onPointerUp="{{ onUp }}" onPointerLeave="{{ onLeave }}" onKeyDown="{{ onKey }}" style="position:relative;width:390px;height:844px;border-radius:40px;overflow:hidden;outline:none;box-shadow:0 0 0 9px #1f1b13,0 30px 60px -30px rgba(31,27,19,.5);background:radial-gradient(110% 50% at 50% -4%,#fff,rgba(255,255,255,0) 64%),radial-gradient(120% 50% at 50% 110%,rgba(212,175,55,.10),rgba(212,175,55,0) 60%),#fff8f0;color:#1f1b13;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;user-select:none;touch-action:none;cursor:pointer">
+
+<!-- 01 OVERVIEW -->
+<sc-if value="{{ show.opener }}" hint-placeholder-val="{{ true }}">
+<div data-slide="opener" data-screen-label="01 Overview" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px">
+    <div data-a="up" data-d="0" style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">{{ f.kindLabel }}</div>
+    <h1 data-a="up" data-d="120" style="margin:14px 0 0;font:800 38px/42px Montserrat,system-ui,sans-serif;letter-spacing:-.02em"><span data-f="period_title">{{ s.title }}</span><br><span data-f="period_range" style="color:#735c00">{{ s.range }}</span></h1>
+    <div data-a="up" data-d="260" data-f="opener_line" style="margin-top:10px;font:400 15px/20px Inter,system-ui,sans-serif;color:#4d4635">{{ s.line }}</div>
+  </div>
+  <div style="position:absolute;left:28px;right:28px;top:256px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div data-a="pop" data-d="1500" style="padding:12px 14px;border-radius:16px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 12px 24px -20px rgba(115,92,0,.5)">
+      <div style="font:600 10.5px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Collected</div>
+      <div data-a="count" data-v="{{ s.collected }}" data-fmt="money" data-d="1500" data-dur="700" data-f="collected_total" style="margin-top:6px;font:800 26px/30px Montserrat,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ f.collected }}</div>
+    </div>
+    <div data-a="pop" data-d="1750" style="padding:12px 14px;border-radius:16px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 12px 24px -20px rgba(115,92,0,.5)">
+      <div style="font:600 10.5px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Spent</div>
+      <div data-a="count" data-v="{{ s.spent }}" data-fmt="money" data-d="1750" data-dur="700" data-f="spent_total" style="margin-top:6px;font:800 26px/30px Montserrat,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ f.spent }}</div>
+    </div>
+  </div>
+  <div style="position:absolute;left:0;top:340px;width:390px;height:310px;pointer-events:none">
+    <div data-a="wipe" data-d="500" data-dur="1300" style="position:absolute;inset:0;-webkit-mask-image:linear-gradient(180deg,#000 10%,rgba(0,0,0,.12) 92%);mask-image:linear-gradient(180deg,#000 10%,rgba(0,0,0,.12) 92%)">
+      <svg width="390" height="310" style="display:block"><path d="{{ curve.area }}" style="fill:#d4af37;opacity:.5"></path></svg>
+    </div>
+    <svg width="390" height="310" style="position:absolute;left:0;top:0;overflow:visible">
+      <path data-a="draw" data-d="500" data-dur="1300" d="{{ curve.line }}" style="fill:none;stroke:#d4af37;stroke-opacity:.16;stroke-width:16;stroke-linecap:round;stroke-linejoin:round"></path>
+      <path data-a="draw" data-d="500" data-dur="1300" d="{{ curve.line }}" style="fill:none;stroke:#f1d57c;stroke-opacity:.6;stroke-width:7;stroke-linecap:round;stroke-linejoin:round"></path>
+      <path data-a="draw" data-d="500" data-dur="1300" d="{{ curve.line }}" style="fill:none;stroke:#b8952a;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round"></path>
+    </svg>
+    <div data-a="gx" data-d="150" data-dur="800" style="position:absolute;left:0;right:0;top:279px;height:2px;transform-origin:left center;background:linear-gradient(90deg,rgba(212,175,55,0),#d4af37 10%,#d4af37 90%,rgba(212,175,55,0))"></div>
+    <sc-for list="{{ curve.labels }}" as="l" hint-placeholder-count="7">
+      <span data-a="fade" data-d="{{ l.d }}" data-dur="300" style="{{ l.st }}">{{ l.t }}</span>
+    </sc-for>
+    <sc-if value="{{ show.peak }}" hint-placeholder-val="{{ false }}">
+      <div data-a="pop" data-d="1500" style="{{ curve.peakSt }}"><span data-f="peak_day_amount">{{ f.peak }}</span></div>
+    </sc-if>
+  </div>
+  <div style="position:absolute;left:28px;right:28px;top:668px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div data-a="pop" data-d="2000" style="padding:12px 14px;border-radius:16px;background:linear-gradient(180deg,#f1d57c,#d4af37);box-shadow:0 12px 24px -14px rgba(212,175,55,.8),inset 0 1px 0 rgba(255,255,255,.4)">
+      <div style="font:600 10.5px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#1f1b13">Kept</div>
+      <div data-a="count" data-v="{{ s.kept }}" data-fmt="money" data-d="2000" data-dur="700" data-f="kept_total" style="margin-top:6px;font:800 26px/30px Montserrat,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ f.kept }}</div>
+    </div>
+    <div data-a="pop" data-d="2250" style="padding:12px 14px;border-radius:16px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 12px 24px -20px rgba(115,92,0,.5)">
+      <div style="font:600 10.5px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Invoices sent</div>
+      <div data-a="count" data-v="{{ s.sent }}" data-fmt="int" data-d="2250" data-dur="600" data-f="invoices_sent_count" style="margin-top:6px;font:800 26px/30px Montserrat,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ s.sent }}</div>
+    </div>
+  </div>
+  <div data-a="fade" data-d="2700" data-dur="300" style="position:absolute;left:0;right:0;bottom:30px;display:flex;justify-content:center;align-items:center;gap:4px;font:600 12px/1 Inter,system-ui,sans-serif;color:#4d4635">Tap for the details<span style="font:400 16px/1 'Material Symbols Outlined';width:16px;height:16px;overflow:hidden;display:block;white-space:nowrap">chevron_right</span></div>
+</div>
+</sc-if>
+
+<!-- 02 MONEY IN -->
+<sc-if value="{{ show.in }}" hint-placeholder-val="{{ false }}">
+<div data-slide="in" data-screen-label="02 Money in" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column">
+    <div data-a="up" data-d="0" style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Money in</div>
+    <div data-a="up" data-d="100" style="margin-top:18px;font:700 22px/28px Montserrat,system-ui,sans-serif">You collected</div>
+    <div data-a="count" data-v="{{ s.collected }}" data-fmt="money" data-d="250" data-dur="1400" data-fit="88" data-f="collected_total" style="margin-top:6px;font:800 88px/92px Montserrat,system-ui,sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">{{ f.collected }}</div>
+    <div data-a="up" data-d="700" style="margin-top:6px;font:400 15px/20px Inter,system-ui,sans-serif;color:#4d4635"><span data-f="payments_count · clients_count">{{ f.payCap }}</span></div>
+    <div style="margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div data-a="up" data-d="1100" style="padding:12px 14px;border-radius:16px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 12px 24px -20px rgba(115,92,0,.5)">
+        <div style="display:flex;align-items:center;gap:6px;font:600 12px/16px Inter,system-ui,sans-serif;color:#4d4635"><i style="width:8px;height:8px;border-radius:999px;background:#d4af37;flex:none"></i>Invoices paid</div>
+        <div data-a="count" data-v="{{ s.invPaid }}" data-fmt="money" data-d="1100" data-dur="600" data-f="invoices_paid_total" style="margin-top:4px;font:800 24px/28px Montserrat,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ f.invPaid }}</div>
+      </div>
+      <div data-a="up" data-d="1250" style="padding:12px 14px;border-radius:16px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 12px 24px -20px rgba(115,92,0,.5)">
+        <div style="display:flex;align-items:center;gap:6px;font:600 12px/16px Inter,system-ui,sans-serif;color:#4d4635"><i style="width:8px;height:8px;border-radius:999px;background:#2f8a83;flex:none"></i>Other money received</div>
+        <div data-a="count" data-v="{{ s.other }}" data-fmt="money" data-d="1250" data-dur="600" data-f="other_received_total" style="margin-top:4px;font:800 24px/28px Montserrat,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ f.other }}</div>
+      </div>
+    </div>
+    <div style="margin-top:10px;height:8px;border-radius:999px;background:#efe6d6;overflow:hidden;display:flex;gap:2px">
+      <i data-a="gx" data-d="1500" data-dur="600" style="{{ split.a }}"></i>
+      <i data-a="gx" data-d="1700" data-dur="600" style="{{ split.b }}"></i>
+    </div>
+    <sc-if value="{{ show.methods }}" hint-placeholder-val="{{ true }}">
+      <div style="margin-top:22px;font:600 12px/1 Inter,system-ui,sans-serif;color:#4d4635" data-a="fade" data-d="1700" data-dur="300">How it came in</div>
+      <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
+        <sc-for list="{{ methods }}" as="m" hint-placeholder-count="3">
+          <div data-a="up" data-d="{{ m.d }}" style="height:34px;padding:0 10px 0 4px;border-radius:999px;background:#fff;border:1px solid #d0c5af;display:flex;align-items:center;gap:6px;font:600 12.5px/1 Inter,system-ui,sans-serif">
+            <span style="{{ m.dot }}"><span style="font:400 16px/1 'Material Symbols Outlined';width:16px;height:16px;overflow:hidden;display:block;white-space:nowrap">{{ m.icon }}</span></span>
+            <span data-f="method_name">{{ m.label }}</span><span data-f="method_amount" style="font-weight:400;color:#4d4635;font-variant-numeric:tabular-nums">{{ m.amt }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin-top:12px;height:44px;border-radius:14px;background:#efe6d6;overflow:hidden;display:flex;box-shadow:inset 0 2px 6px rgba(31,27,19,.12);flex:none">
+        <sc-for list="{{ methods }}" as="m" hint-placeholder-count="3">
+          <div data-a="wipe" data-d="{{ m.sd }}" data-dur="600" style="{{ m.seg }}">{{ m.pct }}</div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ show.inNote }}" hint-placeholder-val="{{ false }}">
+      <div data-a="up" data-d="2000" data-f="encouragement_line" style="margin-top:22px;font:700 17px/23px Montserrat,system-ui,sans-serif;text-wrap:pretty">{{ s.inNote }}</div>
+    </sc-if>
+    <div style="flex:1 1 0"></div>
+    <sc-if value="{{ show.bankIn }}" hint-placeholder-val="{{ true }}">
+      <div data-a="up" data-d="2300" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:#fbf3e5;border:1px solid #d0c5af">
+        <span style="width:36px;height:36px;border-radius:999px;background:#f0e3b8;color:#735c00;display:grid;place-items:center;flex:none"><span style="font:400 20px/1 'Material Symbols Outlined';width:20px;height:20px;overflow:hidden;display:block;white-space:nowrap">account_balance</span></span>
+        <div style="font:400 14px/19px Inter,system-ui,sans-serif;color:#4d4635"><b data-f="bank_auto_in_count" style="font:800 15px/19px Montserrat,system-ui,sans-serif;color:#1f1b13">{{ s.bank.autoIn }}</b> of these {{ f.inVerb }} picked up from your bank automatically.</div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<!-- 03 MONEY OUT -->
+<sc-if value="{{ show.out }}" hint-placeholder-val="{{ false }}">
+<div data-slide="out" data-screen-label="03 Money out" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column">
+    <div data-a="up" data-d="0" style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Money out</div>
+    <div data-a="up" data-d="100" style="margin-top:18px;font:700 22px/28px Montserrat,system-ui,sans-serif">You spent</div>
+    <div data-a="count" data-v="{{ s.spent }}" data-fmt="money" data-d="250" data-dur="1400" data-fit="88" data-f="spent_total" style="margin-top:6px;font:800 88px/92px Montserrat,system-ui,sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">{{ f.spent }}</div>
+    <sc-if value="{{ show.spend }}" hint-placeholder-val="{{ true }}">
+      <div style="margin-top:26px;display:flex;align-items:center;gap:18px">
+        <div style="position:relative;width:150px;height:150px;flex:none">
+          <svg width="150" height="150" style="position:absolute;inset:0;transform:rotate(-90deg);overflow:visible">
+            <circle cx="75" cy="75" r="60" style="fill:none;stroke:#efe6d6;stroke-width:16"></circle>
+            <sc-for list="{{ ring }}" as="c" hint-placeholder-count="3">
+              <circle data-a="draw" data-len="{{ c.len }}" data-d="{{ c.d }}" data-dur="{{ c.dur }}" data-ease="linear" cx="75" cy="75" r="60" style="{{ c.st }}"></circle>
+            </sc-for>
+          </svg>
+          <div data-a="up" data-d="1900" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px">
+            <span data-f="top_category_name" style="font:600 10.5px/1 Inter,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#4d4635;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.topCat }}</span>
+            <b data-f="top_category_pct" style="font:800 28px/30px Montserrat,system-ui,sans-serif">{{ f.topCatPct }}</b>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px">
+          <sc-for list="{{ cats }}" as="c" hint-placeholder-count="3">
+            <div data-a="left" data-d="{{ c.d }}">
+              <div style="display:flex;align-items:center;gap:7px;font:400 13px/18px Inter,system-ui,sans-serif;color:#4d4635"><i style="{{ c.dot }}"></i><span data-f="category_name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.label }}</span><b data-f="category_amount" style="font:700 14px/18px Montserrat,system-ui,sans-serif;color:#1f1b13;font-variant-numeric:tabular-nums">{{ c.amt }}</b></div>
+              <div style="margin-top:5px;height:6px;border-radius:999px;background:#efe6d6;overflow:hidden"><i data-a="gx" data-d="{{ c.bd }}" data-dur="600" style="{{ c.bar }}"></i></div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ show.catMore }}" hint-placeholder-val="{{ false }}">
+            <div data-a="fade" data-d="2000" data-dur="300" data-f="more_categories_count" style="font:600 12px/1 Inter,system-ui,sans-serif;color:#4d4635">{{ f.catMore }}</div>
+          </sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ show.vendor }}" hint-placeholder-val="{{ true }}">
+        <div data-a="up" data-d="2100" style="margin-top:24px;padding:16px 18px;border-radius:20px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 18px 36px -24px rgba(115,92,0,.45);font:400 15px/22px Inter,system-ui,sans-serif;color:#4d4635;text-wrap:pretty">Most of it at <b data-f="top_vendor_name" style="font:700 15px/22px Montserrat,system-ui,sans-serif;color:#1f1b13">{{ s.vendor.name }}</b>: <span data-f="top_vendor_amount">{{ f.vendorAmt }}</span> <span data-f="top_vendor_trips">{{ f.vendorTrips }}</span>.</div>
+      </sc-if>
+    </sc-if>
+    <sc-if value="{{ show.noSpend }}" hint-placeholder-val="{{ false }}">
+      <div data-a="up" data-d="1300" style="margin-top:30px;padding:22px 20px;border-radius:20px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 18px 36px -24px rgba(115,92,0,.45);display:flex;gap:14px;align-items:center">
+        <span data-a="pop" data-d="1600" style="width:48px;height:48px;border-radius:999px;background:#e3efe3;color:#2e6b3f;display:grid;place-items:center;flex:none"><span style="font:400 26px/1 'Material Symbols Outlined';width:26px;height:26px;overflow:hidden;display:block;white-space:nowrap">savings</span></span>
+        <div><div style="font:700 17px/22px Montserrat,system-ui,sans-serif">Nothing spent this {{ f.per }}.</div><div style="margin-top:3px;font:400 14px/20px Inter,system-ui,sans-serif;color:#4d4635">Everything that came in, stayed in.</div></div>
+      </div>
+    </sc-if>
+    <div style="flex:1 1 0"></div>
+    <sc-if value="{{ show.bankOut }}" hint-placeholder-val="{{ true }}">
+      <div data-a="up" data-d="2400" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:#fbf3e5;border:1px solid #d0c5af">
+        <span style="width:36px;height:36px;border-radius:999px;background:#f0e3b8;color:#735c00;display:grid;place-items:center;flex:none"><span style="font:400 20px/1 'Material Symbols Outlined';width:20px;height:20px;overflow:hidden;display:block;white-space:nowrap">account_balance</span></span>
+        <div style="font:400 14px/19px Inter,system-ui,sans-serif;color:#4d4635"><b data-f="bank_auto_out_count" style="font:800 15px/19px Montserrat,system-ui,sans-serif;color:#1f1b13">{{ s.bank.autoOut }}</b> of these {{ f.outVerb }} picked up from your bank automatically.</div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<!-- 04 KEPT -->
+<sc-if value="{{ show.kept }}" hint-placeholder-val="{{ false }}">
+<div data-slide="kept" data-screen-label="04 Kept" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column;align-items:center">
+    <div data-a="up" data-d="0" style="align-self:stretch;font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">What you kept</div>
+    <div data-a="up" data-d="100" style="align-self:stretch;margin-top:18px;font:700 22px/28px Montserrat,system-ui,sans-serif">You kept</div>
+    <div style="align-self:stretch;margin-top:20px;display:flex;align-items:center;gap:10px">
+      <div data-a="up" data-d="300" style="flex:1;min-width:0;padding:10px 14px;border-radius:14px;background:#fff;border:1px solid rgba(31,27,19,.08)">
+        <div style="font:600 11px/14px Inter,system-ui,sans-serif;color:#4d4635">Money in</div>
+        <div data-a="count" data-v="{{ s.collected }}" data-fmt="money" data-d="300" data-dur="500" data-fit="20" data-f="collected_total" style="font:800 20px/24px Montserrat,system-ui,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">{{ f.collected }}</div>
+      </div>
+      <span data-a="pop" data-d="550" style="font:800 22px/1 Montserrat,system-ui,sans-serif;color:#735c00">−</span>
+      <div data-a="up" data-d="700" style="flex:1;min-width:0;padding:10px 14px;border-radius:14px;background:#fff;border:1px solid rgba(31,27,19,.08)">
+        <div style="font:600 11px/14px Inter,system-ui,sans-serif;color:#4d4635">Money out</div>
+        <div data-a="count" data-v="{{ s.spent }}" data-fmt="money" data-d="700" data-dur="500" data-fit="20" data-f="spent_total" style="font:800 20px/24px Montserrat,system-ui,sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">{{ f.spent }}</div>
+      </div>
+    </div>
+    <div style="position:relative;width:260px;height:260px;margin-top:34px;flex:none">
+      <div style="position:absolute;inset:32px;border-radius:999px;background:radial-gradient(circle at 50% 35%,#fff,#fbf2e3 70%);box-shadow:0 24px 50px -20px rgba(115,92,0,.35),inset 0 -6px 16px rgba(115,92,0,.08)"></div>
+      <svg width="260" height="260" style="position:absolute;inset:0;transform:rotate(-90deg);overflow:visible">
+        <circle cx="130" cy="130" r="110" style="fill:none;stroke:#efe6d6;stroke-width:22"></circle>
+        <circle data-a="draw" data-len="{{ keptRing.len }}" data-d="1000" data-dur="1500" cx="130" cy="130" r="110" style="{{ keptRing.glow }}"></circle>
+        <circle data-a="draw" data-len="{{ keptRing.len }}" data-d="1000" data-dur="1500" cx="130" cy="130" r="110" style="{{ keptRing.arc }}"></circle>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px">
+        <div data-a="count" data-v="{{ s.kept }}" data-fmt="money" data-d="1000" data-dur="1500" data-fit="54" data-f="kept_total" style="width:176px;text-align:center;overflow:hidden;white-space:nowrap;font:800 54px/58px Montserrat,system-ui,sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums">{{ f.kept }}</div>
+        <div data-a="up" data-d="1900" style="font:400 14px/20px Inter,system-ui,sans-serif;color:#4d4635">of <span data-f="collected_total">{{ f.collected }}</span> collected</div>
+      </div>
+    </div>
+    <sc-if value="{{ show.change }}" hint-placeholder-val="{{ true }}">
+      <div data-a="pop" data-d="2500" style="{{ change.st }}"><span style="font:400 20px/1 'Material Symbols Outlined';width:20px;height:20px;overflow:hidden;display:block;white-space:nowrap">{{ change.icon }}</span><span data-f="change_vs_last_period">{{ change.text }}</span></div>
+    </sc-if>
+    <sc-if value="{{ show.keptNote }}" hint-placeholder-val="{{ false }}">
+      <div data-a="up" data-d="2500" data-f="encouragement_line" style="margin-top:32px;font:700 17px/23px Montserrat,system-ui,sans-serif;text-align:center;text-wrap:balance">{{ s.keptNote }}</div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<!-- 05 INVOICES AND ESTIMATES -->
+<sc-if value="{{ show.inv }}" hint-placeholder-val="{{ false }}">
+<div data-slide="inv" data-screen-label="05 Invoices and estimates" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column">
+    <div data-a="up" data-d="0" style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Invoices and estimates</div>
+    <h2 data-a="up" data-d="100" style="margin:18px 0 0;font:800 32px/38px Montserrat,system-ui,sans-serif;letter-spacing:-.015em;text-wrap:balance">Here’s what went out.</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="3">
+        <div data-a="up" data-d="{{ r.d }}" style="display:flex;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid rgba(31,27,19,.1)">
+          <div data-a="count" data-v="{{ r.n }}" data-fmt="int" data-d="{{ r.d }}" data-dur="700" data-f="{{ r.field }}" style="width:92px;flex:none;font:800 52px/56px Montserrat,system-ui,sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums">{{ r.n }}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;font:700 15px/20px Montserrat,system-ui,sans-serif"><span style="{{ r.ico }}">{{ r.icon }}</span>{{ r.label }}</div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;min-height:12px">
+              <sc-for list="{{ r.pips }}" as="p" hint-placeholder-count="6"><i data-a="pop" data-d="{{ p.d }}" data-dur="260" style="{{ p.st }}"></i></sc-for>
+              <span data-a="fade" data-d="{{ r.nd }}" data-dur="300" style="font:600 12px/12px Inter,system-ui,sans-serif;color:#4d4635">{{ r.note }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="flex:1 1 0"></div>
+    <sc-if value="{{ show.owed }}" hint-placeholder-val="{{ true }}">
+      <div data-a="up" data-d="2000" style="padding:16px 18px 18px;border-radius:20px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 18px 36px -24px rgba(115,92,0,.45)">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+          <div style="font:600 13px/18px Inter,system-ui,sans-serif;color:#4d4635">Still owed to you<br><span data-f="owed_invoice_count" style="font-weight:400">{{ f.owedCount }}</span></div>
+          <div data-a="count" data-v="{{ s.owed }}" data-fmt="money" data-d="2000" data-dur="700" data-f="owed_total" style="font:800 30px/34px Montserrat,system-ui,sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ f.owed }}</div>
+        </div>
+        <div data-f="viewed_unpaid_count, estimates_pending_count" style="margin-top:10px;font:400 13px/19px Inter,system-ui,sans-serif;color:#4d4635;text-wrap:pretty">{{ f.owedLine }}</div>
+        <button data-act="1" onClick="{{ actInvoices }}" style="margin-top:14px;width:100%;height:48px;border:0;border-radius:999px;background:linear-gradient(180deg,#dcb94a,#d4af37 50%,#c9a42c);color:#1f1b13;font:700 15px/1 Montserrat,system-ui,sans-serif;cursor:pointer;box-shadow:0 10px 24px -10px rgba(212,175,55,.6),inset 0 1px 0 rgba(255,255,255,.35)" style-active="transform:scale(.97)">View invoices</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ show.caughtUp }}" hint-placeholder-val="{{ false }}">
+      <div data-a="up" data-d="2000" style="padding:18px 20px;border-radius:20px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 18px 36px -24px rgba(115,92,0,.45);display:flex;gap:14px;align-items:center">
+        <span data-a="pop" data-d="2250" style="width:44px;height:44px;border-radius:999px;background:#e3efe3;color:#2e6b3f;display:grid;place-items:center;flex:none"><span style="font:400 24px/1 'Material Symbols Outlined';width:24px;height:24px;overflow:hidden;display:block;white-space:nowrap">task_alt</span></span>
+        <div><div style="font:700 17px/22px Montserrat,system-ui,sans-serif">You’re all caught up.</div><div style="margin-top:2px;font:400 14px/20px Inter,system-ui,sans-serif;color:#4d4635">Nobody owes you a dime.</div></div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<!-- 06 TOP CLIENT -->
+<sc-if value="{{ show.client }}" hint-placeholder-val="{{ false }}">
+<div data-slide="client" data-screen-label="06 Top client" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column;align-items:center;text-align:center">
+    <div data-a="up" data-d="0" style="align-self:stretch;text-align:left;font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Top client of the {{ f.per }}</div>
+    <div style="position:relative;margin-top:56px;width:148px;height:148px;flex:none">
+      <div data-a="pop" data-d="250" data-dur="600" style="position:absolute;inset:-34px;border-radius:999px;background:radial-gradient(closest-side,rgba(240,205,110,.5),rgba(212,175,55,.18) 55%,rgba(212,175,55,0))"></div>
+      <div data-a="pop" data-d="300" data-dur="600" style="position:absolute;inset:0;border-radius:999px;background:linear-gradient(160deg,#f1d57c,#d4af37 55%,#b8952a);box-shadow:0 24px 40px -18px rgba(115,92,0,.6),inset 0 2px 0 rgba(255,255,255,.45);display:grid;place-items:center;font:800 52px/1 Montserrat,system-ui,sans-serif;letter-spacing:-.02em;color:#1f1b13"><span data-f="top_client_initials">{{ f.initials }}</span></div>
+    </div>
+    <h2 data-a="up" data-d="700" data-f="top_client_name" style="margin:30px 0 0;max-width:100%;font:800 30px/36px Montserrat,system-ui,sans-serif;letter-spacing:-.015em;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ s.client.name }}</h2>
+    <div data-a="up" data-d="950" style="margin-top:14px;font:400 15px/20px Inter,system-ui,sans-serif;color:#4d4635">paid you</div>
+    <div data-a="count" data-v="{{ s.client.amount }}" data-fmt="money" data-d="1050" data-dur="1100" data-fit="68" data-f="top_client_amount" style="margin-top:2px;width:100%;font:800 68px/72px Montserrat,system-ui,sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden">{{ f.clientAmt }}</div>
+    <div data-a="pop" data-d="2100" style="margin-top:18px;height:36px;padding:0 14px;border-radius:999px;background:#efe8dc;color:#4d4635;font:600 14px/1 Inter,system-ui,sans-serif;display:inline-flex;align-items:center;gap:6px"><span style="font:400 18px/1 'Material Symbols Outlined';width:18px;height:18px;overflow:hidden;display:block;white-space:nowrap">receipt_long</span><span data-f="top_client_invoice_count">{{ f.clientInv }}</span></div>
+    <div style="flex:1 1 0"></div>
+    <div data-a="up" data-d="1900" style="align-self:stretch;text-align:left;padding:16px 18px;border-radius:20px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 18px 36px -24px rgba(115,92,0,.45)">
+      <div style="font:400 14px/20px Inter,system-ui,sans-serif;color:#4d4635"><b data-f="top_client_pct" style="font:800 16px/20px Montserrat,system-ui,sans-serif;color:#1f1b13">{{ f.clientPct }}</b> of everything you collected this {{ f.per }}.</div>
+      <div style="margin-top:10px;height:10px;border-radius:999px;background:#efe6d6;overflow:hidden"><i data-a="gx" data-d="2100" data-dur="700" style="{{ clientBar }}"></i></div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- 07 BANK ACTIVITY -->
+<sc-if value="{{ show.bank }}" hint-placeholder-val="{{ false }}">
+<div data-slide="bank" data-screen-label="07 Bank activity" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column">
+    <div data-a="up" data-d="0" style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Bank activity</div>
+    <div data-a="up" data-d="100" style="margin-top:18px;font:700 20px/26px Montserrat,system-ui,sans-serif;text-wrap:pretty"><span data-f="activity_total">{{ s.bank.total }}</span> payments and expenses this {{ f.per }}.</div>
+    <div data-a="count" data-v="{{ s.bank.auto }}" data-fmt="int" data-d="400" data-dur="1200" data-f="bank_auto_count" style="margin-top:14px;font:800 120px/118px Montserrat,system-ui,sans-serif;letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ s.bank.auto }}</div>
+    <div data-a="up" data-d="800" style="margin-top:4px;font:700 22px/28px Montserrat,system-ui,sans-serif;text-wrap:pretty">of these {{ f.autoVerb }} picked up from your bank automatically.</div>
+    <div style="margin-top:26px;display:flex;flex-wrap:wrap;gap:6px">
+      <sc-for list="{{ dots }}" as="p" hint-placeholder-count="19"><i data-a="pop" data-d="{{ p.d }}" data-dur="260" style="{{ p.st }}"></i></sc-for>
+    </div>
+    <div data-a="fade" data-d="2300" data-dur="300" style="margin-top:14px;display:flex;gap:16px;font:400 13px/16px Inter,system-ui,sans-serif;color:#4d4635">
+      <span style="display:flex;align-items:center;gap:6px"><i style="width:10px;height:10px;border-radius:999px;background:#d4af37"></i>From your bank</span>
+      <span style="display:flex;align-items:center;gap:6px"><i style="width:10px;height:10px;border-radius:999px;background:#e1d9cc"></i>Added by you</span>
+    </div>
+    <div style="flex:1 1 0"></div>
+    <div data-a="up" data-d="2400" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:20px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 18px 36px -24px rgba(115,92,0,.45)">
+      <span style="width:40px;height:40px;border-radius:999px;background:#f0e3b8;color:#735c00;display:grid;place-items:center;flex:none"><span style="font:400 22px/1 'Material Symbols Outlined';width:22px;height:22px;overflow:hidden;display:block;white-space:nowrap">account_balance</span></span>
+      <div style="flex:1;min-width:0"><div data-f="bank_name · bank_last4" style="font:700 15px/20px Montserrat,system-ui,sans-serif">{{ s.bank.name }}</div><div style="font:400 13px/18px Inter,system-ui,sans-serif;color:#4d4635"><span data-f="bank_auto_in_count">{{ s.bank.autoIn }}</span> money in · <span data-f="bank_auto_out_count">{{ s.bank.autoOut }}</span> money out</div></div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- 08 WAITING FOR YOU -->
+<sc-if value="{{ show.waiting }}" hint-placeholder-val="{{ false }}">
+<div data-slide="waiting" data-screen-label="08 Waiting for you" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column">
+    <div data-a="up" data-d="0" style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Waiting for you</div>
+    <div data-a="count" data-v="{{ s.bank.pending }}" data-fmt="int" data-d="250" data-dur="1000" data-f="bank_pending_count" style="margin-top:20px;font:800 120px/118px Montserrat,system-ui,sans-serif;letter-spacing:-.04em;font-variant-numeric:tabular-nums">{{ s.bank.pending }}</div>
+    <div data-a="up" data-d="600" style="margin-top:4px;font:700 24px/30px Montserrat,system-ui,sans-serif;text-wrap:balance">{{ f.pendingLine }}</div>
+    <div data-a="up" data-d="800" style="margin-top:10px;font:400 16px/23px Inter,system-ui,sans-serif;color:#4d4635;text-wrap:pretty">A quick look from you and they’re on the books.</div>
+    <div style="margin-top:26px;display:flex;flex-direction:column;gap:8px">
+      <sc-for list="{{ pending }}" as="p" hint-placeholder-count="3">
+        <div data-a="left" data-d="{{ p.d }}" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:16px;background:#fff;border:1px solid rgba(31,27,19,.08);box-shadow:0 12px 24px -20px rgba(31,27,19,.5)">
+          <span style="width:32px;height:32px;border-radius:999px;background:#efe8dc;color:#4d4635;display:grid;place-items:center;flex:none"><span style="font:400 18px/1 'Material Symbols Outlined';width:18px;height:18px;overflow:hidden;display:block;white-space:nowrap">account_balance</span></span>
+          <span data-f="pending_txn_name" style="flex:1;min-width:0;font:600 15px/20px Inter,system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+          <span data-f="pending_txn_date" style="font:400 13px/18px Inter,system-ui,sans-serif;color:#4d4635">{{ p.date }}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ show.pendingMore }}" hint-placeholder-val="{{ true }}">
+        <div data-a="pop" data-d="2000" style="align-self:center;margin-top:4px;height:28px;padding:0 12px;border-radius:999px;background:#efe8dc;color:#4d4635;font:600 13px/1 Inter,system-ui,sans-serif;display:flex;align-items:center">{{ f.pendingMore }}</div>
+      </sc-if>
+    </div>
+    <div style="flex:1 1 0"></div>
+    <button data-a="up" data-d="2200" data-act="1" onClick="{{ actReview }}" style="width:100%;height:52px;border:0;border-radius:999px;background:linear-gradient(180deg,#dcb94a,#d4af37 50%,#c9a42c);color:#1f1b13;font:700 16px/1 Montserrat,system-ui,sans-serif;cursor:pointer;box-shadow:0 10px 24px -10px rgba(212,175,55,.6),inset 0 1px 0 rgba(255,255,255,.35)" style-active="transform:scale(.97)">Review</button>
+  </div>
+</div>
+</sc-if>
+
+<!-- 09 FREE PLAN -->
+<sc-if value="{{ show.free }}" hint-placeholder-val="{{ false }}">
+<div data-slide="free" data-screen-label="09 Free plan" style="position:absolute;inset:0">
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column">
+    <div data-a="up" data-d="0" style="font:600 12px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#735c00">Free plan</div>
+    <div style="margin-top:44px;display:flex;gap:10px">
+      <sc-for list="{{ freePips }}" as="p" hint-placeholder-count="2">
+        <span data-a="pop" data-d="{{ p.d }}" style="{{ p.st }}"><span style="font:400 24px/1 'Material Symbols Outlined';width:24px;height:24px;overflow:hidden;display:block;white-space:nowrap">{{ p.icon }}</span></span>
+      </sc-for>
+    </div>
+    <h2 data-a="up" data-d="700" style="margin:26px 0 0;font:800 34px/40px Montserrat,system-ui,sans-serif;letter-spacing:-.015em;text-wrap:balance">This was your <span data-f="free_recap_ordinal">{{ f.freeOrd }}</span> free recap.</h2>
+    <p data-a="up" data-d="950" data-f="free_recaps_left" style="margin:14px 0 0;font:400 17px/25px Inter,system-ui,sans-serif;color:#4d4635;text-wrap:pretty">{{ f.freeBody }}</p>
+    <p data-a="up" data-d="1150" style="margin:12px 0 0;font:400 17px/25px Inter,system-ui,sans-serif;color:#4d4635;text-wrap:pretty">After that, recaps are part of On It Pro, $15 a month. Your invoices and your books stay exactly as they are.</p>
+    <div style="margin-top:26px;display:flex;flex-direction:column;gap:12px">
+      <div data-a="left" data-d="1500" style="display:flex;align-items:center;gap:12px;font:600 15px/20px Inter,system-ui,sans-serif"><span style="font:400 22px/1 'Material Symbols Outlined';width:22px;height:22px;overflow:hidden;display:block;white-space:nowrap;color:#735c00">auto_stories</span>A recap every week and every month</div>
+      <div data-a="left" data-d="1650" style="display:flex;align-items:center;gap:12px;font:600 15px/20px Inter,system-ui,sans-serif"><span style="font:400 22px/1 'Material Symbols Outlined';width:22px;height:22px;overflow:hidden;display:block;white-space:nowrap;color:#735c00">account_balance</span>Bank activity picked up automatically</div>
+    </div>
+    <div style="flex:1 1 0"></div>
+    <button data-a="up" data-d="2000" data-act="1" onClick="{{ actUpgrade }}" style="width:100%;height:52px;border:0;border-radius:999px;background:#f0e3b8;color:#1f1b13;font:700 16px/1 Montserrat,system-ui,sans-serif;cursor:pointer" style-active="transform:scale(.97)">See On It Pro</button>
+    <div data-a="fade" data-d="2300" data-dur="300" style="margin-top:14px;text-align:center;font:400 13px/18px Inter,system-ui,sans-serif;color:#4d4635">No rush. Tap to keep going.</div>
+  </div>
+</div>
+</sc-if>
+
+<!-- 10 AFFIRMATION -->
+<sc-if value="{{ show.aff }}" hint-placeholder-val="{{ false }}">
+<div data-slide="aff" data-screen-label="10 Affirmation" style="position:absolute;inset:0">
+  <div style="position:absolute;left:0;right:0;top:42%;display:flex;justify-content:center;transform:translateY(-50%);pointer-events:none;opacity:.14">
+    <img data-a="pop" data-d="100" data-dur="900" src="public/recap/swoosh-gold.svg" alt="" draggable="false" style="display:block;width:340px;height:268px">
+  </div>
+  <div style="position:absolute;left:28px;right:28px;top:92px;bottom:36px;display:flex;flex-direction:column;align-items:center;text-align:center">
+    <div style="flex:1 1 0"></div>
+    <sc-if value="{{ aff.mont }}" hint-placeholder-val="{{ true }}">
+      <div data-f="affirmation_text" data-affit="54" data-lh="1.11" data-max="400" style="display:flex;flex-wrap:wrap;justify-content:center;gap:0 .26em;font:800 54px/60px Montserrat,system-ui,sans-serif;letter-spacing:-.025em">
+        <sc-for list="{{ aff.words }}" as="w" hint-placeholder-count="10"><span data-a="up" data-d="{{ w.d }}" data-dur="420">{{ w.w }}</span></sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ aff.hand }}" hint-placeholder-val="{{ false }}">
+      <div data-f="affirmation_text" data-affit="82" data-lh=".93" data-max="400" style="display:flex;flex-wrap:wrap;justify-content:center;gap:0 .24em;font:700 82px/76px Caveat,cursive">
+        <sc-for list="{{ aff.words }}" as="w" hint-placeholder-count="10"><span data-a="up" data-d="{{ w.d }}" data-dur="420">{{ w.w }}</span></sc-for>
+      </div>
+    </sc-if>
+    <div data-a="gx" data-d="1700" data-dur="500" style="margin-top:24px;width:44px;height:3px;border-radius:999px;background:#d4af37;transform-origin:center"></div>
+    <sc-if value="{{ aff.typed }}" hint-placeholder-val="{{ false }}">
+      <div data-a="up" data-d="2150" style="margin-top:10px"><div data-f="signer_name" style="font:600 14px/18px Inter,system-ui,sans-serif">Deffeu</div><div data-f="signer_title" style="font:400 12px/16px Inter,system-ui,sans-serif;color:#4d4635">CEO of On It</div></div>
+    </sc-if>
+    <sc-if value="{{ aff.handSig }}" hint-placeholder-val="{{ false }}">
+      <div data-a="wipe" data-d="1850" data-dur="800" data-f="signer_name, signer_title" style="margin-top:14px;font:600 30px/36px Caveat,cursive;color:#4d4635;padding:0 6px">Deffeu, CEO of On It</div>
+    </sc-if>
+    <div style="flex:1.6 1 0"></div>
+    <sc-if value="{{ show.share }}" hint-placeholder-val="{{ true }}">
+      <button data-a="up" data-d="2300" data-act="1" onClick="{{ actShare }}" style="width:100%;height:52px;border:0;border-radius:999px;background:linear-gradient(180deg,#dcb94a,#d4af37 50%,#c9a42c);color:#1f1b13;font:700 16px/1 Montserrat,system-ui,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 24px -10px rgba(212,175,55,.6),inset 0 1px 0 rgba(255,255,255,.35)" style-active="transform:scale(.97)"><span style="font:400 20px/1 'Material Symbols Outlined';width:20px;height:20px;overflow:hidden;display:block;white-space:nowrap">ios_share</span>Share</button>
+      <div data-a="fade" data-d="2500" data-dur="300" style="margin-top:14px;font:400 13px/18px Inter,system-ui,sans-serif;color:#4d4635;white-space:nowrap">-by Onit CEO</div>
+    </sc-if>
+    <sc-if value="{{ show.exportLogo }}" hint-placeholder-val="{{ false }}">
+      <div data-a="fade" data-d="2300" data-dur="300" style="display:flex;align-items:center;gap:7px;font:800 13px/1 Montserrat,system-ui,sans-serif"><img src="public/icons/apple-icon-180.png" alt="" style="width:22px;height:22px;border-radius:6px;display:block">On It</div>
+    </sc-if>
+  </div>
+</div>
+</sc-if>
+
+<!-- swoosh wipe -->
+<img data-swoosh="1" src="public/recap/swoosh-gold.svg" alt="" draggable="false" style="position:absolute;top:35.2%;left:0;width:340px;height:269px;z-index:15;pointer-events:none;opacity:0">
+
+<!-- chrome -->
+<sc-if value="{{ show.chrome }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:0;pointer-events:none;z-index:20;color:#1f1b13">
+  <div style="position:absolute;top:14px;left:16px;right:16px;display:flex;gap:4px">
+    <sc-for list="{{ segs }}" as="g" hint-placeholder-count="10"><div style="flex:1;height:3px;border-radius:2px;overflow:hidden;background:rgba(127,118,100,.3)"><i data-seg="1" style="display:block;height:100%;background:#1f1b13;transform-origin:left center;transform:scaleX(0)"></i></div></sc-for>
+  </div>
+  <div style="position:absolute;top:28px;left:16px;right:12px;height:40px;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px;font:600 13px/1 Inter,system-ui,sans-serif"><img src="public/icons/apple-icon-180.png" alt="" style="width:26px;height:26px;border-radius:7px;display:block"><span>{{ f.kindLabel }}</span></div>
+    <div style="display:flex;gap:6px">
+      <button data-act="1" onClick="{{ toggleMute }}" aria-label="Sound" style="pointer-events:auto;width:40px;height:40px;border:0;border-radius:999px;background:rgba(31,27,19,.06);color:inherit;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><span style="font:400 21px/1 'Material Symbols Outlined';width:21px;height:21px;overflow:hidden;display:block;white-space:nowrap">{{ muteIcon }}</span></button>
+      <button data-act="1" onClick="{{ actClose }}" aria-label="Close recap" style="pointer-events:auto;width:40px;height:40px;border:0;border-radius:999px;background:rgba(31,27,19,.06);color:inherit;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"><span style="font:400 21px/1 'Material Symbols Outlined';width:21px;height:21px;overflow:hidden;display:block;white-space:nowrap">close</span></button>
+    </div>
+  </div>
+  <sc-if value="{{ paused }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;top:76px;right:16px;height:26px;padding:0 10px;border-radius:999px;background:rgba(31,27,19,.6);color:#fff8f0;font:600 11px/1 Inter,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:4px"><span style="font:400 15px/1 'Material Symbols Outlined';width:15px;height:15px;overflow:hidden;display:block;white-space:nowrap">pause</span>Paused</div>
+  </sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;left:0;right:0;bottom:104px;display:flex;justify-content:center;z-index:25;pointer-events:none"><div style="padding:10px 16px;border-radius:999px;background:rgba(31,27,19,.86);color:#fff8f0;font:600 13px/1 Inter,system-ui,sans-serif">{{ toast }}</div></div>
+</sc-if>
+<div style="position:absolute;inset:0;z-index:30;pointer-events:none">
+  <sc-for list="{{ tags }}" as="t" hint-placeholder-count="0"><span style="{{ t.st }}">{{ t.t }}</span></sc-for>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:408,&quot;height&quot;:862},&quot;scenario&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;slow&quot;,&quot;big&quot;,&quot;month&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;'normal'|'slow'|'big'|'month'&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pro&quot;,&quot;free&quot;],&quot;default&quot;:&quot;pro&quot;,&quot;tsType&quot;:&quot;'pro'|'free'&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;bank&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;freeRecapNumber&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:2,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;startSlide&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;opener&quot;,&quot;in&quot;,&quot;out&quot;,&quot;kept&quot;,&quot;inv&quot;,&quot;client&quot;,&quot;bank&quot;,&quot;waiting&quot;,&quot;free&quot;,&quot;aff&quot;],&quot;default&quot;:&quot;opener&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;autoplay&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;affVariant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;,&quot;C&quot;,&quot;D&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A'|'B'|'C'|'D'&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;showFields&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;},&quot;exportMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Player&quot;}}">
+class Component extends DCLogic {
+  state = { idx: null, muted: false, paused: false, toast: '', tags: [] };
+  frame = React.createRef();
+  t = 0; runId = 0; anims = []; visible = true; lastRun = 0;
+
+  data() {
+    if (this._d) return this._d;
+    const M = { zelle: ['Zelle', '#5b77a8', 'swap_horiz'], card: ['Card', '#2f8a83', 'credit_card'], cashapp: ['Cash App', '#6f8c5c', 'smartphone'], check: ['Check', '#c0693f', 'receipt_long'], cash: ['Cash', '#d4af37', 'payments'], other: ['Other', '#a39a86', 'more_horiz'] };
+    const m = (k, a) => ({ label: M[k][0], c: M[k][1], icon: M[k][2], amount: a });
+    const AFF = 'You showed up this week. That’s what builds a business.';
+    const week = { kind: 'week', title: 'Your week:', range: 'Nov 9 – 15', labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], labelAt: [0, 1, 2, 3, 4, 5, 6], scale: 1000, aff: AFF };
+    const normal = { ...week, line: 'A solid week. Here’s how it went.', daily: [0, 450, 0, 800, 400, 0, 200], collected: 1850, invPaid: 1450, other: 400, payments: 4, clients: 3,
+      methods: [m('zelle', 1000), m('card', 450), m('cashapp', 400)], spent: 214, cats: [['Supplies', 154], ['Fuel', 38], ['Tools', 22]], vendor: { name: 'Home Depot', amount: 132, trips: 3 },
+      kept: 1636, change: { dir: 'up', text: 'Up 18% from last week' }, sent: 6, paid: 4, est: 2, owed: 2400, owedCount: 3, vu: 2, q: 1, client: { name: 'Mike Davis', amount: 1250, invoices: 2 },
+      bank: { name: 'Chase ···· 4821', total: 19, auto: 12, autoIn: 3, autoOut: 9, pending: 4, items: [['Shell', 'Nov 14'], ['Home Depot', 'Nov 13'], ['Deposit', 'Nov 12']] } };
+    const slow = { ...week, line: 'A lighter week. You still showed up.', daily: [0, 0, 0, 180, 0, 0, 0], collected: 180, invPaid: 180, other: 0, payments: 1, clients: 1,
+      methods: [m('cash', 180)], inNote: 'One job, done and paid. That counts.', spent: 0, cats: [], vendor: null, kept: 180, change: null, keptNote: 'Every dollar stayed with you this week.',
+      sent: 1, paid: 1, est: 0, owed: 0, owedCount: 0, client: { name: 'Rosa Diaz', amount: 180, invoices: 1 },
+      bank: { name: 'Chase ···· 4821', total: 1, auto: 1, autoIn: 1, autoOut: 0, pending: 1, items: [['Deposit', 'Nov 12']] } };
+    const big = { ...week, line: 'A big week. Here’s how it went.', daily: [41000, 30200, 20456, 15800, 9000, 7000, 0], scale: 1000, collected: 123456, invPaid: 98400, other: 25056, payments: 46, clients: 21,
+      methods: [m('zelle', 41000), m('card', 30200), m('cashapp', 20456), m('check', 15800), m('cash', 9000), m('other', 7000)], spent: 18240,
+      cats: [['Supplies', 9100], ['Subcontractors', 5200], ['Fuel', 1840], ['Tools', 1300], ['Insurance', 800]], vendor: { name: 'Home Depot', amount: 6420, trips: 14 },
+      kept: 105216, change: { dir: 'up', text: 'Up 12% from last week' }, sent: 40, paid: 31, est: 12, owed: 48900, owedCount: 20, vu: 11, q: 5, client: { name: 'Northside Property Management Group LLC', amount: 41000, invoices: 7 },
+      bank: { name: 'Chase ···· 4821', total: 96, auto: 58, autoIn: 22, autoOut: 36, pending: 23, items: [['Shell', 'Nov 14'], ['Home Depot', 'Nov 13'], ['Deposit', 'Nov 12']] } };
+    const month = { ...normal, kind: 'month', title: 'Your October', range: 'Oct 1 – 31', line: 'A steady month. Here’s how it went.', labels: ['Oct 1', 'Oct 8', 'Oct 15', 'Oct 22', 'Oct 29'], labelAt: [0, 7, 14, 21, 28],
+      daily: [0, 320, 0, 560, 0, 600, 0, 450, 0, 390, 0, 700, 250, 0, 0, 800, 0, 650, 450, 400, 0, 0, 450, 0, 800, 400, 0, 200, 0, 0, 0], collected: 7420, invPaid: 6100, other: 1320, payments: 17, clients: 9,
+      methods: [m('zelle', 3560), m('card', 2450), m('cashapp', 1410)], spent: 860, cats: [['Supplies', 520], ['Fuel', 210], ['Tools', 130]], vendor: { name: 'Home Depot', amount: 410, trips: 9 },
+      kept: 6560, change: { dir: 'up', text: 'Up 9% from September' }, sent: 22, paid: 17, est: 6, client: { name: 'Mike Davis', amount: 3150, invoices: 4 },
+      bank: { name: 'Chase ···· 4821', total: 58, auto: 41, autoIn: 12, autoOut: 29, pending: 4, items: [['Shell', 'Oct 30'], ['Home Depot', 'Oct 29'], ['Deposit', 'Oct 28']] },
+      aff: 'You showed up this month. That’s what builds a business.' };
+    return (this._d = { normal, slow, big, month });
+  }
+  sc() { const D = this.data(); return D[this.props.scenario] || D.normal; }
+  keys() {
+    const P = this.props, s = this.sc();
+    if (P.exportMode) return ['aff'];
+    const pro = (P.plan || 'pro') === 'pro', bank = pro && (P.bank ?? true);
+    const k = ['opener', 'in', 'out', 'kept', 'inv'];
+    if (s.client) k.push('client');
+    if (bank && s.bank.auto > 0) k.push('bank');
+    if (bank && s.bank.pending > 0) k.push('waiting');
+    if (!pro) k.push('free');
+    k.push('aff');
+    return k;
+  }
+  cur() {
+    const k = this.keys();
+    let idx = this.state.idx;
+    if (idx == null) idx = Math.max(0, k.indexOf(this.props.startSlide || 'opener'));
+    return { k, n: k.length, idx: Math.min(idx, k.length - 1) };
+  }
+  go(i) {
+    const { n } = this.cur();
+    if (i >= n) return;
+    if (i < 0) { this.t = 0; this.run(true); return; }
+    this.setState({ idx: i });
+  }
+  toast(msg) { clearTimeout(this._tt); this.setState({ toast: msg }); this._tt = setTimeout(() => this.setState({ toast: '' }), 2000); }
+
+  componentDidMount() {
+    const el = this.frame.current;
+    if (this.props.exportMode && el) Object.assign(el.style, { width: '360px', height: '640px', borderRadius: '0', boxShadow: '0 1px 2px rgba(31,27,19,.2), 0 20px 40px -24px rgba(31,27,19,.4)', cursor: 'default' });
+    this._sig = this.sig();
+    this.tagSync(); this.run(false); this.segs(); this._sf = this.props.showFields;
+    if (document.fonts && document.fonts.load) {
+      const refit = () => { if (this.frame.current) { this.fit(); this.tagLater(3400); } };
+      Promise.all(['800 88px Montserrat', '700 22px Montserrat', '600 12px Inter', '400 15px Inter', '700 46px Caveat'].map((f) => document.fonts.load(f).catch(() => 0))).then(refit);
+      if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', refit);
+    }
+    this.tagLater();
+    if (window.IntersectionObserver && el) {
+      this.io = new IntersectionObserver((es) => es.forEach((e) => {
+        const was = this.visible; this.visible = e.isIntersecting;
+        if (e.isIntersecting && !was && performance.now() - this.lastRun > 1500) { this.t = 0; this.run(false); }
+      }), { threshold: 0.2 });
+      this.io.observe(el);
+    }
+    const loop = (now) => {
+      this._raf = requestAnimationFrame(loop);
+      const dt = Math.min(64, now - (this._last || now)); this._last = now;
+      if (!this.props.autoplay || this.state.paused || !this.visible) return;
+      this.t += dt; this.segs();
+      if (this.t >= 6200) { const { n, idx } = this.cur(); if (idx < n - 1) this.go(idx + 1); }
+    };
+    this._raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); clearTimeout(this._tl); this.runId++; if (this.io) this.io.disconnect(); clearTimeout(this._tt); clearTimeout(this._hold); }
+  sig() { const P = this.props, c = this.cur(); return [c.idx, c.k.join(), P.scenario, P.plan, P.bank, P.affVariant, P.freeRecapNumber].join('|'); }
+  componentDidUpdate() {
+    const g = this.sig();
+    if (g !== this._sig) { this._sig = g; this.t = 0; this.fit(); this.tagSync(); this.run(true); this.tagLater(); }
+    else if (this._sf !== this.props.showFields) this.tagLater(50);
+    this._sf = this.props.showFields;
+    this.segs();
+  }
+  tagLater(ms) { clearTimeout(this._tl); this._tl = setTimeout(() => { this.fit(); this.tagSync(); }, ms || 3400); }
+  segs() {
+    const root = this.frame.current; if (!root) return;
+    const { idx } = this.cur(), auto = !!this.props.autoplay;
+    root.querySelectorAll('[data-seg]').forEach((el, i) => {
+      const v = i < idx ? 1 : i > idx ? 0 : auto ? Math.min(1, Math.max(0, (this.t - 2800) / 3400)) : 1;
+      el.style.transform = 'scaleX(' + v + ')';
+    });
+  }
+  fmt(kind) {
+    const money = (n) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+    return kind === 'money' ? money : (n) => String(Math.round(n));
+  }
+  fit() {
+    const root = this.frame.current; if (!root) return;
+    root.querySelectorAll('[data-fit]').forEach((el) => {
+      let z = +el.dataset.fit; el.style.fontSize = z + 'px';
+      while (el.scrollWidth > el.clientWidth + 1 && z > 14) { z -= 2; el.style.fontSize = z + 'px'; }
+    });
+    // long affirmations step down until they fit the space above Share
+    root.querySelectorAll('[data-affit]').forEach((el) => {
+      let z = +el.dataset.affit; const lh = +el.dataset.lh, max = +el.dataset.max;
+      const set = () => { el.style.fontSize = z + 'px'; el.style.lineHeight = Math.round(z * lh) + 'px'; };
+      set();
+      while (el.offsetHeight > max && z > 28) { z -= 2; set(); }
+    });
+  }
+  run(trans) {
+    const root = this.frame.current; if (!root) return;
+    this.anims.forEach((a) => { try { a.cancel(); } catch (e) {} });
+    this.anims = []; const id = ++this.runId; this.lastRun = performance.now();
+    const slide = root.querySelector('[data-slide]'); if (!slide) return;
+    const counts = [];
+    slide.querySelectorAll('[data-a="count"]').forEach((el) => {
+      let node = el.firstChild;
+      while (node && node.nodeType === 1) node = node.firstChild;
+      if (!node || node.nodeType !== 3) return;
+      const f = this.fmt(el.dataset.fmt), v = +el.dataset.v || 0;
+      node.nodeValue = f(v);
+      counts.push({ node, v, f, d: +el.dataset.d || 0, dur: +el.dataset.dur || 1200 });
+    });
+    this.fit();
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const E = 'cubic-bezier(.2,.8,.2,1)', BACK = 'cubic-bezier(.34,1.56,.64,1)';
+    const A = (el, fr, d, dur, ease) => { try { this.anims.push(el.animate(fr, { delay: d, duration: Math.max(1, dur), easing: ease || E, fill: 'both' })); } catch (e) {} };
+    if (trans) {
+      A(slide, [{ opacity: 0 }, { opacity: 1 }], 0, 320, 'linear');
+      const sw = root.querySelector('[data-swoosh]');
+      if (sw) A(sw, [{ transform: 'translateX(-170px) rotate(-12deg) scale(.9)', opacity: 0 }, { offset: .2, opacity: 1 }, { offset: .5, transform: 'translateX(25px) rotate(0deg) scale(1.15)' }, { offset: .8, opacity: 1 }, { transform: 'translateX(220px) rotate(12deg) scale(.9)', opacity: 0 }], 0, 700, 'cubic-bezier(.65,0,.35,1)');
+    }
+    slide.querySelectorAll('[data-a]').forEach((el) => {
+      const k = el.dataset.a, d = +el.dataset.d || 0, dur = +el.dataset.dur || 0, ease = el.dataset.ease;
+      if (k === 'up') A(el, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], d, dur || 520);
+      else if (k === 'left') A(el, [{ opacity: 0, transform: 'translateX(-28px)' }, { opacity: 1, transform: 'none' }], d, dur || 520);
+      else if (k === 'pop') A(el, [{ opacity: 0, transform: 'scale(.5)' }, { opacity: 1, transform: 'none' }], d, dur || 440, BACK);
+      else if (k === 'fade') A(el, [{ opacity: 0 }, { opacity: 1 }], d, dur || 300, 'linear');
+      else if (k === 'gx') A(el, [{ transform: 'scaleX(0)' }, { transform: 'none' }], d, dur || 700);
+      else if (k === 'wipe') A(el, [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)' }], d, dur || 900, 'cubic-bezier(.65,0,.35,1)');
+      else if (k === 'count') A(el, [{ opacity: 0 }, { opacity: 1 }], d, 200, 'linear');
+      else if (k === 'draw') {
+        if (el.dataset.len != null) { const L = +el.dataset.len; A(el, [{ strokeDashoffset: L, opacity: 0 }, { offset: .02, opacity: 1 }, { strokeDashoffset: 0, opacity: 1 }], d, dur || 1200, ease || 'cubic-bezier(.65,0,.35,1)'); }
+        else if (el.getTotalLength) { const L = el.getTotalLength(); A(el, [{ strokeDasharray: L, strokeDashoffset: L }, { strokeDasharray: L, strokeDashoffset: 0 }], d, dur || 1200, 'cubic-bezier(.65,0,.35,1)'); }
+      }
+    });
+    if (!counts.length) return;
+    counts.forEach((c) => { c.node.nodeValue = c.f(0); });
+    const t0 = performance.now();
+    const tick = (now) => {
+      if (id !== this.runId) return;
+      let live = false;
+      counts.forEach((c) => {
+        const p = Math.min(1, Math.max(0, (now - t0 - c.d) / c.dur));
+        c.node.nodeValue = c.f(c.v * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) live = true;
+      });
+      if (live) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  tagSync() {
+    const root = this.frame.current; if (!root) return;
+    const out = [];
+    const R = root.getBoundingClientRect(), sc = R.width / root.offsetWidth || 1, used = [];
+    // every visible text run in the slide becomes an obstacle tags must not sit on
+    const slideEl = root.querySelector('[data-slide]');
+    if (this.props.showFields && slideEl) {
+      const tw = document.createTreeWalker(slideEl, NodeFilter.SHOW_TEXT), rg0 = document.createRange();
+      let nd;
+      while ((nd = tw.nextNode())) {
+        if (!nd.nodeValue.trim()) continue;
+        rg0.selectNodeContents(nd);
+        for (const q of rg0.getClientRects()) if (q.width > 1) used.push({ x: (q.left - R.left) / sc, y: (q.top - R.top) / sc + q.height / sc * .18, w: q.width / sc, h: q.height / sc * .64 });
+      }
+    }
+    const hit = (x, y, w) => used.some((u) => y < u.y + (u.h || 11) && u.y < y + 11 && x < u.x + u.w + 2 && u.x < x + w + 2);
+    if (this.props.showFields) root.querySelectorAll('[data-f]').forEach((el) => {
+      const rg = document.createRange(); rg.selectNodeContents(el);
+      const r = rg.getBoundingClientRect(); if (!r.width && !r.height) return;
+      const t = '{' + el.dataset.f + '}', w = t.length * 5.3 + 8;
+      const l = (r.left - R.left) / sc, rt = (r.right - R.left) / sc, tp = (r.top - R.top) / sc, h = r.height / sc;
+      // beside the value when there is room, otherwise tucked under it
+      const xl = Math.max(2, Math.min(l, 386 - w));
+      // candidates: beside, just under, just above, then walk down until clear
+      const cands = [[rt + 4, tp + (h - 11) / 2], [xl, tp + h * .86], [xl, tp - 9 + h * .1]];
+      let pick = cands.find((c) => c[0] + w <= 386 && c[1] > 2 && !hit(c[0], c[1], w));
+      if (!pick) { let yy = tp + h * .86, n = 0; while (hit(xl, yy, w) && n++ < 12) yy += 6; pick = [xl, yy]; }
+      const x = pick[0], y = pick[1];
+      used.push({ x, y, w, h: 11 });
+      out.push({ t, st: { position: 'absolute', left: Math.round(x), top: Math.round(y), padding: '0 4px', borderRadius: 3, background: 'rgba(31,27,19,.84)', color: '#fff8f0', font: '500 8.5px/11px ui-monospace, Menlo, monospace', whiteSpace: 'nowrap' } });
+    });
+    const key = JSON.stringify(out);
+    if (key !== this._tk) { this._tk = key; this.setState({ tags: out }); }
+  }
+
+  renderVals() {
+    const P = this.props, s = this.sc(), { k, idx } = this.cur(), key = k[idx];
+    const pro = (P.plan || 'pro') === 'pro', bank = pro && (P.bank ?? true), per = s.kind === 'month' ? 'month' : 'week';
+    const money = this.fmt('money'), pl = (n, a, b) => n + ' ' + (n === 1 ? a : b);
+    const compact = (n) => n < 1000 ? '$' + Math.round(n) : n < 10000 ? '$' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : '$' + Math.round(n / 1000) + 'k';
+    const DC = ['#d4af37', '#2f8a83', '#c0693f', '#5b77a8', '#6f8c5c'];
+    const MONT = 'Montserrat, system-ui, sans-serif';
+
+    // curve
+    const W = 390, H = 280, pad = 8, n = s.daily.length;
+    const vals = n > 10 ? s.daily.map((_, i) => { let a = 0; for (let j = -2; j <= 2; j++) a += s.daily[i + j] || 0; return a / 5 * 2.2; }) : s.daily;
+    const mx = Math.max(s.scale, ...vals);
+    const pts = vals.map((v, i) => [pad + (i + .5) * ((W - 2 * pad) / n), H - (v / mx) * 215]);
+    const all = [[0, H], ...pts, [W, H]];
+    let line = 'M0,' + H;
+    for (let i = 1; i < all.length; i++) { const [x0, y0] = all[i - 1], [x1, y1] = all[i], h = (x1 - x0) / 2; line += ' C' + (x0 + h).toFixed(1) + ',' + y0.toFixed(1) + ' ' + (x1 - h).toFixed(1) + ',' + y1.toFixed(1) + ' ' + x1.toFixed(1) + ',' + y1.toFixed(1); }
+    const pi = vals.indexOf(Math.max(...vals));
+    const curve = {
+      line, area: line + ' Z',
+      labels: s.labels.map((t, i) => ({ t, d: 900 + i * 60, st: { position: 'absolute', top: 290, left: pts[s.labelAt[i]][0] - 24, width: 48, textAlign: 'center', font: '600 11px/14px Inter, system-ui, sans-serif', color: '#4d4635' } })),
+      peakSt: { position: 'absolute', left: Math.min(W - 84, Math.max(4, pts[pi][0] - 40)), top: pts[pi][1] - 30, width: 80, textAlign: 'center', font: '700 13px/16px ' + MONT, color: '#1f1b13' },
+    };
+
+    // money in
+    const mt = s.methods.reduce((a, m) => a + m.amount, 0) || 1;
+    const methods = s.methods.map((m, i) => {
+      const share = m.amount / mt, ink = m.c === '#d4af37' || m.c === '#a39a86';
+      return { label: m.label, icon: m.icon, amt: money(m.amount), pct: share >= .12 ? Math.round(share * 100) + '%' : '', d: 1750 + i * 80, sd: 1950 + i * 110,
+        dot: { width: 26, height: 26, borderRadius: 999, background: m.c, color: ink ? '#1f1b13' : '#fff', display: 'grid', placeItems: 'center', flex: 'none' },
+        seg: { flex: m.amount + ' 0 0', minWidth: 0, overflow: 'hidden', background: m.c, color: ink ? '#1f1b13' : '#fff', display: 'flex', alignItems: 'flex-end', padding: '0 0 8px 10px', font: '700 12px/1 ' + MONT, borderRight: i === s.methods.length - 1 ? 0 : '2px solid #fff8f0', boxSizing: 'border-box' } };
+    });
+    const sp = (v, c) => ({ display: 'block', height: '100%', flex: v + ' 0 0', background: c, borderRadius: 999, transformOrigin: 'left center' });
+    const split = { a: s.invPaid ? sp(s.invPaid, '#d4af37') : { display: 'none' }, b: s.other ? sp(s.other, '#2f8a83') : { display: 'none' } };
+
+    // money out
+    const ct = s.cats.reduce((a, c) => a + c[1], 0) || 1, C1 = 2 * Math.PI * 60;
+    let acc = 0;
+    const ring = s.cats.map((c, i) => {
+      const fr = c[1] / ct, vis = Math.max(0, fr * C1 - (s.cats.length > 1 ? 3 : 0)), start = acc; acc += fr;
+      return { len: vis, d: Math.round(900 + start * 1000), dur: Math.max(120, Math.round(fr * 1000)), st: { fill: 'none', stroke: DC[i % 5], strokeWidth: 16, strokeDasharray: vis.toFixed(2) + ' ' + C1.toFixed(2), transform: 'rotate(' + (start * 360).toFixed(2) + 'deg)', transformOrigin: '75px 75px' } };
+    });
+    const cats = s.cats.slice(0, 3).map((c, i) => ({ label: c[0], amt: money(c[1]), d: 1300 + i * 150, bd: 1500 + i * 150, dot: { width: 9, height: 9, borderRadius: 3, background: DC[i], flex: 'none' }, bar: { display: 'block', height: '100%', width: (c[1] / s.cats[0][1] * 100) + '%', background: DC[i], borderRadius: 999, transformOrigin: 'left center' } }));
+
+    // kept
+    const C2 = 2 * Math.PI * 110, kf = Math.min(1, Math.max(0, s.kept) / Math.max(1, s.collected)), kl = kf * C2;
+    const arc = (w, o) => ({ fill: 'none', stroke: '#d4af37', strokeOpacity: o, strokeWidth: w, strokeLinecap: kf > 0 ? 'round' : 'butt', strokeDasharray: kl.toFixed(2) + ' ' + C2.toFixed(2) });
+    const ch = s.change;
+    const change = ch ? { text: ch.text, icon: ch.dir === 'up' ? 'trending_up' : ch.dir === 'down' ? 'trending_down' : 'trending_flat', st: { marginTop: 30, height: 40, padding: '0 16px', borderRadius: 999, font: '600 15px/1 Inter, system-ui, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', background: ch.dir === 'up' ? '#e3efe3' : '#efe8dc', color: ch.dir === 'up' ? '#2e6b3f' : '#4d4635' } } : { st: {} };
+
+    // invoices and estimates
+    const row = (nv, label, icon, field, c, i) => {
+      const d = 350 + i * 500, shown = Math.min(nv, 20);
+      return { n: nv, label, icon, field, d, nd: d + 300 + shown * 25, note: nv === 0 ? 'None this time' : nv > 20 ? '+' + (nv - 20) : '',
+        ico: { font: "400 18px/1 'Material Symbols Outlined'", width: 18, height: 18, overflow: 'hidden', display: 'block', whiteSpace: 'nowrap', color: c === '#d4af37' ? '#735c00' : c },
+        pips: Array.from({ length: shown }, (_, j) => ({ d: d + 250 + j * 25, st: { width: 10, height: 10, borderRadius: 3, background: c, display: 'block' } })) };
+    };
+    const rows = [row(s.sent, 'Invoices sent', 'send', 'invoices_sent_count', '#d4af37', 0), row(s.paid, 'Invoices paid', 'task_alt', 'invoices_paid_count', '#2e6b3f', 1), row(s.est, 'Estimates approved', 'thumb_up', 'estimates_approved_count', '#2f8a83', 2)];
+
+    // client / bank / waiting / free / affirmation
+    const cl = s.client || { name: '', amount: 0, invoices: 0 };
+    const cpct = Math.round(cl.amount / Math.max(1, s.collected) * 100);
+    const B = s.bank, N = Math.min(B.total, 36), nA = Math.round(B.auto / Math.max(1, B.total) * N);
+    const dots = Array.from({ length: N }, (_, i) => ({ d: 1000 + Math.round(i * (1200 / N)), st: { width: 16, height: 16, borderRadius: 999, background: i < nA ? '#d4af37' : '#e1d9cc', display: 'block' } }));
+    const pending = B.items.slice(0, Math.min(3, B.pending)).map((p, i) => ({ name: p[0], date: p[1], d: 1100 + i * 180 }));
+    const used = Math.min(2, Math.max(1, P.freeRecapNumber ?? 2));
+    const freePips = [1, 2].map((i) => ({ d: 200 + i * 180, icon: i <= used ? 'check' : 'remove', st: { width: 44, height: 44, borderRadius: 999, display: 'grid', placeItems: 'center', background: i <= used ? 'linear-gradient(180deg,#f1d57c,#d4af37)' : '#efe6d6', color: i <= used ? '#1f1b13' : '#7f7663' } }));
+    const v = P.affVariant || 'A';
+    const aff = { mont: v === 'A' || v === 'B', hand: v === 'C' || v === 'D', sig: v === 'A' || v === 'C', typed: v === 'C', handSig: v === 'B' || v === 'D', words: s.aff.split(' ').map((w, i) => ({ w, d: 550 + i * 90 })) };
+
+    const on = (name) => key === name;
+    const act = (msg) => (e) => { e.stopPropagation(); this.toast(msg); };
+    return {
+      frame: this.frame, s, curve, methods, split, ring, cats, rows, dots, pending, freePips, aff, change,
+      keptRing: { len: kl, arc: arc(22, 1), glow: arc(38, .16) },
+      clientBar: { display: 'block', height: '100%', width: cpct + '%', borderRadius: 999, background: 'linear-gradient(90deg,#e8c766,#d4af37)', transformOrigin: 'left center' },
+      segs: k.map((x) => ({ x })), tags: this.state.tags, paused: this.state.paused, toast: this.state.toast, hasToast: !!this.state.toast,
+      muteIcon: this.state.muted ? 'volume_off' : 'volume_up',
+      show: {
+        opener: on('opener'), in: on('in'), out: on('out'), kept: on('kept'), inv: on('inv'), client: on('client'), bank: on('bank'), waiting: on('waiting'), free: on('free'), aff: on('aff'),
+        chrome: !P.exportMode, share: !P.exportMode, exportLogo: !!P.exportMode,
+        peak: s.collected > 0, methods: s.methods.length > 0, inNote: !!s.inNote, bankIn: bank && B.autoIn > 0, bankOut: bank && B.autoOut > 0,
+        spend: s.spent > 0, noSpend: s.spent <= 0, vendor: !!s.vendor, catMore: s.cats.length > 3,
+        change: !!ch, keptNote: !ch && !!s.keptNote, owed: s.owed > 0, caughtUp: s.owed <= 0, pendingMore: B.pending > 3,
+      },
+      f: {
+        per, kindLabel: s.kind === 'month' ? 'Monthly recap' : 'Weekly recap',
+        collected: money(s.collected), spent: money(s.spent), kept: money(s.kept), invPaid: money(s.invPaid), other: money(s.other), peak: compact(Math.max(...s.daily)),
+        payCap: pl(s.payments, 'payment', 'payments') + ' · ' + pl(s.clients, 'client', 'clients'),
+        inVerb: B.autoIn === 1 ? 'was' : 'were', outVerb: B.autoOut === 1 ? 'was' : 'were', autoVerb: B.auto === 1 ? 'was' : 'were',
+        topCat: s.cats[0] ? s.cats[0][0] : '', topCatPct: s.cats[0] ? Math.round(s.cats[0][1] / ct * 100) + '%' : '', catMore: '+' + pl(s.cats.length - 3, 'more category', 'more categories'),
+        vendorAmt: s.vendor ? money(s.vendor.amount) : '', vendorTrips: s.vendor ? (s.vendor.trips === 1 ? 'in one trip' : 'across ' + s.vendor.trips + ' trips') : '',
+        owed: money(s.owed), owedCount: pl(s.owedCount, 'invoice', 'invoices'),
+        owedLine: [s.vu ? s.vu + (s.vu === 1 ? ' client opened their invoice but hasn’t paid yet.' : ' clients opened their invoice but haven’t paid yet.') : '', s.q ? pl(s.q, 'estimate', 'estimates') + ' waiting on an answer.' : ''].filter(Boolean).join(' '),
+        initials: cl.name.split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase(), clientAmt: money(cl.amount), clientPct: cpct + '%', clientInv: pl(cl.invoices, 'invoice paid', 'invoices paid'),
+        pendingLine: (B.pending === 1 ? 'bank transaction' : 'bank transactions') + ' waiting for you', pendingMore: '+' + (B.pending - 3) + ' more',
+        freeOrd: used === 1 ? '1st' : '2nd', freeBody: used >= 2 ? 'The free plan includes 2 weekly recaps, and this was the last one.' : 'The free plan includes 2 weekly recaps, so you have 1 more coming.',
+      },
+      onDown: (e) => {
+        this._x0 = e.clientX; this._held = false; clearTimeout(this._hold);
+        if (e.target.closest && e.target.closest('[data-act]')) { this._x0 = null; return; }
+        this._hold = setTimeout(() => { this._held = true; this.setState({ paused: true }); }, 220);
+      },
+      onUp: (e) => {
+        clearTimeout(this._hold);
+        if (this._held) { this._held = false; this.setState({ paused: false }); return; }
+        if (this._x0 == null || P.exportMode) return;
+        const r = e.currentTarget.getBoundingClientRect(), dx = e.clientX - this._x0, c = this.cur();
+        this._x0 = null;
+        if (Math.abs(dx) > 40 * (r.width / 390)) this.go(dx < 0 ? c.idx + 1 : c.idx - 1);
+        else this.go((e.clientX - r.left) / r.width < 1 / 3 ? c.idx - 1 : c.idx + 1);
+      },
+      onLeave: () => { clearTimeout(this._hold); this._x0 = null; if (this._held) { this._held = false; this.setState({ paused: false }); } },
+      onKey: (e) => { const c = this.cur(); if (e.key === 'ArrowRight') this.go(c.idx + 1); else if (e.key === 'ArrowLeft') this.go(c.idx - 1); },
+      toggleMute: (e) => { e.stopPropagation(); this.setState((st) => ({ muted: !st.muted })); },
+      actClose: (e) => { e.stopPropagation(); this.setState({ idx: 0 }); },
+      actInvoices: act('Opens your unpaid invoices'), actReview: act('Opens bank review'), actUpgrade: act('Opens On It Pro'), actShare: act('Share image ready'),
+    };
+  }
+}
+</script>
+</body>
+</html>
