@@ -534,8 +534,9 @@ test('peakDay: the tallest day, earliest on a tie, null when every day is $0', (
 // ── The redesign's slide order (RULES 9–12) ──────────────────────────
 test('redesign order: opener, in, out, kept, inv, client, free, aff', () => {
   const week = fixturePayload('normalWeek');
+  const freeWeek = { ...week, freeRecapNumber: 1 };
   assert.deepEqual(redesignSequence(week, { plan: 'pro' }), ['opener', 'in', 'out', 'kept', 'inv', 'client', 'aff']);
-  assert.deepEqual(redesignSequence(week, { plan: 'free' }), ['opener', 'in', 'out', 'kept', 'inv', 'client', 'free', 'aff']);
+  assert.deepEqual(redesignSequence(freeWeek, { plan: 'free' }), ['opener', 'in', 'out', 'kept', 'inv', 'client', 'free', 'aff']);
   // Never the bank or waiting slides, on either plan (RULE 7).
   for (const plan of ['free', 'pro'] as const) {
     const k = redesignSequence(week, { plan });
@@ -569,8 +570,19 @@ test('redesign order: a month keeps its opener and glance first (RULE 12)', () =
   const month = fixturePayload('busyMonth');
   assert.deepEqual(redesignSequence(month, { plan: 'pro' }),
     ['opener', 'glance', 'in', 'out', 'kept', 'inv', 'client', 'aff']);
-  assert.deepEqual(redesignSequence(month, { plan: 'free' }),
+  assert.deepEqual(redesignSequence({ ...month, freeRecapNumber: 2 }, { plan: 'free' }),
     ['opener', 'glance', 'in', 'out', 'kept', 'inv', 'client', 'free', 'aff']);
+});
+
+test('redesign order: the free slide needs a free recap number', () => {
+  const week = fixturePayload('normalWeek');
+  const freePlan: string[] = redesignSequence(week, { plan: 'free' });
+  assert.ok(!freePlan.includes('free')); // free plan, but this row owns no free recap
+  for (const freeRecapNumber of [1, 2]) {
+    assert.ok(redesignSequence({ ...week, freeRecapNumber }, { plan: 'free' }).includes('free'));
+  }
+  // Pro never shows it, even when the row carries a slot.
+  assert.ok(!redesignSequence({ ...week, freeRecapNumber: 1 }, { plan: 'pro' }).includes('free'));
 });
 
 test('week and month rows built in one run never share a recapIndex', () => {

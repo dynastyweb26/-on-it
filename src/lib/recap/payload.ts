@@ -494,7 +494,9 @@ export function redesignSequence(p: RecapPayload, ctx: { plan: RedesignPlan }): 
   const k: RedesignSlide[] = p.kind === 'month' ? ['opener', 'glance'] : ['opener'];
   k.push('in', 'out', 'kept', 'inv');
   if (slidesWithData(p).includes('topClient')) k.push('client');
-  if (ctx.plan === 'free') k.push('free');
+  // Free only on the free plan AND only for a row that owns one of the two
+  // free recaps (quota.ts's slots): a locked or pro row has no free slide.
+  if (ctx.plan === 'free' && isEntitledSlot(p.freeRecapNumber)) k.push('free');
   k.push('aff');
   return k;
 }
