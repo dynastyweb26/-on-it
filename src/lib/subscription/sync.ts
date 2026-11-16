@@ -2,32 +2,40 @@
 // webhook and the /api/subscription/* routes, so a route can write the same
 // state the webhook will (a refresh right after Cancel already shows it) and
 // the webhook stays the source of truth when it lands.
+//
+// Every write goes through writeBillingFields: billing_source decides whether
+// Stripe may touch the row at all (a store-owned, live profile is not Stripe's),
+// and the tier/plan writes additionally skip a founder. Billing facts may still
+// be written for a founder — only their tier and plan are frozen.
 import 'server-only';
 import type Stripe from 'stripe';
 import { adminClient } from '@/lib/supabase/admin';
+import { writeBillingFields, type BillingWrite, type ProfileMatch } from '@/lib/billing-write';
 import { BILLABLE_STATUSES, planFromTier, profileFieldsFor, tierForSubscription, type SubscriptionTier } from './state';
 
 type Admin = ReturnType<typeof adminClient>;
-type Match = { id: string } | { stripe_customer_id: string };
 
-/** One UPDATE that skipped every founder. The founder check is part of the
- *  UPDATE itself (WHERE access_tier is not 'founder'), so it is atomic: a code
- *  redeemed while an event is in flight can't be overwritten by a value read a
- *  moment earlier. (A read-then-write here raced exactly that.) */
-async function updateUnlessFounder(supabase: Admin, match: Match, fields: Record<string, unknown>) {
-  let q = supabase.from('profiles').update(fields);
-  q = 'id' in match ? q.eq('id', match.id) : q.eq('stripe_customer_id', match.stripe_customer_id);
-  const { error } = await q.or('access_tier.is.null,access_tier.neq.founder');
-  if (error) throw error;
+/** Write billing fields for Stripe, under the source rule. */
+function writeStripe(
+  supabase: Admin,
+  match: ProfileMatch,
+  fields: Record<string, unknown>,
+  guardFounder: boolean,
+): Promise<boolean> {
+  const write: BillingWrite = { writer: 'stripe', match, fields, guardFounder };
+  return writeBillingFields(supabase, write);
 }
 
-/** Never downgrade a founder — grants outrank subscriptions. */
+/** Never downgrade a founder — grants outrank subscriptions. The founder check
+ *  is part of the UPDATE itself, together with the source rule, so it is
+ *  atomic: a code redeemed (or a store purchase made) while an event is in
+ *  flight can't be overwritten. */
 export async function setTierUnlessFounder(
   supabase: Admin,
-  match: Match,
+  match: ProfileMatch,
   tier: SubscriptionTier,
 ) {
-  await updateUnlessFounder(supabase, match, { access_tier: tier });
+  await writeStripe(supabase, match, { access_tier: tier }, true);
 }
 
 /** profiles.plan arrives with the tiers migration (20261116090000). Until that
@@ -41,23 +49,24 @@ function isMissingPlanColumn(error: { code?: string; message?: string }): boolea
 /** Write the plan a tier buys ('pro'), never touching a founder. */
 export async function setPlanUnlessFounder(
   supabase: Admin,
-  match: Match,
+  match: ProfileMatch,
   plan: 'pro' | 'plus',
 ) {
-  let q = supabase.from('profiles').update({ plan });
-  q = 'id' in match ? q.eq('id', match.id) : q.eq('stripe_customer_id', match.stripe_customer_id);
-  const { error } = await q.or('access_tier.is.null,access_tier.neq.founder');
-  if (!error) return;
-  if (isMissingPlanColumn(error)) {
-    console.warn('stripe sync: profiles.plan not migrated yet, plan not written');
-    return;
+  try {
+    await writeStripe(supabase, match, { plan }, true);
+  } catch (error) {
+    if (isMissingPlanColumn(error as { code?: string; message?: string })) {
+      console.warn('stripe sync: profiles.plan not migrated yet, plan not written');
+      return;
+    }
+    throw error;
   }
-  throw error;
 }
 
-/** Record a subscription on its profile: billing facts for everyone, the
- *  access tier and the paid plan for non-founders. Throws on DB failure (the
- *  webhook turns that into a 500 so Stripe retries). */
+/** Record a subscription on its profile: billing facts (for everyone,
+ *  founders included), then the access tier and the paid plan (never for a
+ *  founder). Throws on DB failure (the webhook turns that into a 500 so Stripe
+ *  retries). */
 export async function applySubscription(sub: Stripe.Subscription, explicitUserId?: string) {
   const supabase = adminClient();
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
@@ -72,11 +81,10 @@ export async function applySubscription(sub: Stripe.Subscription, explicitUserId
   }
   if (!id) { console.warn('stripe sync: no profile for customer', customerId); return; }
 
-  const { error: updErr } = await supabase.from('profiles').update({
+  await writeStripe(supabase, { id }, {
     stripe_customer_id: customerId,
     ...profileFieldsFor(sub),
-  }).eq('id', id);
-  if (updErr) throw updErr;
+  }, false);
 
   const tier = tierForSubscription(sub);
   await setTierUnlessFounder(supabase, { id }, tier);

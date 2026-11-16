@@ -19,6 +19,7 @@ import type Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe/server';
 import { adminClient } from '@/lib/supabase/admin';
 import { applySubscription, setTierUnlessFounder } from '@/lib/subscription/sync';
+import { writeBillingFields } from '@/lib/billing-write';
 import { periodEndISO } from '@/lib/subscription/state';
 
 export const runtime = 'nodejs';
@@ -92,15 +93,20 @@ export async function POST(req: NextRequest) {
           id = data?.id;
         }
         if (id) {
-          // Billing facts for everyone; the tier only for non-founders (atomic).
-          // An ended subscription is neither canceling nor paused any more.
-          const { error } = await supabase.from('profiles').update({
-            subscription_status: sub.status,
-            current_period_end: periodEndISO(sub),
-            cancel_at_period_end: false,
-            paused_until: null,
-          }).eq('id', id);
-          if (error) throw error;
+          // Billing facts for everyone (founders included), under the billing
+          // source rule; the tier only for non-founders. An ended subscription
+          // is neither canceling nor paused any more.
+          await writeBillingFields(supabase, {
+            writer: 'stripe',
+            match: { id },
+            guardFounder: false,
+            fields: {
+              subscription_status: sub.status,
+              current_period_end: periodEndISO(sub),
+              cancel_at_period_end: false,
+              paused_until: null,
+            },
+          });
           await setTierUnlessFounder(supabase, { id }, 'canceled');
         }
         break;

@@ -33,9 +33,14 @@ test('plan: trialing and active are pro, past_due and canceled leave it alone', 
 
 test('sync: the plan write rides the same atomic founder guard', () => {
   const src = readFileSync(new URL('./sync.ts', import.meta.url), 'utf8');
-  // Only trialing / active set a plan, and a founder is never overwritten.
+  // Only trialing / active set a plan, and a founder is never overwritten: the
+  // tier and plan writes pass guardFounder=true, which lib/billing-write.ts
+  // applies inside the same UPDATE as the source rule.
   assert.match(src, /planFromTier\(tier\)/);
-  assert.match(src, /access_tier\.is\.null,access_tier\.neq\.founder/);
+  assert.match(src, /writeStripe\(supabase, match, \{ access_tier: tier \}, true\)/);
+  assert.match(src, /writeStripe\(supabase, match, \{ plan \}, true\)/);
+  assert.match(readFileSync(new URL('../billing-write.ts', import.meta.url), 'utf8'),
+    /access_tier\.is\.null,access_tier\.neq\.founder/);
 });
 
 test('tier: pause set outside the app (no anchor) is the free tier at once', () => {
