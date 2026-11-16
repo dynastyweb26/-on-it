@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { callUnattached, unattachedErrorMessage } from './unattached-client';
+import { callUnattached, unattachedCardTitle, unattachedErrorMessage, unattachedSaveBody } from './unattached-client';
 
 const reply = (status: number, body: unknown) =>
   (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -12,6 +12,7 @@ test('each failure is named in plain words', () => {
   assert.match(unattachedErrorMessage(400, 'method_invalid'), /how they paid/);
   assert.match(unattachedErrorMessage(400, 'date_invalid'), /date/);
   assert.match(unattachedErrorMessage(400, 'title_too_long'), /200/);
+  assert.match(unattachedErrorMessage(400, 'client_too_long'), /120 characters or fewer/);
   assert.match(unattachedErrorMessage(403, 'not_allowed'), /not allowed/);
   assert.match(unattachedErrorMessage(409, 'duplicate_submission'), /already saved/);
   assert.match(unattachedErrorMessage(500, 'db_insert_failed'), /Nothing was saved/);
@@ -34,6 +35,31 @@ test('a 200 without an id is not a save', async () => {
   assert.equal((await callUnattached('POST', {}, reply(200, { ok: true }))).ok, false);
 });
 
-test('success returns the id', async () => {
-  assert.deepEqual(await callUnattached('POST', {}, reply(200, { ok: true, id: 'abc' })), { ok: true, id: 'abc' });
+test('success returns the id and the saved title', async () => {
+  assert.deepEqual(
+    await callUnattached('POST', {}, reply(200, { ok: true, id: 'abc', title: 'Ruth Lawrence' })),
+    { ok: true, id: 'abc', title: 'Ruth Lawrence' },
+  );
+});
+
+test('a picked client with "Not tied to an invoice" and a blank title sends client_name, and the card shows the payer', async () => {
+  const input = { amount: 120, method: 'zelle', paidOn: '2026-11-15', title: '', clientName: '  Ana Ruiz ' };
+  let sent: Record<string, unknown> | null = null;
+  // The server names the row after the payer when the title is blank (37066c86).
+  const spy = (async (_u: string, init: RequestInit) => {
+    sent = JSON.parse(String(init.body));
+    return new Response(JSON.stringify({ ok: true, id: 'p1', title: 'Ana Ruiz' }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const out = await callUnattached('POST', unattachedSaveBody(input, 'key-1'), spy);
+  assert.equal(sent!.client_name, 'Ana Ruiz');
+  assert.equal(sent!.title, '');
+  assert.equal(out.ok && unattachedCardTitle(out.title, input.title, input.clientName, 'Other income'), 'Ana Ruiz');
+});
+
+test('the card title falls back from the server title, to the typed one, to the client, to the neutral one', () => {
+  assert.equal(unattachedCardTitle('Saved', 'Typed', 'Ana', 'Other income'), 'Saved');
+  assert.equal(unattachedCardTitle('', 'Typed', 'Ana', 'Other income'), 'Typed');
+  assert.equal(unattachedCardTitle('', '', 'Ana', 'Other income'), 'Ana');
+  assert.equal(unattachedCardTitle('', '', '', 'Other income'), 'Other income');
+  assert.equal(unattachedSaveBody({ amount: 1, method: 'cash', paidOn: 'd', title: '', clientName: '' }, 'k').client_name, '');
 });

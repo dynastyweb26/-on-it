@@ -20,6 +20,7 @@ const input = {
   amount: 120,
   method: 'zelle' as const,
   received_on: '2026-11-11',
+  client_name: null,
   title: 'Side job',
 };
 const KEY = unattachedPaymentKey('submission-1');
@@ -109,7 +110,7 @@ test('the route saves through the one-row sequence, on the session', () => {
     'utf8',
   );
   assert.match(route, /saveUnattachedPaymentOnce\(io, row\)/);
-  assert.match(route, /\.select\('id, amount, received_on, method, idempotency_key'\)/);
+  assert.match(route, /\.select\('id, amount, received_on, method, idempotency_key, title'\)/);
   assert.match(route, /\.eq\('idempotency_key', k\)/);
   assert.match(route, /PAYMENT_KEY_REUSED/);
   assert.match(route, /isDifferentUnattachedPayment\(existing, pending\)/);
