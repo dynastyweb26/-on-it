@@ -138,6 +138,43 @@ test('invoices: a row that is 0 says None this time; past 20 the pips stop and "
   assert.equal((h.match(/data-d="\d+" data-dur="260"/g) ?? []).length >= 20, true);
 });
 
+test('top client: name, amount, share and invoice count are topClient\'s; initials come from the name', () => {
+  for (const id of IDS) {
+    const p = redesignPayload(id);
+    if (!p.topClient) continue;
+    const t = text(html('client', p));
+    assert.ok(t.includes(p.topClient.name) && t.includes(money(p.topClient.amount)), id);
+    assert.ok(t.includes(`${p.topClient.pct}%`), `${id} pct`);
+    assert.ok(t.includes(p.topClient.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()), `${id} initials`);
+  }
+  const oneName = { ...redesignPayload('normalWeek'), topClient: { name: 'cher', amount: 90, pct: 5, invoiceCount: 1 } };
+  assert.ok(text(html('client', oneName)).includes('C'));
+});
+
+test('top client: an old payload (no pct, no invoice count) leaves those out and still plays', () => {
+  const t = text(html('client', old(redesignPayload('normalWeek'))));
+  assert.ok(!t.includes('of everything you collected'));
+  assert.ok(!/invoices? paid/.test(t));
+  assert.ok(t.includes('paid you'));
+});
+
+test('free plan: the ordinal and the body follow freeRecapNumber', () => {
+  const p = redesignPayload('normalWeek');
+  const first = text(html('free', { ...p, freeRecapNumber: 1 }));
+  assert.ok(first.includes('This was your 1st free recap.') && first.includes('you have 1 more coming'));
+  const last = text(html('free', { ...p, freeRecapNumber: 2 }));
+  assert.ok(last.includes('This was your 2nd free recap.') && last.includes('this was the last one'));
+  assert.ok(last.includes('See On It Pro') && last.includes('$15 a month'));
+});
+
+test('sequence: the free slide plays on the free plan only, and only with a free recap number', () => {
+  const p = redesignPayload('normalWeek');
+  assert.ok(!redesignSequence({ ...p, freeRecapNumber: 1 }, { plan: 'pro' }).includes('free'));
+  assert.ok(redesignSequence({ ...p, freeRecapNumber: 1 }, { plan: 'free' }).includes('free'));
+  assert.ok(!redesignSequence({ ...p, freeRecapNumber: undefined }, { plan: 'free' }).includes('free'));
+  assert.equal(redesignSequence({ ...p, freeRecapNumber: 2 }, { plan: 'free' }).at(-1), 'aff');
+});
+
 test('opener: an old payload falls back to income.total and drops what it never had', () => {
   const p = old(redesignPayload('normalWeek'));
   const t = text(html('opener', p));
