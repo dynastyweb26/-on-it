@@ -59,7 +59,7 @@ export type RecapInput = {
   previous: { income: number; expenses: number } | null;
   /** Other money received (optional: older callers and fixtures have none). */
   otherIncome?: RecapOtherIncomeRow[];
-  /** coalesce(sent_at, first_sent_at) of the owner's live invoices. */
+  /** first_sent_at of the owner's live invoices (a later re-send never counts). */
   sentInvoices?: (string | null)[];
   /** approved_at of the owner's live estimates. */
   estimatesApproved?: (string | null)[];
@@ -166,6 +166,11 @@ export function periodTotals(input: {
   const expenses = r2(input.expenses);
   return { income, expenses, net: r2(income - expenses) };
 }
+
+/** The invoices-sent input: first_sent_at only. A later re-send must not move
+ *  the count, and a row that was never sent is not one. */
+export const sentInvoiceStamps = (rows: { first_sent_at?: string | null }[]): (string | null)[] =>
+  rows.map((r) => r.first_sent_at ?? null);
 
 const num = (v: Num | null | undefined) => Number(v) || 0;
 const r2 = roundCurrency;

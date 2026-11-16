@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildRecapPayload, changeVs, periodTotals, recapAnnounces, recapFlags, recapSequence,
-  slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
+  sentInvoiceStamps, slidesWithData, RECAP_PAYLOAD_VERSION, TRIPS_MAX,
   type RecapInput, type RecapPayload, type RecapSlide,
 } from './payload';
 import { playable } from './rows';
@@ -415,6 +415,22 @@ test('previous-period totals use the same basis, so the chip compares like with 
   });
   assert.deepEqual(prev, { income: 1250, expenses: 400, net: 850 });
   assert.deepEqual(changeVs(1000, prev), { prevNet: 850, pct: 18, direction: 'up' });
+});
+
+test('invoices sent count by first send: a later re-send changes nothing', () => {
+  // The shape an invoices row can have; the mapping must read first_sent_at only.
+  type SentRow = { first_sent_at?: string | null; sent_at?: string | null };
+
+  const firstInPeriod: SentRow = { first_sent_at: '2026-09-23T15:00:00Z', sent_at: '2026-10-05T15:00:00Z' };
+  assert.equal(buildRecapPayload(base({ sentInvoices: sentInvoiceStamps([firstInPeriod]) })).invoicesSent, 1);
+
+  // First sent before the period, re-sent inside it: still not this week's invoice.
+  const reSent: SentRow = { first_sent_at: '2026-09-10T15:00:00Z', sent_at: '2026-09-24T15:00:00Z' };
+  assert.equal(buildRecapPayload(base({ sentInvoices: sentInvoiceStamps([reSent]) })).invoicesSent, 0);
+
+  // A row with no first send is not an invoice sent this period.
+  const neverFirst: SentRow = { sent_at: '2026-09-24T15:00:00Z' };
+  assert.deepEqual(sentInvoiceStamps([neverFirst]), [null]);
 });
 
 // ── Old stored recaps still open ─────────────────────────────────────

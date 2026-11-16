@@ -70,7 +70,7 @@ import {
   addDays, localYmd, periodsEndingBefore, previousPeriod, resolveTimeZone, zonedMidnight, type RecapPeriod,
 } from '@/lib/recap/dates';
 import {
-  buildRecapPayload, periodTotals, recapAnnounces, RECAP_PAYLOAD_VERSION,
+  buildRecapPayload, periodTotals, recapAnnounces, sentInvoiceStamps, RECAP_PAYLOAD_VERSION,
   type RecapExpenseRow, type RecapInput, type RecapOtherIncomeRow, type RecapPaymentRow,
 } from '@/lib/recap/payload';
 
@@ -250,8 +250,9 @@ export async function loadRecapInput(
       .order('id', { ascending: true }).range(f, t)),
     loadNumbers(admin, userId, previousPeriod(period), tz),
     // Invoices first sent in the period (the redesign's "Invoices sent").
+    // first_sent_at is write-once, so a later re-send cannot move the count.
     fetchAll((f, t) => admin.from('invoices')
-      .select('id, sent_at, first_sent_at')
+      .select('id, first_sent_at')
       .eq('user_id', userId).eq('kind', 'invoice').is('deleted_at', null)
       .gte('first_sent_at', from).lt('first_sent_at', until)
       .order('id', { ascending: true }).range(f, t)),
@@ -296,7 +297,7 @@ export async function loadRecapInput(
     })),
     quotesPending: quotes.filter((q) => !answered.has(q.id as string)).length,
     otherIncome,
-    sentInvoices: sent.map((r) => ((r.sent_at ?? r.first_sent_at) as string | null) ?? null),
+    sentInvoices: sentInvoiceStamps(sent),
     estimatesApproved: approved.map((r) => (r.approved_at as string | null) ?? null),
     previous: { income: previous.income, expenses: previous.expenses },
   };
