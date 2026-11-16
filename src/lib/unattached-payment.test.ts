@@ -13,6 +13,7 @@ import {
   parseUnattachedPayment,
   unattachedInsertRow,
   unattachedPaymentKey,
+  unattachedSavedBody,
 } from './unattached-payment';
 
 const ROUTE = readFileSync(
@@ -46,6 +47,52 @@ test('the name is optional and a blank falls back to the neutral one', () => {
   const missing = parseUnattachedPayment({ ...valid, title: undefined });
   assert.equal(missing.ok, true);
   if (missing.ok) assert.equal(missing.value.title, UNATTACHED_PAYMENT_TITLE);
+});
+
+test('a payer with no title gives the row the payer name, as title and client', () => {
+  const parsed = parseUnattachedPayment({
+    amount: 120, method: 'zelle', received_on: '2026-11-11', client_name: '  Ruth Lawrence ',
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.client_name, 'Ruth Lawrence');
+  assert.equal(parsed.value.title, 'Ruth Lawrence');
+  const row = unattachedInsertRow('user-a', parsed.value, 'income-key-2');
+  assert.equal(row.client_name, 'Ruth Lawrence');
+  assert.equal(row.title, 'Ruth Lawrence');
+});
+
+test('a typed title wins over the payer, and the payer is still saved', () => {
+  const parsed = parseUnattachedPayment({ ...valid, client_name: 'Ruth Lawrence' });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.title, 'Side job');
+  assert.equal(parsed.value.client_name, 'Ruth Lawrence');
+});
+
+test('no payer means the neutral title and no client name', () => {
+  const parsed = parseUnattachedPayment({ amount: 120, method: 'zelle', received_on: '2026-11-11' });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.title, UNATTACHED_PAYMENT_TITLE);
+  assert.equal(parsed.value.client_name, null);
+  // A blank payer is the same as none, never an empty string on the row.
+  const blank = parseUnattachedPayment({ ...valid, client_name: '   ' });
+  assert.equal(blank.ok, true);
+  if (blank.ok) assert.equal(blank.value.client_name, null);
+});
+
+test('a payer name longer than 120 characters is refused', () => {
+  assert.deepEqual(parseUnattachedPayment({ ...valid, client_name: 'x'.repeat(121) }), {
+    ok: false, code: 'client_too_long',
+  });
+  assert.equal(parseUnattachedPayment({ ...valid, client_name: 'x'.repeat(120) }).ok, true);
+});
+
+test('a saved payment answers with its id and its saved title', () => {
+  assert.deepEqual(unattachedSavedBody('abc', 'Ruth Lawrence'), {
+    ok: true, id: 'abc', title: 'Ruth Lawrence',
+  });
 });
 
 test('amount, method and date are the only things that can refuse a save', () => {
@@ -127,6 +174,12 @@ test('the route runs on the session and RLS: no service role, no invoice', () =>
   assert.match(ROUTE, /getUser\(\)/);
   assert.match(ROUTE, /rateLimit\('income_unattached'/);
   assert.match(ROUTE, /idempotency_key/);
+});
+
+test('the route accepts a payer and answers with the saved title', () => {
+  assert.match(ROUTE, /client_name: z\.string\(\)\.nullish\(\)/);
+  assert.match(ROUTE, /idempotency_key, title/);
+  assert.match(ROUTE, /unattachedSavedBody\(saved\.payment\.id/);
 });
 
 test('a client cannot be told a write succeeded when RLS refused it', () => {

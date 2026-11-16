@@ -29,12 +29,20 @@ export const UNATTACHED_PAYMENT_TITLE = 'Other income';
 /** The partial unique index that makes one submission one row. */
 export const UNATTACHED_INCOME_IDEMPOTENCY_CONSTRAINT = 'other_income_user_idempotency_key_uidx';
 
+/** The longest payer name the row accepts; the column keeps 120. */
+export const UNATTACHED_PAYER_MAX = 120;
+
 export type UnattachedPaymentInput = {
   amount: number;
   method: PaymentMethod;
   /** The day the money arrived, yyyy-mm-dd, in the owner's local calendar. */
   received_on: string;
-  /** The name the owner typed, or UNATTACHED_PAYMENT_TITLE. Never empty. */
+  /** Who paid, as saved. Null when no name was given — never an empty string. */
+  client_name: string | null;
+  /**
+   * The name the owner typed, else the payer's name, else the neutral
+   * UNATTACHED_PAYMENT_TITLE. Never empty: an unlabelled row is not a record.
+   */
   title: string;
 };
 
@@ -42,7 +50,8 @@ export type UnattachedErrorCode =
   | 'amount_invalid'
   | 'method_invalid'
   | 'date_invalid'
-  | 'title_too_long';
+  | 'title_too_long'
+  | 'client_too_long';
 
 export type UnattachedParseResult =
   | { ok: true; value: UnattachedPaymentInput }
@@ -57,7 +66,9 @@ export function isUnattachedMethod(value: unknown): value is PaymentMethod {
 
 /**
  * Validate one save. `amount` accepts a number or a numeric string (the card
- * sends either); `title` is optional and falls back to the neutral name.
+ * sends either); `client_name` is the payer and `title` is optional. A blank
+ * title takes the payer's name, so a payment that only names who paid still
+ * reads as theirs; a blank payer is null. Both are trimmed.
  */
 export function parseUnattachedPayment(body: unknown): UnattachedParseResult {
   const row = (body ?? {}) as Record<string, unknown>;
@@ -69,11 +80,21 @@ export function parseUnattachedPayment(body: unknown): UnattachedParseResult {
   const rounded = Math.round(amount * 100) / 100;
   if (!isUnattachedMethod(row.method)) return { ok: false, code: 'method_invalid' };
   if (!isIsoDay(row.received_on)) return { ok: false, code: 'date_invalid' };
-  const title = clean(row.title) || UNATTACHED_PAYMENT_TITLE;
+  const clientName = clean(row.client_name);
+  if (clientName.length > UNATTACHED_PAYER_MAX) return { ok: false, code: 'client_too_long' };
+  // Typed title, else the payer, else the neutral name: the row says who paid
+  // even when the owner did not type a name for the money.
+  const title = clean(row.title) || clientName || UNATTACHED_PAYMENT_TITLE;
   if (title.length > OTHER_INCOME_TITLE_MAX) return { ok: false, code: 'title_too_long' };
   return {
     ok: true,
-    value: { amount: rounded, method: row.method, received_on: row.received_on, title },
+    value: {
+      amount: rounded,
+      method: row.method,
+      received_on: row.received_on,
+      client_name: clientName || null,
+      title,
+    },
   };
 }
 
@@ -101,7 +122,7 @@ export function unattachedInsertRow(
     user_id: userId,
     amount: input.amount,
     title: input.title,
-    client_name: null,
+    client_name: input.client_name,
     received_on: input.received_on,
     note: null,
     // Manual by definition: a row a bank deposit decided is never written here.
@@ -119,7 +140,14 @@ export type UnattachedPaymentRow = {
   received_on: string;
   method?: string | null;
   idempotency_key?: string | null;
+  /** Read back so a save can answer with what the row is actually called. */
+  title?: string | null;
 };
+
+/** The body a saved unattached payment answers with: its id and its saved title. */
+export function unattachedSavedBody(id: string, title: string) {
+  return { ok: true as const, id, title };
+}
 
 /**
  * True when the row a key already owns is different money. The comparator is

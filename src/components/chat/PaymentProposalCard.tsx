@@ -58,7 +58,9 @@ export type PickerData = { ok: true; clients: ClientSummary[]; invoices: OpenInv
 
 export type ProposalInput = { invoiceId: string; amount: number; method: PaymentMethod; paidOn: string };
 /** The no-invoice path: money in that no invoice explains. */
-export type UnattachedProposalInput = { amount: number; method: PaymentMethod; paidOn: string; title: string };
+export type UnattachedProposalInput = { amount: number; method: PaymentMethod; paidOn: string; title: string;
+  /** The client picked on the card, trimmed; '' when none. The payer keeps the money's name. */
+  clientName: string };
 export type ProposalResult ={ ok: true } | { ok: false; message: string };
 
 const leftOf = (inv: ProposalInvoice) => Math.max(0, inv.total - inv.amountPaid);
@@ -169,7 +171,7 @@ export default function PaymentProposalCard({ proposal, onConfirm, onCancel, can
     setError('');
     try {
       const out = noInvoice && onConfirmUnattached
-        ? await onConfirmUnattached({ amount, method: method as PaymentMethod, paidOn, title: title.trim() })
+        ? await onConfirmUnattached({ amount, method: method as PaymentMethod, paidOn, title: title.trim(), clientName: typedName.trim() })
         : await onConfirm({ invoiceId: invoiceId as string, amount, method: method as PaymentMethod, paidOn });
       if (!out.ok) { setError(out.message); setBusy(false); }
       // On success the caller replaces this card with the recorded one.

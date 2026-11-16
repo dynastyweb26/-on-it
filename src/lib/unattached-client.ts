@@ -4,7 +4,9 @@
 // are unit-tested. There is no offline queue on this path: a request that did
 // not reach the server is reported as failed, never as saved.
 
-export type UnattachedCallResult = { ok: true; id: string } | { ok: false; message: string };
+export type UnattachedCallResult =
+  | { ok: true; id: string; title: string }
+  | { ok: false; message: string };
 
 /** What the user reads for each status / server code. */
 export function unattachedErrorMessage(status: number | null, code?: string | null): string {
@@ -16,6 +18,7 @@ export function unattachedErrorMessage(status: number | null, code?: string | nu
     case 'method_invalid': return 'Pick how they paid.';
     case 'date_invalid': return "That date isn't valid. Pick another.";
     case 'title_too_long': return 'Keep the name to 200 characters or fewer.';
+    case 'client_too_long': return 'Keep the name to 120 characters or fewer.';
     case 'not_allowed': return "You're not allowed to record this payment.";
     case 'duplicate_submission': return 'This was already saved with different details. Check your payments before trying again.';
     case 'not_found': return 'That payment is already gone.';
@@ -40,8 +43,27 @@ export async function callUnattached(
   } catch {
     return { ok: false, message: unattachedErrorMessage(null) };
   }
-  const json = (await res.json().catch(() => null)) as { ok?: boolean; id?: string; error?: string } | null;
+  const json = (await res.json().catch(() => null)) as
+    { ok?: boolean; id?: string; title?: string; error?: string } | null;
   // Saved only when the server says so: a 200 with no id is a failure too.
-  if (res.ok && json?.ok === true && typeof json.id === 'string') return { ok: true, id: json.id };
+  if (res.ok && json?.ok === true && typeof json.id === 'string') {
+    return { ok: true, id: json.id, title: typeof json.title === 'string' ? json.title : '' };
+  }
   return { ok: false, message: unattachedErrorMessage(res.status, json?.error) };
+}
+
+/** The POST body for saving a payment with no invoice. The client name rides along even when the title is blank. */
+export function unattachedSaveBody(
+  input: { amount: number; method: string; paidOn: string; title: string; clientName: string },
+  idempotencyKey: string,
+) {
+  return {
+    amount: input.amount, method: input.method, received_on: input.paidOn,
+    title: input.title, client_name: input.clientName.trim(), idempotency_key: idempotencyKey,
+  };
+}
+
+/** The title the recorded card shows: what the server saved, then what was typed, then the payer, then the neutral one. */
+export function unattachedCardTitle(saved: string, typed: string, clientName: string, neutral: string): string {
+  return saved.trim() || typed.trim() || clientName.trim() || neutral;
 }
