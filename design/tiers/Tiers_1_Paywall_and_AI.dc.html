@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block" rel="stylesheet">
+<style>
+body{margin:0;background:#ebe4d8;color:#1d1914;font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#735c00;text-decoration:none;font-weight:600}
+a:hover{color:#1d1914;text-decoration:underline}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<div style="min-width:1500px;padding:72px 72px 120px;display:flex;flex-direction:column;gap:96px">
+
+<header style="display:flex;flex-direction:column;gap:14px;max-width:880px">
+  <div style="font:500 12px 'JetBrains Mono';letter-spacing:.1em;text-transform:uppercase;color:#6b6257">On It · Tiers phase 3 · Part 1 of 2</div>
+  <h1 style="margin:0;font:800 48px/1.05 Montserrat;letter-spacing:-.02em">Paywall, AI meter, AI limit card</h1>
+  <p style="margin:0;font:400 17px/1.55 Inter;color:#4f473d;text-wrap:pretty">Free, Pro $9.99 and Plus $16.99. Every limit shows before it's hit, every lock names its plan and price, and the AI limit never blocks the + menu. Phone at 390pt first, laptop at 1280 after.</p>
+  <div style="display:flex;gap:16px;font:500 14px Inter"><span style="color:#6b6257;white-space:nowrap;flex-shrink:0">Part 1 (this page)</span><a href="Tiers 2 - Locks Plan Cancel.dc.html">Part 2: Lock sheets, photos, Settings › Plan, cancel →</a></div>
+</header>
+
+<!-- 01 PAYWALL -->
+<section id="01" data-screen-label="01 Paywall" style="display:flex;flex-direction:column;gap:36px">
+  <div style="display:flex;gap:22px;align-items:flex-start">
+    <div style="font:800 56px/1 Montserrat;color:#b8961f">01</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:760px">
+      <h2 style="margin:0;font:800 30px Montserrat">Paywall, plan page</h2>
+      <p style="margin:0;font:400 15px/1.55 Inter;color:#4f473d;text-wrap:pretty">Replaces page 3. Two plan cards on top, Cyril's testimonial right under them, then reminder and code, then the FREE / PRO / PLUS table, one CTA pinned to the bottom. Where it was opened from decides the preselected plan and the line above the headline. <strong>Try it:</strong> switch the entry point, tap a plan, tap the CTA.</p>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+    <!-- 1A interactive -->
+    <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">1A</span>Free user · interactive</div>
+      <div style="display:flex;background:#f6eedf;border-radius:999px;padding:4px;gap:4px;width:360px;box-sizing:border-box">
+        <div onClick="{{ entryLimit }}" style="flex:1;text-align:center;padding:9px 0;border-radius:999px;font:600 13px Inter;cursor:pointer;background:{{ entryLimitBg }}">From 4th invoice</div>
+        <div onClick="{{ entryLock }}" style="flex:1;text-align:center;padding:9px 0;border-radius:999px;font:600 13px Inter;cursor:pointer;background:{{ entryLockBg }}">From bank lock</div>
+      </div>
+
+      <div style="width:360px;height:780px;border:9px solid #1d1914;border-radius:50px;background:#fff8f0;overflow:hidden;display:flex;flex-direction:column;position:relative;box-shadow:0 40px 70px -40px rgba(60,40,10,.45)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 26px 4px;font:600 14px Inter"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px">signal_cellular_alt wifi battery_full</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 4px;height:56px">
+          <div style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:24px">close</div>
+          <div style="display:flex;gap:6px"><span style="width:6px;height:6px;border-radius:3px;background:#d9ccb4"></span><span style="width:6px;height:6px;border-radius:3px;background:#d9ccb4"></span><span style="width:18px;height:6px;border-radius:3px;background:#1d1914"></span></div>
+          <div style="width:56px"></div>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding:4px 16px 20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:8px;padding:0 4px">
+            <div style="display:flex;align-items:center;gap:6px;font:600 13px/1.35 Inter;color:#735c00;text-wrap:balance"><span style="font-family:'Material Symbols Outlined';font-size:18px">{{ contextIcon }}</span>{{ contextLine }}</div>
+            <h3 style="margin:0;font:800 28px/1.1 Montserrat;letter-spacing:-.01em">Pick your plan</h3>
+            <div style="font:400 14px Inter;color:#4f473d">Both start with 14 days free.</div>
+          </div>
+
+          <div style="display:flex;gap:10px;opacity:{{ pickerOpacity }};pointer-events:{{ pickerEvents }}">
+            <div onClick="{{ pickPro }}" style="flex:1;border-radius:20px;background:#fff;padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;border:2px solid {{ proBorder }};box-shadow:{{ proRing }}">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 18px Montserrat">Pro</span><span style="font-family:'Material Symbols Outlined';font-size:22px;color:{{ proRadioColor }}">{{ proRadio }}</span></div>
+              <div style="display:flex;align-items:baseline;gap:2px"><span style="font:800 24px Montserrat">$9.99</span><span style="font:500 13px Inter;color:#6b6257">/mo</span></div>
+              <div style="font:400 12.5px/1.4 Inter;color:#4f473d;min-height:52px">No caps on invoices, estimates and expenses. PDFs of your books.</div>
+              <span style="align-self:flex-start;font:600 11px Inter;color:#735c00;background:#f6eedf;border-radius:999px;padding:4px 8px;white-space:nowrap">14-day free trial</span>
+            </div>
+            <div onClick="{{ pickPlus }}" style="flex:1;border-radius:20px;background:#fff;padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:6px;border:2px solid {{ plusBorder }};box-shadow:{{ plusRing }}">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 18px Montserrat">Plus</span><span style="font-family:'Material Symbols Outlined';font-size:22px;color:{{ plusRadioColor }}">{{ plusRadio }}</span></div>
+              <div style="display:flex;align-items:baseline;gap:2px"><span style="font:800 24px Montserrat">$16.99</span><span style="font:500 13px Inter;color:#6b6257">/mo</span></div>
+              <div style="font:400 12.5px/1.4 Inter;color:#4f473d;min-height:52px">Everything in Pro, plus your bank, recurring expenses and photos.</div>
+              <span style="align-self:flex-start;font:600 11px Inter;color:#735c00;background:#f6eedf;border-radius:999px;padding:4px 8px;white-space:nowrap">14-day free trial</span>
+            </div>
+          </div>
+
+          <div style="flex-shrink:0;background:#fff;border:1px solid #eadfcc;border-radius:16px;padding:18px 16px 16px;display:flex;flex-direction:column;gap:12px">
+            <span style="font-family:'Material Symbols Outlined';font-size:26px;line-height:1;color:#735c00">format_quote</span>
+            <div style="font:500 15px/1.5 Inter;color:#1d1914;text-wrap:pretty">This app has been a blessing to me and my business. 30 seconds to make an invoice on the go.</div>
+            <div style="border-top:1px solid #eadfcc;padding-top:12px;display:flex;align-items:center;gap:10px">
+              <img src="assets/cyril-logo.png" alt="Cyril Handyman &amp; Door LLC logo" style="width:34px;height:34px;border-radius:6px;object-fit:cover;flex-shrink:0">
+              <div style="display:flex;flex-direction:column;gap:1px"><span style="font:600 13px Inter;color:#1d1914">Cyril</span><span style="font:400 11.5px Inter;color:#4f473d">Cyril Handyman &amp; Door LLC</span></div>
+            </div>
+          </div>
+
+
+          <div style="background:#fff;border:1px solid #eadfcc;border-radius:18px">
+            <div style="display:flex;align-items:center;gap:12px;min-height:56px;padding:4px 14px">
+              <span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">notifications</span>
+              <span style="flex:1;font:500 14px/1.35 Inter">Remind me 2 days before my trial ends</span>
+              <span style="width:44px;height:26px;border-radius:13px;background:#d4af37;position:relative;flex-shrink:0"><span style="position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:10px;background:#fff"></span></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;min-height:56px;padding:4px 14px;border-top:1px solid #f1e8d8">
+              <span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">key</span>
+              <span style="flex:1;font:500 14px Inter">Founder or invite code</span>
+              <span style="font-family:'Material Symbols Outlined';font-size:20px;color:#6b6257">chevron_right</span>
+            </div>
+          </div>
+
+          <div style="background:#fff;border:1px solid #eadfcc;border-radius:18px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;font:700 11px 'JetBrains Mono';letter-spacing:.08em;color:#6b6257">
+              <div style="padding:12px"></div>
+              <div style="padding:12px 0;text-align:center">FREE</div>
+              <div style="padding:12px 0;text-align:center;background:{{ proCol }};color:{{ proHead }}">PRO</div>
+              <div style="padding:12px 0;text-align:center;background:{{ plusCol }};color:{{ plusHead }}">PLUS</div>
+            </div>
+            <sc-for list="{{ rows }}" as="row" hint-placeholder-count="9">
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;border-top:1px solid #f1e8d8;align-items:stretch">
+                <div style="padding:10px 4px 10px 12px;font:500 12.5px/1.3 Inter">{{ row.label }}</div>
+                <div style="display:flex;align-items:center;justify-content:center;color:{{ row.freeC }};font-family:{{ row.freeF }};font-size:{{ row.freeS }};font-weight:500">{{ row.free }}</div>
+                <div style="display:flex;align-items:center;justify-content:center;background:{{ proCol }};color:{{ row.proC }};font-family:{{ row.proF }};font-size:{{ row.proS }};font-weight:600">{{ row.pro }}</div>
+                <div style="display:flex;align-items:center;justify-content:center;background:{{ plusCol }};color:{{ row.plusC }};font-family:{{ row.plusF }};font-size:{{ row.plusS }};font-weight:600">{{ row.plus }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font:400 11.5px/1.5 Inter;color:#6b6257;padding:0 4px;display:flex;flex-direction:column;gap:6px">
+            <span>Payment is charged to your App Store account when the trial ends. The subscription renews monthly unless you cancel at least 24 hours before the period ends.</span>
+            <span style="display:flex;gap:14px"><a href="#">Terms of Use</a><a href="#">Privacy Policy</a></span>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid #eadfcc;background:#fff8f0;padding:12px 16px 20px;display:flex;flex-direction:column;gap:8px">
+          <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:10px;align-items:flex-start;background:#fbe6dc;border:1px solid #f0c7b5;border-radius:14px;padding:10px 12px">
+              <span style="font-family:'Material Symbols Outlined';font-size:20px;color:#a63d17">error</span>
+              <div style="display:flex;flex-direction:column;gap:2px"><span style="font:600 13px Inter;color:#7d2c0f">The App Store couldn't take the payment.</span><span style="font:400 12px Inter;color:#7d2c0f">Your card was declined. Nothing was charged.</span></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ isConfirming }}" hint-placeholder-val="{{ false }}">
+            <div style="height:56px;border-radius:999px;background:#f6eedf;display:flex;align-items:center;justify-content:center;gap:10px;font:700 15px Montserrat;color:#4f473d"><span style="width:16px;height:16px;border-radius:50%;border:2.5px solid #d9ccb4;border-top-color:#735c00;animation:spin .8s linear infinite"></span>Confirming your purchase...</div>
+            <div style="text-align:center;font:400 12px Inter;color:#6b6257">The App Store said yes. Waiting on our server.</div>
+          </sc-if>
+          <sc-if value="{{ isSlow }}" hint-placeholder-val="{{ false }}">
+            <div style="height:56px;border-radius:999px;background:#f6eedf;display:flex;align-items:center;justify-content:center;gap:10px;font:700 15px Montserrat;color:#4f473d"><span style="width:16px;height:16px;border-radius:50%;border:2.5px solid #d9ccb4;border-top-color:#735c00;animation:spin .8s linear infinite"></span>Confirming your purchase...</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font:400 12px/1.35 Inter;color:#4f473d"><span>Taking longer than usual. You won't be charged twice.</span><span onClick="{{ retry }}" style="flex-shrink:0;min-height:44px;padding:0 16px;display:flex;align-items:center;border:1px solid #e2d6c2;border-radius:999px;background:#fff;font:600 13px Inter;cursor:pointer">Try again</span></div>
+          </sc-if>
+          <sc-if value="{{ showCta }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ buy }}" style="height:56px;border-radius:999px;background:#d4af37;display:flex;align-items:center;justify-content:center;gap:10px;font:700 16px Montserrat;cursor:pointer;opacity:{{ ctaOpacity }}">
+              <sc-if value="{{ isPending }}" hint-placeholder-val="{{ false }}"><span style="width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(29,25,20,.25);border-top-color:#1d1914;animation:spin .8s linear infinite"></span></sc-if>
+              {{ ctaLabel }}
+            </div>
+            <div style="text-align:center;font:500 12.5px Inter;color:#4f473d">{{ ctaSub }}</div>
+          </sc-if>
+          <div style="display:flex;justify-content:space-between;font:400 11.5px Inter;color:#6b6257;padding:0 4px"><span>Renews monthly in the App Store until you cancel.</span><a href="#">Restore</a></div>
+        </div>
+
+        <sc-if value="{{ isSuccess }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;background:#1d1914;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff8f0">
+            <div style="width:84px;height:84px;border-radius:42px;background:#d4af37;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:42px;color:#1d1914">check</div>
+            <div style="font:800 26px Montserrat">You're on {{ planName }}</div>
+            <div style="font:400 14px Inter;color:#d9ccb4">Trial ends Nov 30. We'll remind you on the 28th.</div>
+            <div style="margin-top:20px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;color:#d4af37">→ EXISTING CELEBRATION ANIMATION</div>
+            <div onClick="{{ reset }}" style="margin-top:6px;font:600 13px Inter;color:#fff8f0;text-decoration:underline;cursor:pointer">Reset demo</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:6px;width:360px">
+        <sc-for list="{{ stateChips }}" as="c" hint-placeholder-count="6">
+          <div onClick="{{ c.go }}" style="padding:8px 12px;border-radius:999px;font:500 11px 'JetBrains Mono';cursor:pointer;border:1px solid #d9ccb4;background:{{ c.bg }};color:{{ c.color }}">{{ c.label }}</div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- 1B pro upgrade -->
+    <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">1B</span>Pro user, opened from a Plus lock</div>
+      <div style="height:42px"></div>
+      <div style="width:360px;height:780px;border:9px solid #1d1914;border-radius:50px;background:#fff8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 40px 70px -40px rgba(60,40,10,.45)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 26px 4px;font:600 14px Inter"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px">signal_cellular_alt wifi battery_full</span></div>
+        <div style="display:flex;align-items:center;padding:0 4px;height:56px"><div style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:24px">close</div></div>
+        <div style="flex:1;overflow-y:auto;padding:4px 16px 20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:8px;padding:0 4px">
+            <div style="display:flex;align-items:center;gap:6px;font:600 13px/1.35 Inter;color:#735c00;text-wrap:balance"><span style="font-family:'Material Symbols Outlined';font-size:18px">account_balance</span>Connecting a bank is part of Plus.</div>
+            <h3 style="margin:0;font:800 28px/1.1 Montserrat;letter-spacing:-.01em">Move up to Plus</h3>
+          </div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;border-radius:20px;background:#f6eedf;padding:14px;display:flex;flex-direction:column;gap:6px;border:2px solid #eadfcc">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 18px Montserrat;color:#4f473d">Pro</span></div>
+              <div style="display:flex;align-items:baseline;gap:2px"><span style="font:800 24px Montserrat;color:#4f473d">$9.99</span><span style="font:500 13px Inter;color:#6b6257">/mo</span></div>
+              <span style="align-self:flex-start;font:600 11px Inter;color:#4f473d;background:#fff;border-radius:999px;padding:4px 8px;display:flex;align-items:center;gap:4px"><span style="font-family:'Material Symbols Outlined';font-size:14px">check</span>Your plan</span>
+            </div>
+            <div style="flex:1;border-radius:20px;background:#fff;padding:14px;display:flex;flex-direction:column;gap:6px;border:2px solid #d4af37;box-shadow:0 0 0 4px rgba(212,175,55,.22)">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font:800 18px Montserrat">Plus</span><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">radio_button_checked</span></div>
+              <div style="display:flex;align-items:baseline;gap:2px"><span style="font:800 24px Montserrat">$16.99</span><span style="font:500 13px Inter;color:#6b6257">/mo</span></div>
+              <span style="align-self:flex-start;font:600 11px Inter;color:#735c00;background:#f6eedf;border-radius:999px;padding:4px 8px;white-space:nowrap">Opens right away</span>
+            </div>
+          </div>
+          <div style="flex-shrink:0;background:#fff;border:1px solid #eadfcc;border-radius:16px;padding:18px 16px 16px;display:flex;flex-direction:column;gap:12px">
+            <span style="font-family:'Material Symbols Outlined';font-size:26px;line-height:1;color:#735c00">format_quote</span>
+            <div style="font:500 15px/1.5 Inter;color:#1d1914;text-wrap:pretty">This app has been a blessing to me and my business. 30 seconds to make an invoice on the go.</div>
+            <div style="border-top:1px solid #eadfcc;padding-top:12px;display:flex;align-items:center;gap:10px">
+              <img src="assets/cyril-logo.png" alt="Cyril Handyman &amp; Door LLC logo" style="width:34px;height:34px;border-radius:6px;object-fit:cover;flex-shrink:0">
+              <div style="display:flex;flex-direction:column;gap:1px"><span style="font:600 13px Inter;color:#1d1914">Cyril</span><span style="font:400 11.5px Inter;color:#4f473d">Cyril Handyman &amp; Door LLC</span></div>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #eadfcc;border-radius:18px">
+            <div style="padding:12px 14px 4px;font:700 11px 'JetBrains Mono';letter-spacing:.08em;color:#6b6257">WHAT PLUS ADDS TO PRO</div>
+            <div style="display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">account_balance</span><span style="font:500 14px Inter">Bank activity in Books</span></div>
+            <div style="display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px;border-top:1px solid #f1e8d8"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">event_repeat</span><span style="font:500 14px Inter">Recurring expenses</span></div>
+            <div style="display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px;border-top:1px solid #f1e8d8"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">photo_library</span><span style="font:500 14px Inter">Photos on invoices and estimates</span></div>
+            <div style="display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px;border-top:1px solid #f1e8d8"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">forum</span><span style="flex:1;font:500 14px Inter">AI questions a day</span><span style="font:600 14px Inter;color:#6b6257"><s>30</s></span><span style="font:800 16px Montserrat">100</span></div>
+          </div>
+          <div style="background:#fff;border:1px solid #eadfcc;border-radius:18px;overflow:hidden;flex-shrink:0">
+            <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;font:700 11px 'JetBrains Mono';letter-spacing:.08em;color:#6b6257">
+              <div style="padding:12px"></div>
+              <div style="padding:12px 0;text-align:center">FREE</div>
+              <div style="padding:12px 0;text-align:center">PRO</div>
+              <div style="padding:12px 0;text-align:center;background:#fbf3dc;color:#735c00">PLUS</div>
+            </div>
+            <sc-for list="{{ rows }}" as="row" hint-placeholder-count="9">
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;border-top:1px solid #f1e8d8;align-items:stretch">
+                <div style="padding:10px 4px 10px 12px;font:500 12.5px/1.3 Inter">{{ row.label }}</div>
+                <div style="display:flex;align-items:center;justify-content:center;color:{{ row.freeC }};font-family:{{ row.freeF }};font-size:{{ row.freeS }};font-weight:500">{{ row.free }}</div>
+                <div style="display:flex;align-items:center;justify-content:center;color:{{ row.proC }};font-family:{{ row.proF }};font-size:{{ row.proS }};font-weight:600">{{ row.pro }}</div>
+                <div style="display:flex;align-items:center;justify-content:center;background:#fbf3dc;color:{{ row.plusC }};font-family:{{ row.plusF }};font-size:{{ row.plusS }};font-weight:600">{{ row.plus }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="border-top:1px solid #eadfcc;padding:12px 16px 20px;display:flex;flex-direction:column;gap:8px">
+          <div style="height:56px;border-radius:999px;background:#d4af37;display:flex;align-items:center;justify-content:center;font:700 16px Montserrat">Upgrade to Plus</div>
+          <div style="text-align:center;font:500 12.5px/1.4 Inter;color:#4f473d;text-wrap:pretty">You pay only the difference for the days left this month. Plus opens right away.</div>
+          <div style="display:flex;justify-content:space-between;font:400 11.5px Inter;color:#6b6257;padding:0 4px"><span>Then $16.99/mo in the App Store.</span><a href="#">Restore</a></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA states + spec -->
+    <div style="display:flex;flex-direction:column;gap:14px;width:340px">
+      <div style="font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d">CTA · all states</div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:56px;border-radius:999px;background:#d4af37;display:flex;align-items:center;justify-content:center;font:700 16px Montserrat">Start 14-day free trial</div><div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">1 · IDLE · ALSO WHERE "CANCELLED" LANDS, NO MESSAGE</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:56px;border-radius:999px;background:#d4af37;opacity:.8;display:flex;align-items:center;justify-content:center;gap:10px;font:700 16px Montserrat"><span style="width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(29,25,20,.25);border-top-color:#1d1914;animation:spin .8s linear infinite"></span>Start 14-day free trial</div><div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">2 · PENDING · STORE SHEET OPEN, PICKER FROZEN AT 55%</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:56px;border-radius:999px;background:#f6eedf;display:flex;align-items:center;justify-content:center;gap:10px;font:700 15px Montserrat;color:#4f473d"><span style="width:16px;height:16px;border-radius:50%;border:2.5px solid #d9ccb4;border-top-color:#735c00;animation:spin .8s linear infinite"></span>Confirming your purchase...</div><div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">3 · CONFIRMING · STORE SAID YES, SERVER HASN'T</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid #eadfcc;border-radius:16px;padding:8px 8px 8px 14px;font:400 12px/1.35 Inter;color:#4f473d"><span>Taking longer than usual. You won't be charged twice.</span><span style="flex-shrink:0;min-height:44px;padding:0 16px;display:flex;align-items:center;border:1px solid #e2d6c2;border-radius:999px;font:600 13px Inter">Try again</span></div><div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">4 · CONFIRMING &gt; 20S · RETRY RE-ASKS THE SERVER</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:10px;align-items:flex-start;background:#fbe6dc;border:1px solid #f0c7b5;border-radius:14px;padding:10px 12px"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#a63d17">error</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font:600 13px Inter;color:#7d2c0f">The App Store couldn't take the payment.</span><span style="font:400 12px Inter;color:#7d2c0f">Your card was declined. Nothing was charged.</span></div></div><div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">5 · FAILED · NAMES THE CAUSE, CTA STAYS LIVE</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:56px;border-radius:999px;background:#1d1914;color:#fff8f0;display:flex;align-items:center;justify-content:center;gap:8px;font:700 16px Montserrat"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#d4af37">check_circle</span>You're on Pro</div><div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">6 · SUCCESS · ONLY AFTER SERVER CONFIRMS</div></div>
+
+      <div style="background:#211c16;color:#e9e1d3;border-radius:14px;padding:20px;font:400 11.5px/1.65 'JetBrains Mono';display:flex;flex-direction:column;gap:10px">
+        <div style="color:#d4af37;font-weight:700;letter-spacing:.08em">PAYWALL LOGIC</div>
+        <div style="display:grid;grid-template-columns:96px 1fr;gap:6px 10px">
+          <span style="color:#a89e8e">preselect</span><span>free limit → Pro · Plus lock → Plus · Pro user → Plus, no trial</span>
+          <span style="color:#a89e8e">select</span><span>gold ring: 2px #d4af37 + 4px halo 22%. Ring grows 180ms ease-out</span>
+          <span style="color:#a89e8e">table</span><span>selected column tints #FBF3DC, crossfade 200ms</span>
+          <span style="color:#a89e8e">repeat-tap</span><span>ignored while pending or confirming. No second store sheet, no shake</span>
+          <span style="color:#a89e8e">cancelled</span><span>back to idle silently</span>
+          <span style="color:#a89e8e">confirm</span><span>poll server 1s. At 20s show Try again under the spinner</span>
+          <span style="color:#a89e8e">success</span><span>plan arrives from server → existing celebration</span>
+          <span style="color:#a89e8e">enter</span><span>page slide as today's pages 1→2. Cards fadeUp 6px, 280ms, 40ms stagger</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1C laptop -->
+  <div id="1c" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">1C</span>Laptop 1280 · Pro preselected · legal sits below the fold</div>
+    <div style="width:1040px;height:650px;border:10px solid #1d1914;border-radius:18px;overflow:hidden;background:#fff8f0;box-shadow:0 40px 70px -40px rgba(60,40,10,.45)">
+      <div style="width:1280px;height:800px;transform:scale(.8125);transform-origin:top left;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 40px">
+          <div style="font:800 22px Montserrat">On It<span style="color:#d4af37">.</span></div>
+          <div style="display:flex;gap:6px"><span style="width:6px;height:6px;border-radius:3px;background:#d9ccb4"></span><span style="width:6px;height:6px;border-radius:3px;background:#d9ccb4"></span><span style="width:18px;height:6px;border-radius:3px;background:#1d1914"></span></div>
+          <div style="display:flex;align-items:center;gap:20px"><a href="#" style="font-size:14px">Restore purchases</a><span style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:26px">close</span></div>
+        </div>
+        <div style="flex:1;display:grid;grid-template-columns:520px 1fr;gap:56px;padding:12px 80px 0">
+          <div style="display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;align-items:center;gap:8px;font:600 15px Inter;color:#735c00"><span style="font-family:'Material Symbols Outlined';font-size:20px">description</span>That was your 3rd invoice. Free includes 3.</div>
+            <h3 style="margin:0;font:800 44px/1.05 Montserrat;letter-spacing:-.02em">Pick your plan</h3>
+            <div style="display:flex;gap:14px">
+              <div style="flex:1;border-radius:22px;background:#fff;padding:20px;display:flex;flex-direction:column;gap:8px;border:2px solid #d4af37;box-shadow:0 0 0 5px rgba(212,175,55,.22)">
+                <div style="display:flex;justify-content:space-between"><span style="font:800 22px Montserrat">Pro</span><span style="font-family:'Material Symbols Outlined';font-size:24px;color:#735c00">radio_button_checked</span></div>
+                <div><span style="font:800 32px Montserrat">$9.99</span><span style="font:500 14px Inter;color:#6b6257">/mo</span></div>
+                <div style="font:400 14px/1.45 Inter;color:#4f473d">No caps on invoices, estimates and expenses. PDFs of your books.</div>
+                <span style="align-self:flex-start;font:600 12px Inter;color:#735c00;background:#f6eedf;border-radius:999px;padding:5px 10px;white-space:nowrap">14-day free trial</span>
+              </div>
+              <div style="flex:1;border-radius:22px;background:#fff;padding:20px;display:flex;flex-direction:column;gap:8px;border:2px solid #eadfcc">
+                <div style="display:flex;justify-content:space-between"><span style="font:800 22px Montserrat">Plus</span><span style="font-family:'Material Symbols Outlined';font-size:24px;color:#b5a993">radio_button_unchecked</span></div>
+                <div><span style="font:800 32px Montserrat">$16.99</span><span style="font:500 14px Inter;color:#6b6257">/mo</span></div>
+                <div style="font:400 14px/1.45 Inter;color:#4f473d">Everything in Pro, plus your bank, recurring expenses and photos.</div>
+                <span style="align-self:flex-start;font:600 12px Inter;color:#735c00;background:#f6eedf;border-radius:999px;padding:5px 10px;white-space:nowrap">14-day free trial</span>
+              </div>
+            </div>
+            <div style="height:60px;border-radius:999px;background:#d4af37;display:flex;align-items:center;justify-content:center;font:700 17px Montserrat">Start 14-day free trial</div>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:center;font:500 13.5px Inter;color:#4f473d"><span>then $9.99 / month, cancel anytime</span><span style="font-size:12.5px;color:#6b6257;font-weight:400">Renews monthly in the App Store until you cancel.</span></div>
+            <div style="background:#fff;border:1px solid #eadfcc;border-radius:18px">
+              <div style="display:flex;align-items:center;gap:12px;min-height:56px;padding:0 16px"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">notifications</span><span style="flex:1;font:500 14px Inter">Remind me 2 days before my trial ends</span><span style="width:44px;height:26px;border-radius:13px;background:#d4af37;position:relative"><span style="position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:10px;background:#fff"></span></span></div>
+              <div style="display:flex;align-items:center;gap:12px;min-height:56px;padding:0 16px;border-top:1px solid #f1e8d8"><span style="font-family:'Material Symbols Outlined';font-size:22px;color:#735c00">key</span><span style="flex:1;font:500 14px Inter">Founder or invite code</span><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#6b6257">chevron_right</span></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:20px">
+            <div style="background:#fff;border:1px solid #eadfcc;border-radius:20px;overflow:hidden">
+              <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;font:700 12px 'JetBrains Mono';letter-spacing:.08em;color:#6b6257">
+                <div style="padding:14px 18px"></div><div style="padding:14px 0;text-align:center">FREE</div><div style="padding:14px 0;text-align:center;background:#fbf3dc;color:#735c00">PRO</div><div style="padding:14px 0;text-align:center">PLUS</div>
+              </div>
+              <sc-for list="{{ rows }}" as="row" hint-placeholder-count="9">
+                <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;border-top:1px solid #f1e8d8">
+                  <div style="padding:12px 18px;font:500 14px Inter">{{ row.label }}</div>
+                  <div style="display:flex;align-items:center;justify-content:center;color:{{ row.freeC }};font-family:{{ row.freeF }};font-size:{{ row.freeL }}">{{ row.free }}</div>
+                  <div style="display:flex;align-items:center;justify-content:center;background:#fbf3dc;font-weight:600;color:{{ row.proC }};font-family:{{ row.proF }};font-size:{{ row.proL }}">{{ row.pro }}</div>
+                  <div style="display:flex;align-items:center;justify-content:center;font-weight:600;color:{{ row.plusC }};font-family:{{ row.plusF }};font-size:{{ row.plusL }}">{{ row.plus }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex-shrink:0;background:#fff;border:1px solid #eadfcc;border-radius:16px;padding:18px 16px 16px;display:flex;flex-direction:column;gap:12px">
+            <span style="font-family:'Material Symbols Outlined';font-size:26px;line-height:1;color:#735c00">format_quote</span>
+            <div style="font:500 15px/1.5 Inter;color:#1d1914;text-wrap:pretty">This app has been a blessing to me and my business. 30 seconds to make an invoice on the go.</div>
+            <div style="border-top:1px solid #eadfcc;padding-top:12px;display:flex;align-items:center;gap:10px">
+              <img src="assets/cyril-logo.png" alt="Cyril Handyman &amp; Door LLC logo" style="width:34px;height:34px;border-radius:6px;object-fit:cover;flex-shrink:0">
+              <div style="display:flex;flex-direction:column;gap:1px"><span style="font:600 13px Inter;color:#1d1914">Cyril</span><span style="font:400 11.5px Inter;color:#4f473d">Cyril Handyman &amp; Door LLC</span></div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 AI METER -->
+<section id="02" data-screen-label="02 AI meter" style="display:flex;flex-direction:column;gap:36px">
+  <div style="display:flex;gap:22px;align-items:flex-start">
+    <div style="font:800 56px/1 Montserrat;color:#b8961f">02</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:760px">
+      <h2 style="margin:0;font:800 30px Montserrat">AI meter</h2>
+      <p style="margin:0;font:400 15px/1.55 Inter;color:#4f473d;text-wrap:pretty">One quiet line that sits on the thread, just above the input bar, centered like the TODAY divider. It scrolls with nothing and touches nothing: the input bar is unchanged. It appears at 3 left and stays hidden above that.</p>
+    </div>
+  </div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+    <div id="2a" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">2A</span>Free · 2 of 5 left</div>
+      <div style="width:360px;height:780px;border:9px solid #1d1914;border-radius:50px;background:#fff8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 40px 70px -40px rgba(60,40,10,.45)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 26px 4px;font:600 14px Inter"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px">signal_cellular_alt wifi battery_full</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px 12px 20px;border-bottom:1px solid #eadfcc">
+          <div style="display:flex;align-items:center;gap:14px"><span style="font:800 22px Montserrat">On It<span style="color:#d4af37">.</span></span><span style="font-family:'Material Symbols Outlined';font-size:21px">edit_square</span><span style="font-family:'Material Symbols Outlined';font-size:21px">history</span></div>
+          <span style="background:#d4af37;border-radius:999px;padding:9px 14px;font:600 13px Inter;white-space:nowrap;flex-shrink:0">How On It works</span>
+        </div>
+        <div style="flex:1;overflow:hidden;padding:14px 14px 8px;display:flex;flex-direction:column;gap:12px;justify-content:flex-end">
+          <div style="align-self:flex-end;max-width:76%;background:#2a241d;color:#fff8f0;border-radius:18px 18px 4px 18px;padding:10px 14px;font:500 14.5px/1.4 Inter">what did I spend on materials in October?</div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <span style="width:28px;height:28px;border-radius:8px;background:#1d1914;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative;color:#fff8f0;font:800 14px Montserrat">O<span style="position:absolute;right:5px;bottom:5px;width:5px;height:5px;border-radius:3px;background:#d4af37"></span></span>
+            <div style="max-width:78%;background:#f6eedf;border:1px solid #eadfcc;border-radius:4px 18px 18px 18px;padding:10px 14px;font:400 14.5px/1.45 Inter">$1,284.60 across 9 expenses. Home Depot was $812 of it.</div>
+          </div>
+          <div style="align-self:flex-end;max-width:76%;background:#2a241d;color:#fff8f0;border-radius:18px 18px 4px 18px;padding:10px 14px;font:500 14.5px/1.4 Inter">and September?</div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <span style="width:28px;height:28px;border-radius:8px;background:#1d1914;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative;color:#fff8f0;font:800 14px Montserrat">O<span style="position:absolute;right:5px;bottom:5px;width:5px;height:5px;border-radius:3px;background:#d4af37"></span></span>
+            <div style="max-width:78%;background:#f6eedf;border:1px solid #eadfcc;border-radius:4px 18px 18px 18px;padding:10px 14px;font:400 14.5px/1.45 Inter">$946.10. October was up about a third.</div>
+          </div>
+          <div style="display:flex;justify-content:center;padding-top:6px"><span style="display:flex;align-items:center;gap:5px;font:500 12px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:15px">forum</span>2 of 5 left today</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 12px 10px">
+          <span style="width:44px;height:44px;border-radius:22px;background:#f3e6c4;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:24px;flex-shrink:0">add</span>
+          <div style="flex:1;height:48px;border:1px solid #e2d6c2;background:#fff;border-radius:24px;display:flex;align-items:center;padding:0 6px 0 16px;gap:8px"><span style="flex:1;font:400 14px Inter;color:#8a7f70">Message On It...</span><span style="font-family:'Material Symbols Outlined';font-size:20px">image</span><span style="width:36px;height:36px;border-radius:18px;background:#f3e6c4;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:20px">photo_camera</span></div>
+          <span style="width:40px;height:40px;border-radius:20px;background:#ece4d6;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:20px;color:#8a7f70;flex-shrink:0">arrow_upward</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid #eadfcc;padding:6px 6px 16px">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">group</span>Clients</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">description</span>Invoices</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:600 11px Inter"><span style="font-family:'Material Symbols Outlined';font-size:22px;background:#d4af37;border-radius:999px;padding:2px 14px">chat</span>Chat</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">payments</span>Books</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">settings</span>Settings</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="2b" style="display:flex;flex-direction:column;gap:14px;width:380px">
+      <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">2B</span>Meter states</div>
+      <sc-for list="{{ meterStates }}" as="m" hint-placeholder-count="5">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="background:#fff8f0;border:1px solid #eadfcc;border-radius:20px;padding:14px 12px 10px;display:flex;flex-direction:column;gap:8px">
+            <div style="height:18px;display:flex;justify-content:center;align-items:center"><span style="display:flex;align-items:center;gap:5px;font-size:12px;font-family:Inter;color:{{ m.color }};font-weight:{{ m.weight }}"><span style="font-family:'Material Symbols Outlined';font-size:15px">{{ m.icon }}</span>{{ m.text }}</span></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="width:44px;height:44px;border-radius:22px;background:#f3e6c4;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:24px">add</span>
+              <div style="flex:1;height:48px;border:1px solid #e2d6c2;background:#fff;border-radius:24px;display:flex;align-items:center;padding:0 16px;font:400 14px Inter;color:#8a7f70">Message On It...</div>
+            </div>
+          </div>
+          <div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">{{ m.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background:#211c16;color:#e9e1d3;border-radius:14px;padding:20px;font:400 11.5px/1.65 'JetBrains Mono';display:flex;flex-direction:column;gap:10px;width:320px">
+      <div style="color:#d4af37;font-weight:700;letter-spacing:.08em">METER</div>
+      <div style="display:grid;grid-template-columns:88px 1fr;gap:6px 10px">
+        <span style="color:#a89e8e">place</span><span>last row of the thread, centered, 12px Inter. Pinned above the input, not inside it</span>
+        <span style="color:#a89e8e">show</span><span>3 or fewer left. Same rule on Pro (30) and Plus (100)</span>
+        <span style="color:#a89e8e">1 left</span><span>text-safe gold #735c00, weight 600</span>
+        <span style="color:#a89e8e">enter</span><span>fadeUp 6px, 280ms (.2,.8,.2,1)</span>
+        <span style="color:#a89e8e">count</span><span>number crossfades 200ms after each answer lands, never while streaming</span>
+        <span style="color:#a89e8e">at 0</span><span>meter fades out, limit card arrives in its place</span>
+        <span style="color:#a89e8e">a11y</span><span>announce "2 questions left today" once per change</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 AI LIMIT CARD -->
+<section id="03" data-screen-label="03 AI limit card" style="display:flex;flex-direction:column;gap:36px">
+  <div style="display:flex;gap:22px;align-items:flex-start">
+    <div style="font:800 56px/1 Montserrat;color:#b8961f">03</div>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:760px">
+      <h2 style="margin:0;font:800 30px Montserrat">AI limit card</h2>
+      <p style="margin:0;font:400 15px/1.55 Inter;color:#4f473d;text-wrap:pretty">An assistant card in the ai-templates family. The reset time and the + reassurance come first; the upgrade row comes last and only where there's a plan to move to.</p>
+    </div>
+  </div>
+  <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+    <div id="3a" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">3A</span>Free · 0 of 5</div>
+      <div style="width:360px;height:780px;border:9px solid #1d1914;border-radius:50px;background:#fff8f0;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 40px 70px -40px rgba(60,40,10,.45)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 26px 4px;font:600 14px Inter"><span>9:41</span><span style="font-family:'Material Symbols Outlined';font-size:16px">signal_cellular_alt wifi battery_full</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px 12px 20px;border-bottom:1px solid #eadfcc">
+          <div style="display:flex;align-items:center;gap:14px"><span style="font:800 22px Montserrat">On It<span style="color:#d4af37">.</span></span><span style="font-family:'Material Symbols Outlined';font-size:21px">edit_square</span><span style="font-family:'Material Symbols Outlined';font-size:21px">history</span></div>
+          <span style="background:#d4af37;border-radius:999px;padding:9px 14px;font:600 13px Inter;white-space:nowrap;flex-shrink:0">How On It works</span>
+        </div>
+        <div style="flex:1;overflow:hidden;padding:14px 14px 10px;display:flex;flex-direction:column;gap:12px;justify-content:flex-end">
+          <div style="align-self:flex-end;max-width:76%;background:#2a241d;color:#fff8f0;border-radius:18px 18px 4px 18px;padding:10px 14px;font:500 14.5px/1.4 Inter">who owes me the most right now?</div>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <span style="width:28px;height:28px;border-radius:8px;background:#1d1914;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative;color:#fff8f0;font:800 14px Montserrat">O<span style="position:absolute;right:5px;bottom:5px;width:5px;height:5px;border-radius:3px;background:#d4af37"></span></span>
+            <div style="flex:1;background:#fff;border:1px solid #eadfcc;border-radius:18px;overflow:hidden">
+              <div style="display:flex;gap:12px;padding:14px 14px 12px">
+                <span style="width:40px;height:40px;border-radius:12px;background:#f6eedf;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:22px;color:#735c00;flex-shrink:0">hourglass_bottom</span>
+                <div style="display:flex;flex-direction:column;gap:3px"><span style="font:700 16px Montserrat">That's today's questions</span><span style="font:400 13.5px/1.4 Inter;color:#4f473d">You've used all 5 questions for today.</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid #f1e8d8;font:500 13.5px Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">schedule</span>Back at midnight</div>
+              <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-top:1px solid #f1e8d8;font:500 13.5px/1.4 Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">add_circle</span><span>You can still create invoices, estimates and expenses with +</span></div>
+              <div style="display:flex;flex-direction:column;gap:10px;padding:12px 14px 14px;border-top:1px solid #f1e8d8;background:#fdf8ee">
+                <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:700 14px Inter">Pro gives you 30 a day</span><span style="font:500 12px Inter;color:#6b6257">$9.99/mo</span></div>
+                <div style="height:56px;border-radius:999px;background:#d4af37;display:flex;align-items:center;justify-content:center;font:700 15px Montserrat">See Pro</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 12px 10px">
+          <span style="width:44px;height:44px;border-radius:22px;background:#f3e6c4;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:24px;flex-shrink:0">add</span>
+          <div style="flex:1;height:48px;border:1px solid #e2d6c2;background:#fff;border-radius:24px;display:flex;align-items:center;padding:0 6px 0 16px;gap:8px"><span style="flex:1;font:400 14px Inter;color:#8a7f70">Message On It...</span><span style="font-family:'Material Symbols Outlined';font-size:20px">image</span><span style="width:36px;height:36px;border-radius:18px;background:#f3e6c4;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:20px">photo_camera</span></div>
+          <span style="width:40px;height:40px;border-radius:20px;background:#ece4d6;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:20px;color:#8a7f70;flex-shrink:0">arrow_upward</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid #eadfcc;padding:6px 6px 16px">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">group</span>Clients</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">description</span>Invoices</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:600 11px Inter"><span style="font-family:'Material Symbols Outlined';font-size:22px;background:#d4af37;border-radius:999px;padding:2px 14px">chat</span>Chat</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">payments</span>Books</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font:500 11px Inter;color:#6b6257"><span style="font-family:'Material Symbols Outlined';font-size:22px">settings</span>Settings</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="3b" style="display:flex;flex-direction:column;gap:14px;width:330px">
+      <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">3B</span>By plan, and button states</div>
+      <div style="background:#fff;border:1px solid #eadfcc;border-radius:18px;overflow:hidden">
+        <div style="display:flex;gap:12px;padding:14px 14px 12px"><span style="width:40px;height:40px;border-radius:12px;background:#f6eedf;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:22px;color:#735c00;flex-shrink:0">hourglass_bottom</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font:700 16px Montserrat">That's today's questions</span><span style="font:400 13.5px/1.4 Inter;color:#4f473d">You've used all 30 questions for today.</span></div></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid #f1e8d8;font:500 13.5px Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">schedule</span>Back at midnight</div>
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-top:1px solid #f1e8d8;font:500 13.5px/1.4 Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">add_circle</span><span>You can still create invoices, estimates and expenses with +</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:12px 14px 14px;border-top:1px solid #f1e8d8;background:#fdf8ee">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:700 14px Inter">Plus gives you 100 a day</span><span style="font:500 12px Inter;color:#6b6257">$16.99/mo</span></div>
+          <div style="height:56px;border-radius:999px;background:#d4af37;display:flex;align-items:center;justify-content:center;font:700 15px Montserrat">Upgrade to Plus</div>
+        </div>
+      </div>
+      <div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">PRO · UPGRADE GOES STRAIGHT TO THE 1B SCREEN</div>
+      <div style="background:#fff;border:1px solid #eadfcc;border-radius:18px;overflow:hidden">
+        <div style="display:flex;gap:12px;padding:14px 14px 12px"><span style="width:40px;height:40px;border-radius:12px;background:#f6eedf;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:22px;color:#735c00;flex-shrink:0">hourglass_bottom</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font:700 16px Montserrat">That's today's questions</span><span style="font:400 13.5px/1.4 Inter;color:#4f473d">You've used all 100 questions for today.</span></div></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid #f1e8d8;font:500 13.5px Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">schedule</span>Back at midnight</div>
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-top:1px solid #f1e8d8;font:500 13.5px/1.4 Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">add_circle</span><span>You can still create invoices, estimates and expenses with +</span></div>
+      </div>
+      <div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">PLUS · NO UPGRADE ROW</div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="height:56px;border-radius:999px;background:#d4af37;opacity:.8;display:flex;align-items:center;justify-content:center;gap:10px;font:700 15px Montserrat"><span style="width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(29,25,20,.25);border-top-color:#1d1914;animation:spin .8s linear infinite"></span>See Pro</div><div style="font:500 10.5px 'JetBrains Mono';color:#6b6257">PENDING · PAYWALL OPENING. REPEAT TAPS IGNORED</div></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:8px;font:500 11px 'JetBrains Mono';letter-spacing:.08em;text-transform:uppercase;color:#4f473d"><span style="background:#1d1914;color:#fff8f0;padding:3px 6px;border-radius:4px">3C</span>Laptop 1280 · chat at the limit</div>
+      <div style="width:720px;height:450px;border:10px solid #1d1914;border-radius:18px;overflow:hidden;background:#fff8f0;box-shadow:0 40px 70px -40px rgba(60,40,10,.45)">
+        <div style="width:1280px;height:800px;transform:scale(.5625);transform-origin:top left;display:grid;grid-template-columns:240px 1fr">
+          <div style="border-right:1px solid #eadfcc;padding:28px 16px;display:flex;flex-direction:column;gap:6px">
+            <div style="font:800 24px Montserrat;padding:0 12px 24px">On It<span style="color:#d4af37">.</span></div>
+            <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 14px;border-radius:14px;font:500 15px Inter;color:#4f473d"><span style="font-family:'Material Symbols Outlined';font-size:22px">group</span>Clients</div>
+            <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 14px;border-radius:14px;font:500 15px Inter;color:#4f473d"><span style="font-family:'Material Symbols Outlined';font-size:22px">description</span>Invoices</div>
+            <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 14px;border-radius:14px;font:600 15px Inter;background:#d4af37"><span style="font-family:'Material Symbols Outlined';font-size:22px">chat</span>Chat</div>
+            <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 14px;border-radius:14px;font:500 15px Inter;color:#4f473d"><span style="font-family:'Material Symbols Outlined';font-size:22px">payments</span>Books</div>
+            <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 14px;border-radius:14px;font:500 15px Inter;color:#4f473d"><span style="font-family:'Material Symbols Outlined';font-size:22px">settings</span>Settings</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="flex:1;width:720px;display:flex;flex-direction:column;justify-content:flex-end;gap:16px;padding:24px 0">
+              <div style="align-self:flex-end;background:#2a241d;color:#fff8f0;border-radius:18px 18px 4px 18px;padding:12px 16px;font:500 15px Inter">who owes me the most right now?</div>
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <span style="width:32px;height:32px;border-radius:9px;background:#1d1914;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff8f0;font:800 15px Montserrat">O</span>
+                <div style="width:440px;background:#fff;border:1px solid #eadfcc;border-radius:18px;overflow:hidden">
+                  <div style="display:flex;gap:12px;padding:16px"><span style="width:44px;height:44px;border-radius:12px;background:#f6eedf;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:24px;color:#735c00">hourglass_bottom</span><div style="display:flex;flex-direction:column;gap:3px"><span style="font:700 17px Montserrat">That's today's questions</span><span style="font:400 14px Inter;color:#4f473d">You've used all 5 questions for today.</span></div></div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid #f1e8d8;font:500 14px Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">schedule</span>Back at midnight</div>
+                  <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid #f1e8d8;font:500 14px Inter"><span style="font-family:'Material Symbols Outlined';font-size:20px;color:#735c00">add_circle</span>You can still create invoices, estimates and expenses with +</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border-top:1px solid #f1e8d8;background:#fdf8ee"><span style="font:700 14px Inter">Pro gives you 30 a day · $9.99/mo</span><span style="height:52px;padding:0 24px;border-radius:999px;background:#d4af37;display:flex;align-items:center;font:700 15px Montserrat">See Pro</span></div>
+                </div>
+              </div>
+            </div>
+            <div style="width:720px;display:flex;align-items:center;gap:10px;padding:0 0 28px">
+              <span style="width:48px;height:48px;border-radius:24px;background:#f3e6c4;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:24px">add</span>
+              <div style="flex:1;height:52px;border:1px solid #e2d6c2;background:#fff;border-radius:26px;display:flex;align-items:center;padding:0 18px;font:400 15px Inter;color:#8a7f70">Message On It...</div>
+              <span style="width:44px;height:44px;border-radius:22px;background:#ece4d6;display:flex;align-items:center;justify-content:center;font-family:'Material Symbols Outlined';font-size:22px;color:#8a7f70">arrow_upward</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#211c16;color:#e9e1d3;border-radius:14px;padding:20px;font:400 11.5px/1.65 'JetBrains Mono';display:flex;flex-direction:column;gap:10px;width:680px;box-sizing:border-box">
+        <div style="color:#d4af37;font-weight:700;letter-spacing:.08em">LIMIT CARD</div>
+        <div style="display:grid;grid-template-columns:96px 1fr;gap:6px 10px">
+          <span style="color:#a89e8e">trigger</span><span>user sends a question at 0. The question stays in the thread; the card answers it. Nothing is lost</span>
+          <span style="color:#a89e8e">arrive</span><span>event-card fadeUp 6px + opacity, 288ms (.2,.8,.2,1), like the alive-layer cards</span>
+          <span style="color:#a89e8e">reset</span><span>owner's local midnight. After it, the card stays in history and the meter is gone until 3 left</span>
+          <span style="color:#a89e8e">upgrade</span><span>Free → paywall, Pro preselected · Pro → 1B · Plus → no row</span>
+          <span style="color:#a89e8e">+ menu</span><span>stays fully live at the limit. Typing still works; sending replies with this card again, collapsed to one line</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { entry: 'limit', plan: 'pro', pay: 'idle' };
+  timers = [];
+  componentWillUnmount() { this.clear(); }
+  clear() { this.timers.forEach(clearTimeout); this.timers = []; }
+  go(pay) { this.clear(); this.setState({ pay }); }
+  buy = () => {
+    const p = this.state.pay;
+    if (p !== 'idle' && p !== 'error') return;
+    this.go('pending');
+    this.timers.push(setTimeout(() => this.setState({ pay: 'confirming' }), 1600));
+    this.timers.push(setTimeout(() => this.setState({ pay: 'success' }), 4000));
+  };
+  cell(v, size) {
+    const icon = v === 'check' || v === 'remove' || v === 'all_inclusive';
+    return {
+      v,
+      f: icon ? "'Material Symbols Outlined'" : 'Inter',
+      s: icon ? '18px' : '12.5px',
+      l: icon ? '20px' : '14px',
+      c: v === 'remove' ? '#b5a993' : icon ? '#735c00' : '#1d1914'
+    };
+  }
+  renderVals() {
+    const { entry, plan, pay } = this.state;
+    const pro = plan === 'pro';
+    const frozen = pay === 'pending' || pay === 'confirming' || pay === 'slow';
+    const raw = [
+      ['Invoices', '3', 'all_inclusive', 'all_inclusive'],
+      ['Estimates', '3', 'all_inclusive', 'all_inclusive'],
+      ['Expenses', '5', 'all_inclusive', 'all_inclusive'],
+      ['Recaps', '2 weekly', 'All', 'All'],
+      ['Income & expense PDFs', 'remove', 'check', 'check'],
+      ['AI questions a day', '5', '30', '100'],
+      ['Bank activity', 'remove', 'remove', 'check'],
+      ['Recurring expenses', 'remove', 'remove', 'check'],
+      ['Photos on invoices & estimates', 'remove', 'remove', 'check']
+    ];
+    const rows = raw.map(([label, a, b, c]) => {
+      const A = this.cell(a), B = this.cell(b), C = this.cell(c);
+      return { label, free: A.v, freeF: A.f, freeS: A.s, freeL: A.l, freeC: A.c, pro: B.v, proF: B.f, proS: B.s, proL: B.l, proC: B.c, plus: C.v, plusF: C.f, plusS: C.s, plusL: C.l, plusC: C.c };
+    });
+    const on = '#d4af37', off = '#eadfcc', ring = '0 0 0 4px rgba(212,175,55,.22)';
+    const chips = [['idle', 'idle'], ['pending', 'pending'], ['confirming', 'confirming'], ['slow', '>20s'], ['error', 'failed'], ['success', 'success']];
+    const setEntry = e => { this.clear(); this.setState({ entry: e, plan: e === 'limit' ? 'pro' : 'plus', pay: 'idle' }); };
+    return {
+      entryLimit: () => setEntry('limit'),
+      entryLock: () => setEntry('lock'),
+      entryLimitBg: entry === 'limit' ? '#fff' : 'transparent',
+      entryLockBg: entry === 'lock' ? '#fff' : 'transparent',
+      contextIcon: entry === 'limit' ? 'description' : 'account_balance',
+      contextLine: entry === 'limit' ? 'Free includes 3 invoices. You\'ve used them.' : 'Connecting a bank is part of Plus.',
+      pickPro: () => this.setState({ plan: 'pro' }),
+      pickPlus: () => this.setState({ plan: 'plus' }),
+      pickerOpacity: frozen ? 0.55 : 1,
+      pickerEvents: frozen ? 'none' : 'auto',
+      proBorder: pro ? on : off, plusBorder: pro ? off : on,
+      proRing: pro ? ring : 'none', plusRing: pro ? 'none' : ring,
+      proRadio: pro ? 'radio_button_checked' : 'radio_button_unchecked',
+      plusRadio: pro ? 'radio_button_unchecked' : 'radio_button_checked',
+      proRadioColor: pro ? '#735c00' : '#b5a993', plusRadioColor: pro ? '#b5a993' : '#735c00',
+      proCol: pro ? '#fbf3dc' : 'transparent', plusCol: pro ? 'transparent' : '#fbf3dc',
+      proHead: pro ? '#735c00' : '#6b6257', plusHead: pro ? '#6b6257' : '#735c00',
+      rows,
+      isError: pay === 'error', isPending: pay === 'pending', isConfirming: pay === 'confirming', isSlow: pay === 'slow', isSuccess: pay === 'success',
+      showCta: pay === 'idle' || pay === 'pending' || pay === 'error' || pay === 'success',
+      ctaOpacity: pay === 'pending' ? 0.8 : 1,
+      ctaLabel: 'Start 14-day free trial',
+      ctaSub: pro ? 'then $9.99 / month, cancel anytime' : 'then $16.99 / month, cancel anytime',
+      planName: pro ? 'Pro' : 'Plus',
+      buy: this.buy,
+      retry: () => { this.go('confirming'); this.timers.push(setTimeout(() => this.setState({ pay: 'success' }), 1800)); },
+      reset: () => this.go('idle'),
+      stateChips: chips.map(([k, label]) => ({ label, go: () => this.go(k), bg: pay === k ? '#1d1914' : '#fff8f0', color: pay === k ? '#fff8f0' : '#4f473d' })),
+      meterStates: [
+        { text: '', icon: '', color: '#6b6257', weight: 500, label: '4+ LEFT · HIDDEN. NOTHING ABOVE THE INPUT' },
+        { text: '3 of 5 left today', icon: 'forum', color: '#6b6257', weight: 500, label: '3 LEFT · FIRST APPEARANCE' },
+        { text: '1 of 5 left today', icon: 'forum', color: '#735c00', weight: 600, label: '1 LEFT · TEXT-SAFE GOLD' },
+        { text: '3 of 100 left today', icon: 'forum', color: '#6b6257', weight: 500, label: 'PLUS · SAME THRESHOLD' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
