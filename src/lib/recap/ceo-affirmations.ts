@@ -99,3 +99,12 @@ export function pickAffirmation(userId: string, periodIndex: number, count: numb
   const at = Number.isFinite(periodIndex) ? Math.floor(periodIndex) : 0;
   return CEO_AFFIRMATIONS[order[((at % order.length) + order.length) % order.length]];
 }
+
+/** The same pick, as the design renders it: the line from CEO_AFFIRMATION_MARKS
+ *  at the index pickAffirmation landed on, key phrases still in [brackets]. Used
+ *  when a recap row is built, so the slide's line is fixed with the row. */
+export function pickAffirmationMark(userId: string, periodIndex: number, count: number = CEO_AFFIRMATIONS.length): string {
+  const plain = pickAffirmation(userId, periodIndex, count);
+  const at = CEO_AFFIRMATIONS.indexOf(plain as (typeof CEO_AFFIRMATIONS)[number]);
+  return (at >= 0 && CEO_AFFIRMATION_MARKS[at]) || plain;   // lists out of step: the line still plays
+}
