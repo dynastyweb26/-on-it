@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
+  offerStatusFor,
   switchProDecision,
   takeSwitchProOffer,
   type SwitchProDeps,
@@ -20,7 +21,8 @@ const STORE_PLUS: SwitchProProfile = {
   access_tier: 'active',
   plan: 'plus',
   billing_source: 'app_store',
-  subscription_status: 'active',
+  // The RevenueCat webhook never writes this column (it is the Stripe sync's).
+  subscription_status: null,
   retention_offer_used_at: null,
   cancel_at_period_end: false,
   paused_until: null,
@@ -211,4 +213,30 @@ test('store context: reads the columns the webhook writes, and never Stripe', ()
   assert.match(fn, /supabase\.auth\.getUser\(\)/);
   assert.match(fn, /rateLimit\('subscription_write'/);
   assert.match(fn, /access_tier === 'founder'/);
+});
+
+test('store profile: the live status is the tier the store webhook writes, not the Stripe column', async () => {
+  // Null Stripe status (the real store profile) still takes the offer.
+  const { deps, order } = run();
+  assert.deepEqual(await takeSwitchProOffer(deps), { ok: true });
+  assert.deepEqual(order, ['claim', 'log']);
+
+  // A stale Stripe status from an old web subscription changes nothing.
+  for (const stale of ['canceled', 'active', 'past_due']) {
+    const r = run({ profile: { ...STORE_PLUS, subscription_status: stale } });
+    assert.deepEqual(await takeSwitchProOffer(r.deps), { ok: true }, stale);
+  }
+
+  // The store saying past_due or canceled refuses, whatever Stripe once said.
+  for (const tier of ['past_due', 'canceled']) {
+    const r = run({ profile: { ...STORE_PLUS, access_tier: tier, subscription_status: 'active' } });
+    const out = await takeSwitchProOffer(r.deps);
+    assert.equal(out.ok, false, tier);
+    assert.deepEqual(r.order, [], tier);
+  }
+
+  assert.equal(offerStatusFor({ access_tier: 'trialing', billing_source: 'play_store', subscription_status: null }), 'trialing');
+  // A Stripe (or unset) source still reads the Stripe column, as before.
+  assert.equal(offerStatusFor({ access_tier: 'active', billing_source: 'stripe', subscription_status: 'trialing' }), 'trialing');
+  assert.equal(offerStatusFor({ access_tier: 'active', billing_source: null, subscription_status: null }), 'canceled');
 });

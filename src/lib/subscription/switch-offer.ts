@@ -87,6 +87,20 @@ export type SwitchProDeps = {
 };
 
 /**
+ * The live status the offer rules read. A store-billed profile is written by
+ * the RevenueCat webhook, which sets `access_tier` (trialing / active /
+ * past_due / canceled) and never `subscription_status` (that column is the
+ * Stripe sync's). So a store profile's status is its tier; reading the Stripe
+ * column there would see null, or a stale value from an old Stripe
+ * subscription, and refuse every real Plus user.
+ */
+export function offerStatusFor(p: Pick<SwitchProProfile, 'access_tier' | 'billing_source' | 'subscription_status'>): string {
+  const store = p.billing_source === 'app_store' || p.billing_source === 'play_store';
+  if (store) return p.access_tier ?? 'canceled';
+  return p.subscription_status ?? 'canceled';
+}
+
+/**
  * Record the Pro switch as the offer taken. Refusals match the screen's own
  * table (switchProDecision), so a stale client can never record an offer the
  * user was not offered; the claim then settles the race with a second request.
@@ -99,7 +113,7 @@ export async function takeSwitchProOffer(deps: SwitchProDeps): Promise<SwitchPro
   const decision = switchProDecision({
     plan: entitlementsFor(p.access_tier, p.plan).plan,
     offer: {
-      status: p.subscription_status ?? 'canceled',
+      status: offerStatusFor(p),
       cancelAtPeriodEnd: Boolean(p.cancel_at_period_end),
       paused: Boolean(p.paused_until),
       retentionOfferUsedAt: p.retention_offer_used_at,
