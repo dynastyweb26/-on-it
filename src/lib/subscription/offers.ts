@@ -3,6 +3,8 @@
 // route re-checks them server-side against the live subscription — the
 // client's view is never trusted.
 import type { CancelReason } from './reasons';
+import type { BillingSource } from '../billing-source';
+import type { TierPlan } from '../entitlements';
 
 export type OfferKind = 'discount' | 'pause';
 
@@ -95,4 +97,60 @@ export function pickRetentionCoupon(input: { now: Date; periodEnd: Date; anchor:
   const second = nextRenewal(input.periodEnd, input.anchor);
   const x2Ends = addMonthsClamped(input.now, 2);
   return second.getTime() < x2Ends.getTime() - COUPON_MARGIN_MS ? 'x2' : 'x3';
+}
+
+// ── Two plans: what the cancel screen may offer ─────────────────
+// TIERS-SPEC, "Cancel flow with two plans" (design/tiers 07). Pro keeps exactly
+// what it has today; Plus gains a choice. Pure: the cancel screen renders the
+// list, and the routes/offers re-check the same rules against the live
+// subscription. The 12-month window is `eligible` (offerEligible above), and
+// taking ANY of these spends it — the Pro switch included.
+
+export type CancelOffer = 'switch_pro' | 'discount' | 'pause';
+
+export interface CancelOfferInput {
+  /** The plan the user is on now. */
+  plan: TierPlan;
+  reason: CancelReason | null | undefined;
+  trialing: boolean;
+  billingSource?: BillingSource | string | null;
+  /** offerEligible(...) for this user: live tier, not canceling or paused, and
+   *  no offer taken in the last 12 months. */
+  eligible: boolean;
+}
+
+/** Can this billing source pause a subscription? Apple has none; Google Play
+ *  and Stripe do (REVENUECAT-PLAN §5: "Pause exists on Google only"). */
+export function canPause(source: BillingSource | string | null | undefined): boolean {
+  return source !== 'app_store';
+}
+
+/**
+ * The offers for this user, in screen order — the first one is preselected.
+ * `[]` means no offer card at all.
+ *
+ *   price on Pro      → the discount
+ *   price on Plus     → switch to Pro, or 50% off (pick one)
+ *   seasonal          → pause; where the store can't pause, the Pro switch
+ *   feature / other   → nothing (the request is captured instead)
+ *
+ * A pause needs a paid period after the trial, so it is never offered during
+ * one — the same rule as offerFor above.
+ */
+export function cancelOffersFor(input: CancelOfferInput): CancelOffer[] {
+  if (!input.eligible || !input.reason) return [];
+  if (input.plan === 'free') return [];
+
+  if (input.reason === 'price') {
+    return input.plan === 'plus' ? ['switch_pro', 'discount'] : ['discount'];
+  }
+
+  if (input.reason === 'seasonal') {
+    if (input.trialing) return [];
+    if (canPause(input.billingSource)) return ['pause'];
+    // No pause on this store: Plus gets the Pro switch; Pro has nothing lower.
+    return input.plan === 'plus' ? ['switch_pro'] : [];
+  }
+
+  return [];
 }
