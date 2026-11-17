@@ -18,11 +18,12 @@ import { useBankTracking } from '@/components/bank/BankTrackingProvider';
 import BooksReviewDot from '@/components/bank/BooksReviewDot';
 import SwipeBack from '@/components/app/SwipeBack';
 import EventToastHost from '@/components/events/EventToastHost';
+import TiersHost from '@/components/tiers/TiersHost';
 import { COMMIT_EASE, COMMIT_MS, SPRING_EASE, takeTabGestureNavigation } from '@/components/tabs/tab-motion';
 import { createClient } from '@/lib/supabase/client';
 import { goBackOr } from '@/lib/back-nav';
 import { CAMERA_TUTORIAL_TARGET, canAutoStartCameraTutorial } from '@/lib/camera-tutorial';
-import { ENABLE_CAMERA_ANIMATION } from '@/lib/feature-flags';
+import { ENABLE_CAMERA_ANIMATION, NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { noteUpgradeReturn } from '@/lib/upgrade-return';
 import { getSharedUser } from '@/lib/auth-client';
 import { reducedMotion } from '@/lib/list-motion';
@@ -832,6 +833,8 @@ export default function AppShell({
           signed-in screen (Chat included): it is position:fixed at z 95,
           below the safe-area inset, so it never takes layout space. */}
       <EventToastHost />
+      {/* Tiers (flag on): the lock sheet, its paywall and the photos notice (design/tiers 04, 05). */}
+      {NEXT_PUBLIC_TIERS && <TiersHost />}
     </div>
   );
 }
