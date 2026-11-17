@@ -1,0 +1,117 @@
+/* Settings › Plan (06): design/tiers/Tiers_2_Locks_Plan_Cancel.dc.html §06.
+   Every value is the board's own. Phone order (6A, 6B): card, usage, the one
+   action, the rows. 1280 and up (6D): the card column at 380, usage beside it. */
+
+@keyframes tp-shimmer { 0% { opacity: 1; } 50% { opacity: .5; } 100% { opacity: 1; } }
+@keyframes tp-spin { to { transform: rotate(360deg); } }
+
+.tp-plan {
+  display: flex; flex-direction: column; gap: 14px;
+  font-family: var(--font-inter), Inter, sans-serif; color: #1d1914; line-height: normal;
+}
+.tp-left { display: contents; }
+.tp-a-card { order: 1; }
+.tp-a-msg { order: 2; display: flex; flex-direction: column; gap: 8px; }
+.tp-a-usage { order: 3; }
+.tp-a-action { order: 4; }
+.tp-a-rows { order: 5; }
+.tp-plan .material-symbols-outlined { font-size: 22px; }
+
+/* Plan card */
+.tp-card {
+  background: #f6eedf; border: 1px solid #eadfcc; border-radius: 20px; padding: 18px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tp-eyebrow { font: 700 11px ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .08em; color: #6b6257; }
+.tp-namerow { display: flex; justify-content: space-between; align-items: baseline; }
+.tp-name { font: 800 28px var(--font-montserrat), Montserrat, sans-serif; }
+.tp-card.is-pending { gap: 10px; padding: 16px; }
+.tp-card.is-pending .tp-name { font-size: 22px; }
+.tp-price { font: 800 18px var(--font-montserrat), Montserrat, sans-serif; }
+.tp-per { font: 500 12px var(--font-inter), Inter, sans-serif; color: #6b6257; }
+.tp-sub { font: 400 13.5px var(--font-inter), Inter, sans-serif; color: #4f473d; }
+.tp-then { font: 400 12px/1.4 var(--font-inter), Inter, sans-serif; color: #6b6257; }
+.tp-card-action { margin-top: 6px; display: flex; flex-direction: column; }
+
+/* Founder (6C) */
+.tp-founder { background: #1d1914; color: #fff8f0; border-radius: 20px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+.tp-founder-icon { width: 40px; height: 40px; border-radius: 12px; background: #d4af37; color: #1d1914; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.tp-founder-text { display: flex; flex-direction: column; gap: 2px; }
+.tp-founder-title { font: 800 17px var(--font-montserrat), Montserrat, sans-serif; }
+.tp-founder-sub { font: 400 13px var(--font-inter), Inter, sans-serif; color: #d9ccb4; }
+
+/* Usage */
+.tp-usage { background: #fff; border: 1px solid #eadfcc; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.tp-urow { display: flex; flex-direction: column; gap: 6px; }
+.tp-uhead { display: flex; justify-content: space-between; font: 500 13.5px var(--font-inter), Inter, sans-serif; }
+.tp-uhead strong { font: 800 15px var(--font-montserrat), Montserrat, sans-serif; }
+.tp-bar { height: 8px; border-radius: 4px; background: #f1e8d8; overflow: hidden; }
+.tp-fill { height: 100%; border-radius: 4px; background: #d4af37; }
+.tp-fill.is-full { background: #735c00; }
+.tp-unote { font: 400 12px var(--font-inter), Inter, sans-serif; color: #6b6257; }
+.tp-unote.is-full { font-weight: 500; color: #735c00; }
+
+/* The one action */
+.tp-action { display: flex; flex-direction: column; gap: 6px; }
+.tp-gold, .tp-outline {
+  height: 56px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; color: #1d1914;
+}
+.tp-gold { background: #d4af37; border: 0; font: 700 16px var(--font-montserrat), Montserrat, sans-serif; }
+.tp-card .tp-gold { font-size: 15px; }
+.tp-outline { background: #fff; border: 1px solid #e2d6c2; font: 600 15px var(--font-inter), Inter, sans-serif; }
+.tp-gold[data-busy], .tp-outline[data-busy] { opacity: .8; cursor: default; }
+.tp-gold:disabled, .tp-outline:disabled, .tp-row:disabled { opacity: .5; cursor: default; }
+.tp-caption { text-align: center; font: 400 12px var(--font-inter), Inter, sans-serif; color: #6b6257; }
+.tp-spinner {
+  width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; flex-shrink: 0;
+  border: 2.5px solid rgba(29, 25, 20, .25); border-top-color: #1d1914; animation: tp-spin .8s linear infinite;
+}
+
+/* Rows */
+.tp-rows { background: #fff; border: 1px solid #eadfcc; border-radius: 18px; display: flex; flex-direction: column; overflow: hidden; }
+.tp-row {
+  display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 14px; width: 100%;
+  background: none; border: 0; text-align: left; cursor: pointer; color: #1d1914;
+}
+.tp-row + .tp-row { border-top: 1px solid #f1e8d8; }
+.tp-row .material-symbols-outlined { color: #735c00; }
+.tp-row-label { flex: 1; font: 500 14px var(--font-inter), Inter, sans-serif; }
+.tp-row-meta { font: 400 12px var(--font-inter), Inter, sans-serif; color: #6b6257; }
+.tp-gold:focus-visible, .tp-outline:focus-visible, .tp-row:focus-visible, .tp-retry:focus-visible { outline: 2px solid #735c00; outline-offset: 2px; }
+
+/* Errors: the board's rust box (6C, 4C) */
+.tp-err, .tp-loaderr { display: flex; gap: 10px; background: #fbe6dc; border: 1px solid #f0c7b5; }
+.tp-err { align-items: flex-start; border-radius: 14px; padding: 10px 12px; font: 500 13px/1.4 var(--font-inter), Inter, sans-serif; color: #7d2c0f; }
+.tp-err .material-symbols-outlined, .tp-loaderr .material-symbols-outlined { font-size: 20px; color: #a63d17; }
+.tp-loaderr { align-items: center; border-radius: 20px; padding: 12px 12px 12px 16px; }
+.tp-loaderr-text { flex: 1; font: 500 13px/1.4 var(--font-inter), Inter, sans-serif; color: #7d2c0f; }
+.tp-retry { min-height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: #fff; font: 600 13px var(--font-inter), Inter, sans-serif; color: #1d1914; cursor: pointer; }
+.tp-notice { margin: 0; font: 500 13px/1.4 var(--font-inter), Inter, sans-serif; color: #4f473d; }
+
+/* Loading (6C): skeleton, shimmer 1.4s */
+.tp-skel { padding: 16px; gap: 10px; }
+.tp-bone { display: block; background: #ece2cf; animation: tp-shimmer 1.4s ease-in-out infinite; }
+
+/* Laptop, board 6D */
+@media (min-width: 1280px) {
+  /* Two columns: card, action and rows in the 380 column, usage beside it. */
+  .tp-plan.is-ready { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .tp-left { display: flex; flex-direction: column; gap: 16px; }
+  .tp-card { border-radius: 22px; padding: 24px; gap: 6px; }
+  .tp-eyebrow { font-size: 12px; }
+  .tp-name { font-size: 34px; }
+  .tp-card.is-pending .tp-name { font-size: 26px; }
+  .tp-sub { font-size: 15px; }
+  .tp-usage { border-radius: 22px; padding: 24px; }
+  .tp-usage.is-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 32px; }
+  .tp-urow { gap: 8px; }
+  .tp-uhead { font-size: 15px; }
+  .tp-uhead strong { font-size: 17px; }
+  .tp-row { padding: 0 16px; }
+  .tp-row-label { font-size: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-bone { animation: none; }
+}
