@@ -97,7 +97,8 @@
 @keyframes tp-out { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-110%); opacity: 0; } }
 
 .tp-toast {
-  position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 58px); z-index: 96;
+  /* 95: above every sheet (80), below the event toast (TOAST_Z 96). */
+  position: fixed; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 58px); z-index: 95;
   background: #fffdf8; border: 1px solid #eadfcc; border-radius: 20px; padding: 12px;
   display: flex; gap: 12px; align-items: center;
   box-shadow: 0 12px 30px -10px rgba(60, 40, 10, .3);
