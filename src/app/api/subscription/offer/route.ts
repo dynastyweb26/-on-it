@@ -1,19 +1,32 @@
 // POST /api/subscription/offer — take the one retention offer (CANCEL-FLOW-
-// SPEC.md §3, §4). Body: { kind: 'discount' | 'pause', months?: 1 | 2 | 3 }.
-//   discount → STRIPE_RETENTION_COUPON_ID (50% off, repeating 2 months) or
-//              STRIPE_RETENTION_COUPON_X3_ID (3 months) when 2 wouldn't cover
-//              the next two renewals; added to the subscription's discounts
-//   pause    → N months from the end of the paid period:
-//              pause_collection { behavior: 'void', resumes_at } + metadata
-//              onit_pause_from. Full access until the pause starts, then
-//              the free tier until it clears (lib/subscription/state).
+// SPEC.md §3, §4; TIERS-SPEC's two-plan cancel table). Body:
+//   { kind: 'discount' | 'pause', months?: 1 | 2 | 3 }
+//   { kind: 'switch_pro' }            ← NEXT_PUBLIC_TIERS only
+//   discount    → STRIPE_RETENTION_COUPON_ID (50% off, repeating 2 months) or
+//                 STRIPE_RETENTION_COUPON_X3_ID (3 months) when 2 wouldn't
+//                 cover the next two renewals; added to the subscription's
+//                 discounts
+//   pause       → N months from the end of the paid period:
+//                 pause_collection { behavior: 'void', resumes_at } + metadata
+//                 onit_pause_from. Full access until the pause starts, then
+//                 the free tier until it clears (lib/subscription/state).
+//   switch_pro  → Plus → Pro at the end of the paid period (TIERS-SPEC:
+//                 "switching to Pro from the cancel screen is a downgrade and
+//                 counts as the offer taken"). This route RECORDS the offer —
+//                 the same atomic claim plus an offer_switch_pro event — and
+//                 nothing else: no charge, no Stripe change. A Plus plan is
+//                 store-owned (REVENUECAT-PLAN §5), and no Plus subscription
+//                 is sold on Stripe, so there is nothing here to change.
 // No cancel happens. Eligibility is re-checked here against the LIVE Stripe
 // subscription and the profile's retention_offer_used_at — never the client.
 import { NextRequest, NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 import { adminClient } from '@/lib/supabase/admin';
+import { entitlementsFor } from '@/lib/entitlements';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { applySubscription } from '@/lib/subscription/sync';
-import { isPauseMonths, OFFER_WINDOW_MS, offerAllowed, pauseResumesAt, pickRetentionCoupon, type OfferKind } from '@/lib/subscription/offers';
+import { isPauseMonths, OFFER_WINDOW_MS, offerAllowed, pauseResumesAt, pickRetentionCoupon, type CancelOffer } from '@/lib/subscription/offers';
+import { switchProDecision } from '@/lib/subscription/switch-offer';
 import { fail, logEvent, subscriptionContext } from '@/lib/subscription/route';
 import { PAUSE_FROM_KEY, periodEndISO } from '@/lib/subscription/state';
 
@@ -24,7 +37,14 @@ const discountRef = (d: string | Stripe.Discount | Stripe.DeletedDiscount): stri
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { kind?: unknown; months?: unknown };
-  const kind: OfferKind | null = body?.kind === 'discount' || body?.kind === 'pause' ? body.kind : null;
+  // 'switch_pro' exists only with the tiers flag on. Off, it is the unknown
+  // kind it is today and the answer is exactly today's.
+  const kind: CancelOffer | null =
+    body?.kind === 'discount' || body?.kind === 'pause'
+      ? body.kind
+      : NEXT_PUBLIC_TIERS && body?.kind === 'switch_pro'
+        ? 'switch_pro'
+        : null;
   if (!kind) return fail(400, 'That offer isn’t available.', 'bad_request');
   if (kind === 'pause' && !isPauseMonths(body?.months)) return fail(400, 'Pick 1, 2 or 3 months.', 'bad_request');
 
@@ -47,14 +67,35 @@ export async function POST(req: NextRequest) {
     paused: Boolean(sub.pause_collection),
     retentionOfferUsedAt: profile.retention_offer_used_at,
   };
-  if (!offerAllowed(kind, state, now)) {
+  const admin = adminClient();
+
+  if (kind === 'switch_pro') {
+    // The plan decides: only a Plus profile may switch down. A failed read
+    // (the plan column not migrated yet) resolves to Pro and refuses — the
+    // safe direction: never record an offer the user cannot take.
+    const { data: planRow } = await admin.from('profiles').select('plan').eq('id', userId).maybeSingle();
+    const decision = switchProDecision({
+      plan: entitlementsFor(profile.access_tier, planRow?.plan ?? null).plan,
+      offer: state,
+      billingSource: 'stripe', // these routes are the Stripe (web) billing path
+      now,
+      tiersOn: NEXT_PUBLIC_TIERS,
+    });
+    if (!decision.ok) {
+      return decision.error === 'not_available'
+        ? fail(400, 'That offer isn’t available.', 'bad_request')
+        : fail(409, 'That offer isn’t available on your plan.', 'not_eligible');
+    }
+  } else if (!offerAllowed(kind, state, now)) {
     return fail(409, 'That offer isn’t available on your plan.', 'not_eligible');
   }
 
-  let params: Stripe.SubscriptionUpdateParams;
+  let params: Stripe.SubscriptionUpdateParams | null = null;
   let resumesAt: Date | null = null;
   let pausedFrom: Date | null = null;
-  if (kind === 'discount') {
+  if (kind === 'switch_pro') {
+    // Nothing to change here: the store owns a Plus plan (see the header).
+  } else if (kind === 'discount') {
     // 2- or 3-month coupon, whichever covers the next two renewals
     // (lib/subscription/offers: pickRetentionCoupon). Keep any discount
     // already on the subscription; add the retention coupon.
@@ -82,8 +123,8 @@ export async function POST(req: NextRequest) {
 
   // Claim the 12-month window BEFORE touching Stripe, atomically: the UPDATE
   // only matches while the window is still open, so two concurrent requests
-  // can't both take an offer. Service role: the column is privileged.
-  const admin = adminClient();
+  // can't both take an offer. Service role: the column is privileged. The Pro
+  // switch spends the same window — it is the offer taken.
   const windowStart = new Date(now.getTime() - OFFER_WINDOW_MS).toISOString();
   const { data: claimed, error: claimErr } = await admin.from('profiles')
     .update({ retention_offer_used_at: now.toISOString() })
@@ -96,24 +137,29 @@ export async function POST(req: NextRequest) {
   }
   if (!claimed?.length) return fail(409, 'That offer isn’t available on your plan.', 'not_eligible');
 
-  let updated;
-  try {
-    updated = await stripe.subscriptions.update(sub.id, params);
-  } catch (e) {
-    console.error('subscription offer failed', kind, (e as Error)?.message);
-    // Stripe didn't change: give the window back.
-    const { error } = await admin.from('profiles')
-      .update({ retention_offer_used_at: profile.retention_offer_used_at }).eq('id', userId);
-    if (error) console.error('retention offer release failed', error.code ?? error.message);
-    return fail(502, 'Couldn’t apply that just now. Try again in a moment.');
+  let updated: Stripe.Subscription | null = null;
+  if (params) {
+    try {
+      updated = await stripe.subscriptions.update(sub.id, params);
+    } catch (e) {
+      console.error('subscription offer failed', kind, (e as Error)?.message);
+      // Stripe didn't change: give the window back.
+      const { error } = await admin.from('profiles')
+        .update({ retention_offer_used_at: profile.retention_offer_used_at }).eq('id', userId);
+      if (error) console.error('retention offer release failed', error.code ?? error.message);
+      return fail(502, 'Couldn’t apply that just now. Try again in a moment.');
+    }
+
+    try { await applySubscription(updated, userId); } catch (e) {
+      console.error('subscription offer: profile sync failed', (e as { code?: string })?.code);
+    }
   }
 
-  try { await applySubscription(updated, userId); } catch (e) {
-    console.error('subscription offer: profile sync failed', (e as { code?: string })?.code);
-  }
   await logEvent(userId, kind === 'discount'
     ? { kind: 'offer_discount', reason: 'price' }
-    : { kind: 'offer_pause', reason: 'seasonal', months: body.months as number });
+    : kind === 'pause'
+      ? { kind: 'offer_pause', reason: 'seasonal', months: body.months as number }
+      : { kind: 'offer_switch_pro', reason: 'price' });
 
   return NextResponse.json({
     ok: true, kind,

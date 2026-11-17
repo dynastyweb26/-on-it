@@ -70,7 +70,7 @@ export async function subscriptionContext(req: NextRequest): Promise<Subscriptio
   return { userId: user.id, email: user.email ?? null, stripe, profile: profile as SubscriptionProfile, sub };
 }
 
-export type CancelEventKind = 'cancel' | 'resume' | 'offer_discount' | 'offer_pause';
+export type CancelEventKind = 'cancel' | 'resume' | 'offer_discount' | 'offer_pause' | 'offer_switch_pro';
 
 /** Append a cancel_events row (service role; clients can only read theirs).
  *  Never throws: the Stripe change already happened, so a failed log is
