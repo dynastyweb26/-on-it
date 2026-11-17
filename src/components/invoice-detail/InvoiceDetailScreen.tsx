@@ -29,6 +29,9 @@ import type { BrandTheme } from '@/lib/colors';
 import { formatDate } from '@/lib/dates';
 import PaymentFigure, { type PaymentFigureMode } from '@/components/invoice-detail/PaymentFigure';
 import { docNoun, formatDocNumber } from '@/lib/documents';
+import { PhotosSkippedNote } from '@/components/tiers/PhotosSkipped';
+import { openPlanPaywall, usePlanTiers } from '@/components/tiers/store';
+import { offerOf, showPhotosSkipped, skippedFromRow } from '@/lib/plan-lock-view';
 import { calculateInvoiceTotals, type DepositType } from '@/lib/financials';
 // Payment-history method label: Stripe-sourced rows (paid on the pay page)
 // read e.g. "Cash App (via Stripe)"; manual rows keep the bare method.
@@ -130,6 +133,8 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
   const supabase = createClient();
   const router = useRouter();
   const [inv, setInv] = useState<any>(null);
+  // Tiers (flag on): the plan, for the skipped-photos note (design/tiers 05).
+  const planTiers = usePlanTiers();
   const [profile, setProfile] = useState<any>(null);
   // Connect on in this deployment? (PDF card line; fails closed.)
   const [connectOn, setConnectOn] = useState(false);
@@ -1550,7 +1555,19 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
           in the document. Editable on a draft only; a sent/paid document shows
           the thumbnails read-only (no add/remove). Hidden when read-only and
           empty so a document with none looks exactly as it did before. */}
-      {(isDraft || attachments.length > 0) && (
+      {(() => {
+        // Tiers (flag on): a copy made without its photos says so where they would
+        // have been, from what convert stored on this row. Never on the original
+        // (only the new row carries it) and never to a Plus user.
+        const skipped = attachments.length === 0 ? skippedFromRow(inv, (n) => formatDocNumber(inv.converted_from ? 'quote' : inv.kind, n)) : null;
+        const plusName = offerOf(planTiers.catalog, 'plus')?.name;
+        if (!skipped || !plusName || !showPhotosSkipped(skipped, planTiers.plan)) return null;
+        return (
+          <div className="mt-4">
+            <PhotosSkippedNote skipped={skipped} plusName={plusName} onSeePlus={() => openPlanPaywall('attachments')} />
+          </div>
+        );
+      })() ?? ((isDraft || attachments.length > 0) && (
         <div className="card mt-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Attachments</span>
@@ -1563,10 +1580,11 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
             editable={isDraft}
             onChange={(next) => void saveAttachments(next)}
             onRemove={(a) => removeAttachment(a)}
+            lockDoc={inv.kind === 'quote' ? 'estimate' : 'invoice'}
           />
           {attachmentsError && <div className="mt-2 text-xs font-semibold text-error">{attachmentsError}</div>}
         </div>
-      )}
+      ))}
       {/* Delete sits last, past the PDF, away from the everyday actions. */}
       <button
         type="button"

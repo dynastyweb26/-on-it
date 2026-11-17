@@ -19,6 +19,8 @@ import {
 } from '@/lib/popups/destructive';
 import { ATTACHMENT_MAX, prepareAttachment } from '@/lib/attachment';
 import { IN_APP_CAMERA } from '@/lib/feature-flags';
+import { showPlanLock, usePlanLock } from '@/components/tiers/store';
+import type { LockDoc } from '@/lib/plan-lock-view';
 
 // The in-app camera the receipt and estimate flows use, behind
 // NEXT_PUBLIC_IN_APP_CAMERA and loaded lazily: with the flag off this editor
@@ -56,6 +58,7 @@ export default function AttachmentsEditor({
   editable,
   onChange,
   onRemove,
+  lockDoc = 'invoice',
 }: {
   items: EditorAttachment[];
   editable: boolean;
@@ -64,7 +67,12 @@ export default function AttachmentsEditor({
    *  inside the D8 sheet: reject when the delete failed, so the file stays listed
    *  and the sheet names the cause. */
   onRemove?: (item: EditorAttachment) => Promise<void> | void;
+  /** Tiers: the document the lock sheet's headline names (design/tiers 04). */
+  lockDoc?: LockDoc;
 }) {
+  // Tiers (flag on): adding a NEW photo needs Plus, so Add opens the lock sheet.
+  // Saved photos keep showing and can still be removed. Flag off: null.
+  const photoLock = usePlanLock('attachments');
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +179,7 @@ export default function AttachmentsEditor({
             type="button"
             disabled={busy || full}
             onClick={() => {
+              if (photoLock) { showPlanLock(photoLock, lockDoc); return; }
               // Flag on: ask camera or library first, like the estimate sheet.
               if (IN_APP_CAMERA) { setChooserOpen(true); return; }
               inputRef.current?.click();
@@ -178,6 +187,7 @@ export default function AttachmentsEditor({
             className="flex min-h-[44px] items-center gap-1.5 px-1 text-[15px] font-bold text-primary transition active:opacity-60 disabled:opacity-40"
           >
             <Icon name="add" size={20} /> {busy ? 'Adding…' : 'Add attachment'}
+            {photoLock && <Icon name="lock" size={18} />}
           </button>
           {items.length > 0 && (
             <span className="text-[13px] text-on-surface-variant">{items.length} of {ATTACHMENT_MAX}</span>

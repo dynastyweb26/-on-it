@@ -60,10 +60,11 @@ import { LedgerFrame, LedgerTotals, LedgerUsageMeter, SentLedgerRow } from '@/co
 import { morphSharedNodes } from '@/lib/morph-shared';
 import AttachmentsEditor, { type EditorAttachment } from '@/components/AttachmentsEditor';
 import {
-  ATTACHMENT_BUCKET, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
+  ATTACHMENT_BUCKET, copyAttachmentsOutcome, deleteAttachment, listAttachmentRows, loadAttachmentCopies,
   materializeAttachments, renumberAttachments, signedAttachmentUrl, toPdfAttachments,
 } from '@/lib/attachments-client';
 import { materializeEstimateAttachments } from '@/lib/estimates/attachments-client';
+import { attachmentsSkippedColumns } from '@/lib/estimates/convert';
 import OnItSpinner from '@/components/OnItSpinner';
 import CountUpMoney from '@/components/CountUpMoney';
 import MicRings from '@/components/MicRings';
@@ -117,6 +118,8 @@ import { getSharedUser } from '@/lib/auth-client';
 import { AI_TOOLS, IN_APP_CAMERA, NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { askQuestion, type AskOutcome } from '@/lib/ask-client';
 import AiMeter from '@/components/chat/AiMeter';
+import { planLockFromCode } from '@/lib/plan-lock';
+import { loadPlanTiers, lockFor, notePhotosSkipped, showPlanLock } from '@/components/tiers/store';
 import AiLimitCard from '@/components/chat/AiLimitCard';
 import type { AiMeter as AiMeterNumbers } from '@/lib/ai-limit';
 import { PLAN_NAMES } from '@/lib/entitlements';
@@ -944,6 +947,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
   // and restored on mount, so a send that resumes after a suspend/reload reuses
   // the same row instead of creating a duplicate with a new number.
   const pendingInvoiceRef = useRef<{ id: string; no: number } | null>(null);
+  /** Tiers, non-Plus revise: the original whose photos are copied (and refused)
+   *  onto the revision at its first build, for this conversation only. */
+  const revisionCopyRef = useRef<{ from: string; sourceNo: number | null; convo: string } | null>(null);
   // Pre-built invoice PDF for the synchronous file-share on press 2 (Option B).
   // Built in the background on press 1 (and rebuilt on card edits) so the send
   // tap can call navigator.share({ files:[file] }) with NOTHING awaited between
@@ -1088,7 +1094,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
   /** Seed a revision card with COPIES of the original's images: thumbnails from
    *  signed URLs now, bytes duplicated into the new invoice at the first build
    *  (materializeAttachments). Reads only on the original. */
-  async function seedRevisionAttachments(sourceInvoiceId: string) {
+  async function seedRevisionAttachments(sourceInvoiceId: string, sourceNo: number | null, convo: string) {
+    // Tiers (flag on), non-Plus: the plan refuses every new photo row, so the
+    // editor gets no copies it could never save. The revision copies like a
+    // convert instead, once its row exists (step 1b): copyAttachmentsOutcome,
+    // the stored note, and the toast (design/tiers 05, "revise or convert").
+    if (NEXT_PUBLIC_TIERS && lockFor('attachments', (await loadPlanTiers()).plan)) {
+      revisionCopyRef.current = { from: sourceInvoiceId, sourceNo, convo };
+      return;
+    }
     try {
       const copies = await loadAttachmentCopies(supabase, sourceInvoiceId);
       // Only fill an empty list — never clobber an image the user already picked.
@@ -2800,6 +2814,23 @@ export default function Chat({ active = true }: { active?: boolean }) {
         : await materializeAttachments(supabase, profile.id, invoiceId, attachmentsRef.current);
       if (materialized.failedId) throw new Error('attachment materialization failed');
       if (materialized.saved.size) setAttachments(materialized.items);
+      // Tiers: a non-Plus revision copies the original's photos the way a convert
+      // does, once, onto this new row: what the plan refused is stored as the
+      // note and handed to the toast. Never fails the send: the photos were
+      // never going to be copied for this plan.
+      const revisionCopy = revisionCopyRef.current;
+      if (revisionCopy && revisionCopy.convo === convoIdRef.current && revisionCopy.from !== invoiceId) {
+        revisionCopyRef.current = null;
+        const copy = await copyAttachmentsOutcome(supabase, profile.id, revisionCopy.from, invoiceId);
+        if (copy.ok) {
+          const skippedColumns = attachmentsSkippedColumns(NEXT_PUBLIC_TIERS, { count: copy.skipped.count, sourceNumber: revisionCopy.sourceNo });
+          if (skippedColumns) {
+            const { error: noteError } = await supabase.from('invoices').update(skippedColumns).eq('id', invoiceId);
+            if (noteError) console.error('[revise] skipped-photos note not stored', noteError.code ?? noteError.message);
+          }
+          notePhotosSkipped(copy.skipped);
+        }
+      }
 
       // Estimates are delivered as their public /e/<token> link only: no PDF is
       // rendered, stored or shared. The pre-build just keeps the draft row current
@@ -4020,6 +4051,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // Free and canceled users can't create recurring items (the trigger's
       // PAYWALL_RECURRING): this prompt is the upsell. Close the card (its
       // error state would claim a failed save) and open the wall instead.
+      // Tiers (flag on): either refusal is the lock sheet (design/tiers 04).
+      const recurringLock = NEXT_PUBLIC_TIERS && error?.hint
+        ? planLockFromCode('recurring', error.hint, (await loadPlanTiers()).plan ?? (error.hint === 'PLAN_RECURRING' ? 'pro' : 'free'))
+        : null;
+      if (recurringLock) {
+        setPromptShown(null);
+        showPlanLock(recurringLock);
+        return { ok: false, message: '' }; // the card leaves; the sheet speaks
+      }
       if (error?.hint === 'PAYWALL_RECURRING') {
         setPromptShown(null);
         setPaywallFor('recurring');
@@ -4512,7 +4552,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
     originalDescriptionsRef.current = [];
     pendingInvoiceRef.current = null;
     finalizeSentRef.current = false;
-    setConvoId(genId());
+    const revisionConvo = genId();
+    setConvoId(revisionConvo);
+    revisionCopyRef.current = null;
     setDraftHistory([]);
     setPendingChange(null);
     setLinkedStatus(null);
@@ -4535,7 +4577,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
     setDuplicateHint(false);
     // D4: attachments follow the line items. Seed copies of the original's
     // images; they materialize into the new invoice at the first build.
-    if (sourceInvoiceId) void seedRevisionAttachments(sourceInvoiceId);
+    if (sourceInvoiceId) void seedRevisionAttachments(sourceInvoiceId, originalNo, revisionConvo);
   }
 
   // The invoice/quote card renders INSIDE the transcript, right after its
@@ -4750,6 +4792,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         editable={!locked}
         onChange={setAttachments}
         onRemove={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
+        lockDoc={docKind(draft) === 'quote' ? 'estimate' : 'invoice'}
       />
 
       <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
@@ -5275,9 +5318,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
             </div>
           ) : m.aiLimit && NEXT_PUBLIC_TIERS ? (() => {
             // Board 03. The upgrade row reads the plan live (an upgrade since
-            // removes it). Free opens the paywall with Pro; Pro's target is
-            // the 1B screen, which ships with section 01, so no row yet.
-            const up = tiers.plan === 'free' ? upgradeFor(tiers.plan, tiers.catalog) : null;
+            // removes it). Free → See Pro, Pro → Upgrade to Plus; both go to the
+            // one purchase path, which until section 01 (PR D) is today's paywall.
+            const up = upgradeFor(tiers.plan, tiers.catalog);
             return (
               <AiLimitCard
                 key={m.id}
@@ -6191,7 +6234,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
       {aiPaywall !== null && (
         // Opened from the AI limit card (board 03): Free → the paywall with Pro.
-        <PaywallModal variant="invoice" reason={aiPaywallReason(PLAN_NAMES.free, aiPaywall)} returnTo="chat" onClose={() => setAiPaywall(null)} />
+        <PaywallModal variant="invoice" reason={aiPaywallReason(PLAN_NAMES[tiers.plan ?? 'free'], aiPaywall)} returnTo="chat" onClose={() => setAiPaywall(null)} />
       )}
       {softWall && (
         <PaywallModal variant={softWall.variant ?? 'invoice'} reason={softWall.reason} returnTo="chat" onClose={() => setSoftWall(null)} />

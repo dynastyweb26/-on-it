@@ -4,10 +4,44 @@ import AiMeter from '@/components/chat/AiMeter';
 import AiLimitCard from '@/components/chat/AiLimitCard';
 import { upgradeFor } from '@/lib/ai-meter-view';
 import { PLAN_CATALOG } from '@/lib/plan-catalog';
+import LockSheet from '@/components/tiers/LockSheet';
+import { PhotosSkippedNote, PhotosSkippedToast } from '@/components/tiers/PhotosSkipped';
+import { planLock } from '@/lib/plan-lock';
+import { includedChip, lockActions, lockSheetCopy, type LockDoc } from '@/lib/plan-lock-view';
+import type { PlanFeature } from '@/lib/plan-lock';
 
 
 const LATER = '2099-01-01T06:00:00.000Z';
 const limitOf = (plan: 'free' | 'pro' | 'plus') => PLAN_CATALOG.plans.find((p) => p.plan === plan)!.limits.aiDailyLimit;
+
+const plusName = PLAN_CATALOG.plans.find((p) => p.plan === 'plus')!.name;
+const SKIPPED = { count: 6, sourceDocNumber: 'E-0051' };
+type LockRow = [string, PlanFeature, LockDoc, string, string | null, 'idle' | 'pending' | 'error', string];
+const LOCKS: LockRow[] = [
+  ['lock-bank-free', 'bank', 'invoice', 'free', null, 'idle', '4A free · connect a bank'],
+  ['lock-recurring-free', 'recurring', 'invoice', 'free', null, 'idle', '4B recurring'],
+  ['lock-photos-estimate', 'attachments', 'estimate', 'free', null, 'idle', '4B photos · opened from an estimate'],
+  ['lock-pro-idle', 'bank', 'invoice', 'active', 'pro', 'idle', '4C pro · idle'],
+  ['lock-pro-pending', 'bank', 'invoice', 'active', 'pro', 'pending', '4C pending · not now and drag off'],
+  ['lock-pro-error', 'bank', 'invoice', 'active', 'pro', 'error', '4C error · names the cause'],
+];
+
+function Sheet({ feature, doc, tier, plan, state }: { feature: PlanFeature; doc: LockDoc; tier: string; plan: string | null; state: 'idle' | 'pending' | 'error' }) {
+  const lock = planLock(feature, tier, plan)!;
+  return (
+    <LockSheet
+      inline
+      copy={lockSheetCopy(feature, doc)}
+      chip={includedChip(lock, PLAN_CATALOG)}
+      actions={lockActions(lock, PLAN_CATALOG, true)!}
+      isPro={lock.plan !== 'free'}
+      state={state}
+      error={{ icon: 'wifi_off', text: 'Couldn’t reach the App Store. Check your signal and try again. Nothing was charged.' }}
+      onPrimary={() => {}}
+      onDismiss={() => {}}
+    />
+  );
+}
 
 function Label({ children }: { children: string }) {
   return <div style={{ font: "500 10.5px ui-monospace, Menlo, monospace", color: '#6b6257', margin: '6px 0 18px' }}>{children}</div>;
@@ -35,13 +69,29 @@ export default function Fixtures() {
         <div data-fixture="card-free"><AiLimitCard limit={free} upgrade={upgradeFor('free', PLAN_CATALOG)} onUpgrade={noop} /></div>
         <Label>3A free · 0 left</Label>
         <div data-fixture="card-pro"><AiLimitCard limit={pro} upgrade={upgradeFor('pro', PLAN_CATALOG)} onUpgrade={noop} /></div>
-        <Label>3B pro (row ships with section 01)</Label>
+        <Label>3B pro · upgrade to plus</Label>
         <div data-fixture="card-plus"><AiLimitCard limit={plus} upgrade={upgradeFor('plus', PLAN_CATALOG)} /></div>
         <Label>3B plus · no upgrade row</Label>
         <div data-fixture="card-pending"><AiLimitCard limit={free} upgrade={upgradeFor('free', PLAN_CATALOG)} onUpgrade={noop} pending /></div>
         <Label>pending · paywall opening</Label>
         <div data-fixture="card-collapsed"><AiLimitCard limit={free} collapsed upgrade={null} /></div>
         <Label>repeat send · collapsed</Label>
+
+        <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '24px 0 16px' }}>04 Lock sheets</h1>
+        {LOCKS.map(([id, feature, doc, tier, plan, state, label]) => (
+          <div key={id} data-fixture={id} style={{ marginBottom: 4 }}>
+            <Sheet feature={feature} doc={doc} tier={tier} plan={plan} state={state} />
+            <Label>{label}</Label>
+          </div>
+        ))}
+
+        <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '24px 0 16px' }}>05 Photos skipped</h1>
+        <div data-fixture="photos-note"><PhotosSkippedNote skipped={SKIPPED} plusName={plusName} onSeePlus={noop} /></div>
+        <Label>5A inline note · new invoice</Label>
+        <div data-fixture="photos-note-one"><PhotosSkippedNote skipped={{ count: 1, sourceDocNumber: 'E-0007' }} plusName={plusName} onSeePlus={noop} /></div>
+        <Label>inline note · one photo</Label>
+        <div data-fixture="photos-toast"><PhotosSkippedToast skipped={SKIPPED} plusName={plusName} onSeePlus={noop} onDone={noop} dwellMs={null} /></div>
+        <Label>5A toast · fixed at the top (kept up here)</Label>
       </div>
     </main>
   );
