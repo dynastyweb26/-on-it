@@ -45,6 +45,27 @@ test('every convert hands over the skipped photos; the estimate screen stores th
   assert.doesNotMatch(detail, /\bcopyAttachments\(/, 'no count-only copy left on the convert path');
 });
 
+test('a chat revise copies like a convert for a non-Plus user (board 05: "revise or convert")', () => {
+  const chat = read('src/components/tabs/ChatView.tsx');
+  // The seed: a locked plan gets no editor copies; the source is remembered instead.
+  const seed = chat.slice(chat.indexOf('async function seedRevisionAttachments'), chat.indexOf('async function seedRevisionAttachments') + 900);
+  assert.match(seed, /lockFor\('attachments', \(await loadPlanTiers\(\)\)\.plan\)/);
+  assert.match(seed, /revisionCopyRef\.current = \{ from: sourceInvoiceId, sourceNo, convo \}/);
+  // The first build of the revision: the convert path's three steps, on this row.
+  const at = chat.indexOf('const revisionCopy = revisionCopyRef.current;');
+  assert.ok(at > 0, 'step 1b reads the remembered source');
+  const step = chat.slice(at, at + 1200);
+  assert.match(step, /copyAttachmentsOutcome\(supabase, profile\.id, revisionCopy\.from, invoiceId\)/);
+  assert.match(step, /attachmentsSkippedColumns\(NEXT_PUBLIC_TIERS, \{ count: copy\.skipped\.count, sourceNumber: revisionCopy\.sourceNo \}\)/);
+  assert.match(step, /\.update\(skippedColumns\)\.eq\('id', invoiceId\)/);
+  assert.match(step, /notePhotosSkipped\(copy\.skipped\)/);
+  assert.match(step, /revisionCopy\.convo === convoIdRef\.current/, 'only for the revision it was set for');
+});
+
+test('the inline note names the source by its own kind (estimate for a convert, the same kind for a revise)', () => {
+  assert.match(read('src/components/invoice-detail/InvoiceDetailScreen.tsx'), /formatDocNumber\(inv\.converted_from \? 'quote' : inv\.kind, n\)/);
+});
+
 test('the inline note reads the stored row and is never shown to Plus', () => {
   const inv = read('src/components/invoice-detail/InvoiceDetailScreen.tsx');
   assert.match(inv, /skippedFromRow\(inv,/);

@@ -1559,7 +1559,7 @@ export default function InvoiceDetailScreen({ id, embedded = false }: { id: stri
         // Tiers (flag on): a copy made without its photos says so where they would
         // have been, from what convert stored on this row. Never on the original
         // (only the new row carries it) and never to a Plus user.
-        const skipped = attachments.length === 0 ? skippedFromRow(inv, (n) => formatDocNumber('quote', n)) : null;
+        const skipped = attachments.length === 0 ? skippedFromRow(inv, (n) => formatDocNumber(inv.converted_from ? 'quote' : inv.kind, n)) : null;
         const plusName = offerOf(planTiers.catalog, 'plus')?.name;
         if (!skipped || !plusName || !showPhotosSkipped(skipped, planTiers.plan)) return null;
         return (
