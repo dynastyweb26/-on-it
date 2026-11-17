@@ -9,6 +9,9 @@ import { PhotosSkippedNote, PhotosSkippedToast } from '@/components/tiers/Photos
 import { planLock } from '@/lib/plan-lock';
 import { includedChip, lockActions, lockSheetCopy, type LockDoc } from '@/lib/plan-lock-view';
 import type { PlanFeature } from '@/lib/plan-lock';
+import { PlanScreenView } from '@/components/tiers/PlanScreen';
+import { planCardFor, type PlanCardInput } from '@/lib/plan-card';
+import { planAction, planCardView, manageLabel, usageRows, type UsageInput } from '@/lib/plan-screen-view';
 
 
 const LATER = '2099-01-01T06:00:00.000Z';
@@ -39,6 +42,39 @@ function Sheet({ feature, doc, tier, plan, state }: { feature: PlanFeature; doc:
       error={{ icon: 'wifi_off', text: 'Couldn’t reach the App Store. Check your signal and try again. Nothing was charged.' }}
       onPrimary={() => {}}
       onDismiss={() => {}}
+    />
+  );
+}
+
+const RENEW = '2026-12-15T12:00:00Z';
+const FREE_USAGE: UsageInput = { aiUsedToday: 3, aiLimit: 5, invoiceCount: 2, invoiceLimit: 3, estimateCount: 3, estimateLimit: 3, expenseCount: 4, expenseLimit: 5 };
+type PlanRow = [string, PlanCardInput, UsageInput, 'idle' | 'busy' | 'error', string];
+const PLANS: PlanRow[] = [
+  ['plan-free', { tier: 'free', plan: 'free' }, FREE_USAGE, 'idle', '6A free'],
+  ['plan-pro', { tier: 'active', plan: 'pro', currentPeriodEnd: RENEW, billingSource: 'app_store' }, { aiUsedToday: 12, aiLimit: 30 }, 'idle', '6B pro'],
+  ['plan-trial', { tier: 'trialing', plan: 'plus', trialEndsAt: '2026-11-29T12:00:00Z' }, { aiUsedToday: 4, aiLimit: 100 }, 'idle', '6C trial'],
+  ['plan-plus', { tier: 'active', plan: 'plus', currentPeriodEnd: RENEW, billingSource: 'app_store' }, { aiUsedToday: 40, aiLimit: 100 }, 'idle', '6C plus'],
+  ['plan-pending', { tier: 'active', plan: 'plus', currentPeriodEnd: RENEW, planChangeTo: 'pro', planChangeAt: RENEW, billingSource: 'app_store' }, { aiUsedToday: 40, aiLimit: 100 }, 'idle', '6C pending downgrade · keep plus undoes it'],
+  ['plan-founder', { tier: 'founder', plan: 'plus' }, { aiUsedToday: 9, aiLimit: 100 }, 'idle', '6C founder · no actions, no manage link'],
+  ['plan-busy', { tier: 'active', plan: 'pro', currentPeriodEnd: RENEW, billingSource: 'app_store' }, { aiUsedToday: 12, aiLimit: 30 }, 'busy', 'pending · spinner in the tapped button, others disabled'],
+  ['plan-action-error', { tier: 'active', plan: 'pro', currentPeriodEnd: RENEW }, { aiUsedToday: 12, aiLimit: 30 }, 'error', 'action error · names the cause'],
+];
+
+function Plan({ input, usage, state }: { input: PlanCardInput; usage: UsageInput; state: 'idle' | 'busy' | 'error' }) {
+  const card = planCardFor(input);
+  return (
+    <PlanScreenView
+      state="ready"
+      card={planCardView(card, PLAN_CATALOG, true)}
+      usage={usageRows(card, usage, PLAN_CATALOG)}
+      action={planAction(card, PLAN_CATALOG)}
+      manage={card.manage ? { label: manageLabel(card) } : null}
+      restore={card.canRestore}
+      busy={state === 'busy' ? 'action' : null}
+      error={state === 'error' ? 'Plus is only available in the On It app. Nothing was charged.' : null}
+      onAction={() => {}}
+      onManage={() => {}}
+      onRestore={() => {}}
     />
   );
 }
@@ -92,6 +128,17 @@ export default function Fixtures() {
         <Label>inline note · one photo</Label>
         <div data-fixture="photos-toast"><PhotosSkippedToast skipped={SKIPPED} plusName={plusName} onSeePlus={noop} onDone={noop} dwellMs={null} /></div>
         <Label>5A toast · fixed at the top (kept up here)</Label>
+        <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '24px 0 16px' }}>06 Settings › Plan</h1>
+        {PLANS.map(([id, input, usage, state, label]) => (
+          <div key={id} data-fixture={id}>
+            <Plan input={input} usage={usage} state={state} />
+            <Label>{label}</Label>
+          </div>
+        ))}
+        <div data-fixture="plan-loading"><PlanScreenView state="loading" /></div>
+        <Label>loading · skeleton, shimmer 1.4s</Label>
+        <div data-fixture="plan-load-error"><PlanScreenView state="error" onRetry={() => {}} /></div>
+        <Label>load error · retry</Label>
       </div>
     </main>
   );
