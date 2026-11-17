@@ -28,6 +28,8 @@ import { getSharedUser } from '@/lib/auth-client';
 import { userMessage } from '@/lib/errors';
 import PageContainer from '@/components/PageContainer';
 import SplitView from '@/components/layout/SplitView';
+import PlanScreen from '@/components/tiers/PlanScreen';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 // A live subscription (any of these) gets the "Manage subscription" row → Stripe
 // Billing Portal. 'free' and 'canceled' get the upgrade CTA; 'founder' hides the
@@ -569,6 +571,11 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
   const planPaused = planBillable && Boolean(p?.paused_until);
   const planCanceling = planBillable && Boolean(p?.cancel_at_period_end);
   const planLive = SUBSCRIBED.has(planTier) || planPaused;
+  // Tiers (flag on): Settings › Plan is board 06, rendered from planCard.
+  // Past due, canceling and paused keep today's screens (founder, 2026-11-16).
+  // Neither screen draws until the profile says which one applies.
+  const tiersPlan = NEXT_PUBLIC_TIERS && Boolean(p) && !planPaused && !planCanceling && planTier !== 'past_due';
+  const legacyPlan = !NEXT_PUBLIC_TIERS || (Boolean(p) && !tiersPlan);
   const planEnds: string | null = (p?.subscription_status === 'trialing' ? p?.trial_ends_at : p?.current_period_end) ?? null;
 
   // Subscribed users → Stripe Billing Portal (manage/cancel/update card).
@@ -960,7 +967,25 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
           users with a real Stripe subscription (Manage row). Free/canceled
           users get nothing — no "Upgrade $9.99/month" CTA for something that's
           currently unlimited, and no empty Subscription card either. */}
-      {is('plan') && planTier === 'founder' && (
+      {is('plan') && tiersPlan && (
+        <PlanScreen
+          above={planNotice ? (
+            <p className="flex items-center gap-2 text-sm font-semibold text-on-surface" role="status">
+              <Icon name="check_circle" size={18} className="text-primary" />
+              {offerNotice(planNotice)}
+            </p>
+          ) : null}
+          // Cancel stays two taps from Plan (CANCEL-FLOW-SPEC rule 3): today's
+          // button, under the board's rows, for a paid plan that isn't a founder's.
+          below={(card) => (card.plan !== 'free' && !card.founder ? (
+            <button className="btn-outline mt-[14px] w-full" onClick={() => router.push('/settings/plan/cancel')}>
+              Cancel subscription
+            </button>
+          ) : null)}
+        />
+      )}
+
+      {is('plan') && legacyPlan && planTier === 'founder' && (
         // Founders (a redeemed access code): no upgrade CTA, nothing to manage.
         <section className="card space-y-1">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Plan</h2>
@@ -969,7 +994,7 @@ export default function SettingsView({ connectEnabled, subscriptionsEnabled, sec
         </section>
       )}
 
-      {is('plan') && planTier !== 'founder' && (PAYWALL_ENABLED || planLive) && (
+      {is('plan') && legacyPlan && planTier !== 'founder' && (PAYWALL_ENABLED || planLive) && (
         <section className="card space-y-3">
           <h2 className="text-label-lg font-semibold uppercase tracking-wide text-on-surface-variant">Subscription</h2>
           {planNotice && (

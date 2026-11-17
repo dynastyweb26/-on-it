@@ -99,6 +99,7 @@ export const ICON_NAMES = [
   'refresh',
   'remove',
   'request_quote',
+  'restore',
   'schedule',
   'search',
   'sell',
