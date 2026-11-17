@@ -21,6 +21,9 @@ import {
 } from '@/lib/recurring';
 import { useFormDraft } from '@/lib/use-form-draft';
 import { userMessage } from '@/lib/errors';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
+import { planLockFromCode } from '@/lib/plan-lock';
+import { loadPlanTiers, showPlanLock } from '@/components/tiers/store';
 
 const SAVED_MS = 380; // the ✓ shows this long before the screen moves on (2·14)
 
@@ -96,6 +99,12 @@ export default function RecurringForm({ mode, item }: { mode: 'new' | 'edit'; it
         : await supabase.from('recurring_expenses').update(fields).eq('id', item!.id);
       // Free and canceled users can't create a recurring item (PAYWALL_RECURRING):
       // the wall, with the form still filled in.
+      // Tiers (flag on): both refusals are the lock sheet (design/tiers 04) with
+      // the form still filled in; Pro is told it needs Plus, not the paywall.
+      if (NEXT_PUBLIC_TIERS && err?.hint) {
+        const lock = planLockFromCode('recurring', err.hint, (await loadPlanTiers()).plan ?? (err.hint === 'PLAN_RECURRING' ? 'pro' : 'free'));
+        if (lock) { showPlanLock(lock); return; }
+      }
       if (err?.hint === 'PAYWALL_RECURRING') { setShowPaywall(true); return; }
       if (err) {
         // A duplicate vendor + cadence is its own cause; the rest is the classifier's.

@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { convertEstimateToInvoice } from '@/lib/estimates/convert-client';
+import { notePhotosSkipped } from '@/components/tiers/store';
 import { formatDocNumber } from '@/lib/documents';
 import { postOwnerCard } from '@/lib/owner-cards';
 import type { EventRow } from '@/lib/events';
@@ -65,6 +66,9 @@ export async function runConvert(e: EventRow, onPaywall: (estimateId: string) =>
           detail: { estimateId: e.invoice_id, invoiceId: out.id, number: out.number },
         }));
       } catch { /* no window */ }
+      // Tiers (flag on): the new invoice was made without photos the plan
+      // refused; the toast says it once (design/tiers 05). Flag off: no-op.
+      if (!out.existed) notePhotosSkipped(out.attachmentsSkipped);
       if (!out.existed) {
         postOwnerCard({
           title: out.number != null ? `${formatDocNumber('invoice', out.number)} is ready` : 'Your invoice is ready',

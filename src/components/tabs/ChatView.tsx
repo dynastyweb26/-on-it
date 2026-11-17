@@ -117,6 +117,8 @@ import { getSharedUser } from '@/lib/auth-client';
 import { AI_TOOLS, IN_APP_CAMERA, NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { askQuestion, type AskOutcome } from '@/lib/ask-client';
 import AiMeter from '@/components/chat/AiMeter';
+import { planLockFromCode } from '@/lib/plan-lock';
+import { loadPlanTiers, showPlanLock } from '@/components/tiers/store';
 import AiLimitCard from '@/components/chat/AiLimitCard';
 import type { AiMeter as AiMeterNumbers } from '@/lib/ai-limit';
 import { PLAN_NAMES } from '@/lib/entitlements';
@@ -4020,6 +4022,15 @@ export default function Chat({ active = true }: { active?: boolean }) {
       // Free and canceled users can't create recurring items (the trigger's
       // PAYWALL_RECURRING): this prompt is the upsell. Close the card (its
       // error state would claim a failed save) and open the wall instead.
+      // Tiers (flag on): either refusal is the lock sheet (design/tiers 04).
+      const recurringLock = NEXT_PUBLIC_TIERS && error?.hint
+        ? planLockFromCode('recurring', error.hint, (await loadPlanTiers()).plan ?? (error.hint === 'PLAN_RECURRING' ? 'pro' : 'free'))
+        : null;
+      if (recurringLock) {
+        setPromptShown(null);
+        showPlanLock(recurringLock);
+        return { ok: false, message: '' }; // the card leaves; the sheet speaks
+      }
       if (error?.hint === 'PAYWALL_RECURRING') {
         setPromptShown(null);
         setPaywallFor('recurring');
@@ -4750,6 +4761,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         editable={!locked}
         onChange={setAttachments}
         onRemove={(a) => (a.storagePath ? removeSavedAttachment(a) : undefined)}
+        lockDoc={docKind(draft) === 'quote' ? 'estimate' : 'invoice'}
       />
 
       <div className="mt-3 border-t border-outline-variant/30 pt-2.5 space-y-2.5">
@@ -5275,9 +5287,9 @@ export default function Chat({ active = true }: { active?: boolean }) {
             </div>
           ) : m.aiLimit && NEXT_PUBLIC_TIERS ? (() => {
             // Board 03. The upgrade row reads the plan live (an upgrade since
-            // removes it). Free opens the paywall with Pro; Pro's target is
-            // the 1B screen, which ships with section 01, so no row yet.
-            const up = tiers.plan === 'free' ? upgradeFor(tiers.plan, tiers.catalog) : null;
+            // removes it). Free → See Pro, Pro → Upgrade to Plus; both go to the
+            // one purchase path, which until section 01 (PR D) is today's paywall.
+            const up = upgradeFor(tiers.plan, tiers.catalog);
             return (
               <AiLimitCard
                 key={m.id}
@@ -6191,7 +6203,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
       {aiPaywall !== null && (
         // Opened from the AI limit card (board 03): Free → the paywall with Pro.
-        <PaywallModal variant="invoice" reason={aiPaywallReason(PLAN_NAMES.free, aiPaywall)} returnTo="chat" onClose={() => setAiPaywall(null)} />
+        <PaywallModal variant="invoice" reason={aiPaywallReason(PLAN_NAMES[tiers.plan ?? 'free'], aiPaywall)} returnTo="chat" onClose={() => setAiPaywall(null)} />
       )}
       {softWall && (
         <PaywallModal variant={softWall.variant ?? 'invoice'} reason={softWall.reason} returnTo="chat" onClose={() => setSoftWall(null)} />

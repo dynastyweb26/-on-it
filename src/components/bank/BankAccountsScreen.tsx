@@ -32,10 +32,14 @@ import {
 // bank files, and this screen reads and writes through this single route.
 const ACCOUNTS_URL = '/api/plaid/accounts';
 import { requestDisconnect } from '@/lib/bank-disconnect';
+import { planLockFrom } from '@/lib/plan-lock';
+import { loadPlanTiers, showPlanLock, usePlanLock } from '@/components/tiers/store';
 
 type Flow = 'idle' | 'handoff' | 'success' | 'choose';
 
 export default function BankAccountsScreen() {
+  // Tiers (flag on): the lock for bank activity, or null (see beginLink).
+  const bankLock = usePlanLock('bank');
   const ctx = useBankTracking();
   const [flow, setFlow] = useState<Flow>('idle');
   const [plaidOpen, setPlaidOpen] = useState(false);
@@ -183,7 +187,11 @@ export default function BankAccountsScreen() {
   // Connect → a real link token when this is a preview build. The mock handoff
   // runs for exactly one response: the route's 404, which is plaidRouteEnabled
   // saying no. Every other failure is a toast, never the placeholder sheet.
+  // Tiers (flag on): a plan that does not open bank activity gets the lock
+  // sheet on the tap (design/tiers 04), and the route's typed refusal is the
+  // same sheet. Flag off: bankLock is always null and this is today's flow.
   async function beginLink() {
+    if (bankLock) { showPlanLock(bankLock); return; }
     try {
       const res = await fetch('/api/plaid/link-token', {
         method: 'POST',
@@ -191,6 +199,8 @@ export default function BankAccountsScreen() {
         body: '{}',
       });
       const body = (await res.json().catch(() => null)) as unknown;
+      const refused = res.status === 403 ? planLockFrom('bank', body, (await loadPlanTiers()).plan ?? 'free') : null;
+      if (refused) { setFlow('idle'); showPlanLock(refused); return; }
       const plan = linkTokenPlan(res.status, body);
       if (plan.kind === 'mock') {
         setFlow('handoff');
@@ -300,7 +310,7 @@ export default function BankAccountsScreen() {
         />
       );
     }
-    if (!isLinked(connection)) return <Pitch onConnect={beginLink} />;
+    if (!isLinked(connection)) return <Pitch onConnect={beginLink} locked={Boolean(bankLock)} />;
     return (
       <>
         <LinkedCard
@@ -460,7 +470,7 @@ function LockedCard() {
 }
 
 // ── Not connected: the pitch ──
-function Pitch({ onConnect }: { onConnect: () => void }) {
+function Pitch({ onConnect, locked = false }: { onConnect: () => void; locked?: boolean }) {
   return (
     <section className="card space-y-4">
       <div className="relative mx-auto h-[104px] w-[104px]">
@@ -493,6 +503,8 @@ function Pitch({ onConnect }: { onConnect: () => void }) {
       >
         <Icon name="account_balance" size={20} />
         Connect bank
+        {/* Entry cue (design/tiers 04): the sheet is never a surprise. */}
+        {locked && <Icon name="lock" size={18} />}
       </button>
       <p className="text-center text-[13px] leading-[1.4] text-on-surface-variant">
         By connecting you agree to our{' '}

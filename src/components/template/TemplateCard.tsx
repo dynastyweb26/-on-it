@@ -316,7 +316,7 @@ export default function TemplateCard({ kind, onKindChange, onClose, uid, restore
       </button>
 
       {/* Attachments: the same gold control as the card, under "+ Add item". */}
-      <AttachmentsEditor items={attachments} editable onChange={onAttachments} onRemove={onRemoveAttachment} />
+      <AttachmentsEditor items={attachments} editable onChange={onAttachments} onRemove={onRemoveAttachment} lockDoc={kind === 'quote' ? 'estimate' : 'invoice'} />
 
       {/* Tax slot: its own small sheet (one % field). */}
       <button type="button" onClick={() => setSheet({ type: 'tax' })}

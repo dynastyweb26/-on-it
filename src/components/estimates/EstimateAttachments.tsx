@@ -28,9 +28,12 @@ import {
   REMOVE_ATTACHMENT_TITLE, removeAttachmentSub,
 } from '@/lib/popups/destructive';
 import PhotoViewer from '@/components/estimate/PhotoViewer';
+import { loadPlanTiers, showPlanLock, usePlanLock } from '@/components/tiers/store';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { attachmentSizeLabel } from '@/lib/estimates/attachments-view';
 import {
   deleteEstimateAttachment,
+  estimateAttachmentPlanLock,
   isImageAttachment,
   loadOwnerAttachments,
   prepareEstimateFile,
@@ -101,6 +104,9 @@ export default function EstimateAttachments({
   clientFirstName?: string | null;
   clientMayHaveSeen?: boolean;
 }) {
+  // Tiers (flag on): a NEW photo needs Plus, so Add opens the lock sheet
+  // (design/tiers 04). Saved photos keep working. Flag off: null.
+  const photoLock = usePlanLock('attachments');
   const [items, setItems] = useState<OwnerAttachment[]>([]);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,6 +201,15 @@ export default function EstimateAttachments({
       setUploads((list) => list.filter((u) => u.id !== uploadId));
     } catch (e) {
       if (!alive.current) return;
+      // Tiers (flag on): a plan refusal is the lock sheet, not a failed tile.
+      if (NEXT_PUBLIC_TIERS) {
+        const lock = estimateAttachmentPlanLock(e, (await loadPlanTiers()).plan ?? 'free');
+        if (lock) {
+          setUploads((list) => list.filter((u) => u.id !== uploadId));
+          showPlanLock(lock, 'estimate');
+          return;
+        }
+      }
       patchUpload(uploadId, {
         status: 'failed',
         pct: 0,
@@ -420,7 +435,7 @@ export default function EstimateAttachments({
           ) : (
             <button
               type="button"
-              onClick={() => setSheetOpen(true)}
+              onClick={() => { if (photoLock) { showPlanLock(photoLock, 'estimate'); return; } setSheetOpen(true); }}
               disabled={loading}
               className="mt-2 flex w-full items-center gap-3 rounded-[14px] border border-dashed border-outline-variant px-3.5 py-2.5 text-left transition active:scale-[0.99] disabled:opacity-50"
             >
@@ -428,7 +443,7 @@ export default function EstimateAttachments({
                 <Icon name="add" size={20} />
               </span>
               <span className="min-w-0">
-                <span className="block text-[14px] font-bold text-primary">Add attachment</span>
+                <span className="flex items-center gap-1 text-[14px] font-bold text-primary">Add attachment{photoLock && <Icon name="lock" size={16} />}</span>
                 <span className="block text-[12px] text-on-surface-variant">
                   {attachmentRoomLabel(room)}
                 </span>

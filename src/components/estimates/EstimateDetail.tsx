@@ -30,7 +30,10 @@ import { estimateApprovedPrompt, markSeen, promptDue, type SoftPrompt } from '@/
 import { createClient } from '@/lib/supabase/client';
 import { calculateInvoiceTotals, money } from '@/lib/financials';
 import { defaultDueDate } from '@/lib/dates';
-import { copyAttachments } from '@/lib/attachments-client';
+import { copyAttachmentsOutcome } from '@/lib/attachments-client';
+import { attachmentsSkippedColumns } from '@/lib/estimates/convert';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
+import { notePhotosSkipped } from '@/components/tiers/store';
 import type { PublicEstimate } from '@/lib/estimates/types';
 import {
   estimateLink,
@@ -419,11 +422,23 @@ export default function EstimateDetail({
         throw error;
       }
       if (!created) return;
-      const copy = await copyAttachments(supabase, inv.user_id, inv.id, created.id);
+      const copy = await copyAttachmentsOutcome(supabase, inv.user_id, inv.id, created.id);
       if (!copy.ok) {
         await supabase.from('invoices').update({ deleted_at: new Date().toISOString() }).eq('id', created.id);
         throw new Error('attachment copy failed');
       }
+      // Tiers (flag on): the same skipped-photos note convert-client stores, so
+      // the new invoice says where its photos stayed (design/tiers 05). Flag
+      // off, or nothing skipped, writes nothing. A failed note never fails this.
+      const skippedColumns = attachmentsSkippedColumns(NEXT_PUBLIC_TIERS, {
+        count: copy.skipped.count,
+        sourceNumber: typeof inv.invoice_number === 'number' ? inv.invoice_number : null,
+      });
+      if (skippedColumns) {
+        const { error: noteError } = await supabase.from('invoices').update(skippedColumns).eq('id', created.id);
+        if (noteError) console.error('[convert] skipped-photos note not stored', noteError.code ?? noteError.message);
+      }
+      notePhotosSkipped(copy.skipped);
       // The owner's outcome, not an event (RULES): a local card in the thread.
       postOwnerCard({
         title: created.invoice_number != null

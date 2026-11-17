@@ -18,6 +18,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/EmptyState';
 import { money } from '@/lib/financials';
 import { CACHE_TTL, readCache, writeCache } from '@/lib/cache';
+import { showPlanLock, usePlanLock } from '@/components/tiers/store';
 import {
   RECURRING_COLS, RECURRING_PATH, dayTag, localToday, monthlyTotal, nextLine, normalizeRecurring, recurringSubtitle,
   skipNotice, upcoming, type Recurring,
@@ -62,7 +63,13 @@ export default function RecurringPage() {
   const soonTotal = soon.reduce((s, u) => s + u.item.amount, 0);
 
   const edit = (r: Recurring) => router.push(`${RECURRING_PATH}/${r.id}`);
-  const add = () => router.push(`${RECURRING_PATH}/new`);
+  // Tiers (flag on): a new recurring item needs Plus, so the tap opens the lock
+  // sheet instead (design/tiers 04). Existing items keep working. Flag off: null.
+  const recurringLock = usePlanLock('recurring');
+  const add = () => {
+    if (recurringLock) { showPlanLock(recurringLock); return; }
+    router.push(`${RECURRING_PATH}/new`);
+  };
 
   async function remove(r: Recurring) {
     setMenu(null);
