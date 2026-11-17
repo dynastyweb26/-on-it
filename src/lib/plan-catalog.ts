@@ -12,6 +12,7 @@
 // Pure: no server-only import, no DB, no React. /api/access serves it to the UI
 // behind NEXT_PUBLIC_TIERS.
 import { entitlementsFor, PLAN_NAMES, type Entitlements, type TierPlan } from './entitlements';
+import type { BillingSource } from './billing-source';
 import { TRIAL_DAYS } from './trial';
 import { FREE_RECAPS } from './recap/quota';
 
@@ -26,6 +27,55 @@ export const PLAN_MONTHLY_CENTS: Record<PaidPlan, number> = { pro: 999, plus: 16
 
 /** The trial every plan starts on (lib/trial.ts owns the number). */
 export const PLAN_TRIAL_DAYS = TRIAL_DAYS;
+
+// ── The Plus retention offer ────────────────────────────────────────────────
+// "50% off the next 2 months" for a Plus user who picks "Too expensive" on the
+// cancel screen (TIERS-SPEC cancel table, design/tiers 07A). The store sets a
+// FIXED promotional price, so this is that price as a catalog value — never
+// 16.99 × 50% computed on a screen: the real price is 8.49 (849 cents), not
+// the 8.495 a screen would have to round, and the store's offer key is what
+// actually charges it. `thenCents` is the price that resumes afterwards.
+export const PLUS_RETENTION_OFFER = {
+  plan: 'plus',
+  percentOff: 50,
+  months: 2,
+  monthlyCents: 849,
+  monthlyUsd: 8.49,
+  thenCents: PLAN_MONTHLY_CENTS.plus,
+  thenUsd: PLAN_MONTHLY_CENTS.plus / 100,
+} as const satisfies {
+  plan: PaidPlan;
+  percentOff: number;
+  months: number;
+  monthlyCents: number;
+  monthlyUsd: number;
+  thenCents: number;
+  thenUsd: number;
+};
+
+// ── Managing a subscription ─────────────────────────────────────────────────
+// Who owns the cancel and card pages. 'portal' is today's Stripe hosted Billing
+// Portal (POST /api/billing-portal — an action, so it has no URL); a store
+// account manages itself on the store's own page.
+export interface ManageSubscription {
+  target: 'portal' | 'app_store' | 'play_store';
+  url: string | null;
+}
+
+export const SUBSCRIPTION_MANAGE: Readonly<Record<BillingSource, ManageSubscription>> = {
+  stripe: { target: 'portal', url: null },
+  app_store: { target: 'app_store', url: 'https://apps.apple.com/account/subscriptions' },
+  play_store: { target: 'play_store', url: 'https://play.google.com/store/account/subscriptions' },
+};
+
+/** The manage link for a profile. An unset source is a Stripe-era profile
+ *  (every subscription made before billing_source existed), so it gets the
+ *  portal; an unknown value never invents a store page. */
+export function manageSubscriptionLink(source: string | null | undefined): ManageSubscription {
+  return source === 'app_store' || source === 'play_store'
+    ? SUBSCRIPTION_MANAGE[source]
+    : SUBSCRIPTION_MANAGE.stripe;
+}
 
 export interface PlanOffer {
   plan: TierPlan;
@@ -144,10 +194,18 @@ export const COMPARISON_ROWS: readonly ComparisonRow[] = ROW_LABELS.map(({ key, 
   plus: rowValueFor(key, limitsForPlan('plus')),
 }));
 
-/** Everything the plan screens need to draw: the offers and the table. */
+/** Everything the plan screens need to draw: the offers and the table, the
+ *  store's fixed retention price, and where Manage subscription goes. */
 export interface PlanCatalog {
   plans: readonly PlanOffer[];
   rows: readonly ComparisonRow[];
+  retentionOffer: typeof PLUS_RETENTION_OFFER;
+  manage: Readonly<Record<BillingSource, ManageSubscription>>;
 }
 
-export const PLAN_CATALOG: PlanCatalog = { plans: PLAN_OFFERS, rows: COMPARISON_ROWS };
+export const PLAN_CATALOG: PlanCatalog = {
+  plans: PLAN_OFFERS,
+  rows: COMPARISON_ROWS,
+  retentionOffer: PLUS_RETENTION_OFFER,
+  manage: SUBSCRIPTION_MANAGE,
+};
