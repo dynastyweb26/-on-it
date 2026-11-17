@@ -10,7 +10,7 @@
 // records the offer; nothing here charges or changes a subscription.
 import { cancelOffersFor, offerEligible, type OfferState } from './offers';
 import type { BillingSource } from '../billing-source';
-import type { TierPlan } from '../entitlements';
+import { entitlementsFor, type TierPlan } from '../entitlements';
 
 export type SwitchProRefusal =
   /** The flag is off: the kind does not exist in this build. */
@@ -54,4 +54,67 @@ export function switchProDecision(input: SwitchProInput): SwitchProDecision {
 
   // 'switch_pro' is only in the list for a Plus user who is eligible.
   return offers.includes('switch_pro') ? { ok: true } : { ok: false, error: 'not_eligible' };
+}
+
+// ── Taking it, end to end (the route's switch_pro path) ─────────────
+// A store-billed Plus plan has no Stripe subscription, so this path never asks
+// for one: the route authenticates and reads the profile, then hands the facts
+// here. The writes are the same two every other offer makes — the one atomic
+// 12-month claim, then the event that records the offer taken.
+
+export type SwitchProProfile = {
+  access_tier: string | null;
+  plan: string | null;
+  billing_source: string | null;
+  subscription_status: string | null;
+  retention_offer_used_at: string | null;
+  cancel_at_period_end: boolean | null;
+  paused_until: string | null;
+};
+
+export type SwitchProResult =
+  | { ok: true }
+  | { ok: false; status: 400 | 409 | 500; error: 'bad_request' | 'not_eligible' | 'failed' };
+
+export type SwitchProDeps = {
+  tiersOn: boolean;
+  profile: SwitchProProfile;
+  now?: Date;
+  /** The one atomic claim (profiles.retention_offer_used_at). */
+  claimWindow: (now: Date) => Promise<'claimed' | 'not_eligible' | 'error'>;
+  /** Append the cancel_events row. Only after a successful claim. */
+  logOffer: () => Promise<void>;
+};
+
+/**
+ * Record the Pro switch as the offer taken. Refusals match the screen's own
+ * table (switchProDecision), so a stale client can never record an offer the
+ * user was not offered; the claim then settles the race with a second request.
+ */
+export async function takeSwitchProOffer(deps: SwitchProDeps): Promise<SwitchProResult> {
+  if (!deps.tiersOn) return { ok: false, status: 400, error: 'bad_request' };
+
+  const p = deps.profile;
+  const now = deps.now ?? new Date();
+  const decision = switchProDecision({
+    plan: entitlementsFor(p.access_tier, p.plan).plan,
+    offer: {
+      status: p.subscription_status ?? 'canceled',
+      cancelAtPeriodEnd: Boolean(p.cancel_at_period_end),
+      paused: Boolean(p.paused_until),
+      retentionOfferUsedAt: p.retention_offer_used_at,
+    },
+    // The real source, never a fixed 'stripe'.
+    billingSource: p.billing_source,
+    now,
+    tiersOn: deps.tiersOn,
+  });
+  if (!decision.ok) return { ok: false, status: 409, error: 'not_eligible' };
+
+  const claim = await deps.claimWindow(now);
+  if (claim === 'not_eligible') return { ok: false, status: 409, error: 'not_eligible' };
+  if (claim === 'error') return { ok: false, status: 500, error: 'failed' };
+
+  await deps.logOffer();
+  return { ok: true };
 }
