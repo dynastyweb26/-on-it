@@ -28,9 +28,21 @@ test('6B paid card: price from planCard, renewal date', () => {
 });
 
 test('6C every case: trial, pending downgrade, founder', () => {
-  assert.deepEqual(planCardView(trial, PLAN_CATALOG, false), { kind: 'trial', title: 'Plus', sub: 'Free trial · ends Nov 29', then: `Then ${usd(plus.monthlyCents!)}/mo.` });
+  assert.deepEqual(planCardView(trial, PLAN_CATALOG, false), {
+    kind: 'trial', title: 'Plus', sub: 'Free trial · ends Nov 29',
+    // The reminder date is planCard's trialReminderAt (the real email), never computed here.
+    then: `Then ${usd(plus.monthlyCents!)}/mo. Reminder on ${shortDate(trial.trialReminderAt)}.`,
+  });
   assert.deepEqual(planCardView(pending, PLAN_CATALOG, false), { kind: 'pending', title: 'Plus until Dec 15, then Pro' });
   assert.deepEqual(planCardView(founder, PLAN_CATALOG, false), { kind: 'founder', title: 'Founder', sub: `${plus.name}, free forever` });
+});
+
+test('trial: the reminder line follows planCard, and a trial has no button (6C)', () => {
+  assert.ok(trial.trialReminderAt, 'planCard sends the reminder date');
+  assert.equal((planCardView({ ...trial, trialReminderAt: 'whatever' as string }, PLAN_CATALOG, false) as { then: string }).then,
+    `Then ${usd(plus.monthlyCents!)}/mo.`, 'an unreadable date drops the clause, it is never worked out');
+  assert.equal((planCardView({ ...trial, trialReminderAt: null }, PLAN_CATALOG, false) as { then: string }).then, `Then ${usd(plus.monthlyCents!)}/mo.`);
+  assert.equal(planAction(trial, PLAN_CATALOG), null);
 });
 
 test('usage: free sees every cap; a full doc row says the next plan has none', () => {

@@ -42,11 +42,18 @@ export function planCardView(card: PlanCard, catalog: PlanCatalog | null | undef
     return { kind: 'pending', title: `${card.name} until ${shortDate(card.pendingChangeAt)}, then ${to}` };
   }
   if (card.trialEndsAt) {
+    // "Then $16.99/mo. Reminder on Nov 26." The reminder date is planCard's
+    // (the real trial email), never worked out here; no date, no clause.
+    const remind = shortDate(card.trialReminderAt);
+    const then = [
+      card.priceCents != null ? `Then ${usd(card.priceCents)}/mo.` : null,
+      remind ? `Reminder on ${remind}.` : null,
+    ].filter(Boolean).join(' ');
     return {
       kind: 'trial',
       title: card.name,
       sub: `Free trial · ends ${shortDate(card.trialEndsAt)}`,
-      then: card.priceCents != null ? `Then ${usd(card.priceCents)}/mo.` : null,
+      then: then || null,
     };
   }
   const renews = shortDate(card.renewalAt);

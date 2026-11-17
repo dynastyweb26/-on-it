@@ -52,7 +52,7 @@ type PlanRow = [string, PlanCardInput, UsageInput, 'idle' | 'busy' | 'error', st
 const PLANS: PlanRow[] = [
   ['plan-free', { tier: 'free', plan: 'free' }, FREE_USAGE, 'idle', '6A free'],
   ['plan-pro', { tier: 'active', plan: 'pro', currentPeriodEnd: RENEW, billingSource: 'app_store' }, { aiUsedToday: 12, aiLimit: 30 }, 'idle', '6B pro'],
-  ['plan-trial', { tier: 'trialing', plan: 'plus', trialEndsAt: '2026-11-29T12:00:00Z' }, { aiUsedToday: 4, aiLimit: 100 }, 'idle', '6C trial'],
+  ['plan-trial', { tier: 'trialing', plan: 'plus', trialEndsAt: '2026-11-29T12:00:00Z' }, { aiUsedToday: 4, aiLimit: 100 }, 'idle', '6C trial · reminder date from planCard, no button'],
   ['plan-plus', { tier: 'active', plan: 'plus', currentPeriodEnd: RENEW, billingSource: 'app_store' }, { aiUsedToday: 40, aiLimit: 100 }, 'idle', '6C plus'],
   ['plan-pending', { tier: 'active', plan: 'plus', currentPeriodEnd: RENEW, planChangeTo: 'pro', planChangeAt: RENEW, billingSource: 'app_store' }, { aiUsedToday: 40, aiLimit: 100 }, 'idle', '6C pending downgrade · keep plus undoes it'],
   ['plan-founder', { tier: 'founder', plan: 'plus' }, { aiUsedToday: 9, aiLimit: 100 }, 'idle', '6C founder · no actions, no manage link'],
