@@ -1101,6 +1101,22 @@ results(id, ok, expected, actual) as (
     and conname in ('cancel_events_kind_chk', 'cancel_events_reason_chk', 'cancel_events_detail_len',
                     'cancel_events_months_chk', 'cancel_events_platform_chk')
   union all
+  -- Z5. Cancel offers (20261117120000). The kind check gains the Pro switch:
+  --     a constraint CHANGE on an existing column, so it lands from main only.
+  --     SKIP until pushed. ACL and policies are Z1-Z4 and do not change.
+  select 'Z5 cancel_events kind offers',
+    case when not exists (select 1 from applied where version = '20261117120000') then null
+      else coalesce((select pg_get_constraintdef(c.oid) ilike '%offer_switch_pro%'
+                       from pg_constraint c
+                      where c.conrelid = coalesce(to_regclass('public.cancel_events'), 0::oid)
+                        and c.conname = 'cancel_events_kind_chk'), false) end,
+    'kind check allows the Pro switch offer',
+    case when not exists (select 1 from applied where version = '20261117120000') then 'not applied yet'
+      else coalesce((select pg_get_constraintdef(c.oid)
+                       from pg_constraint c
+                      where c.conrelid = coalesce(to_regclass('public.cancel_events'), 0::oid)
+                        and c.conname = 'cancel_events_kind_chk'), 'missing') end
+  union all
   -- AA. Feedback (20261017000000). SKIP until pushed. feedback is written only by the
   --     service role (/api/feedback); clients read their own rows.
   select 'AA1 feedback RLS',
