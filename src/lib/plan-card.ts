@@ -9,6 +9,7 @@
 import { PLAN_NAMES, type PlanLabel, type TierPlan } from './entitlements';
 import { PLAN_MONTHLY_CENTS, manageSubscriptionLink, type ManageSubscription, type PaidPlan } from './plan-catalog';
 import { isLiveTier } from './billing-source';
+import { TRIAL_REMINDER_DAYS } from './trial';
 
 export interface PlanCard {
   /** The plan the account is on right now (free when nothing is live). */
@@ -20,6 +21,10 @@ export interface PlanCard {
   priceCents: number | null;
   /** When the trial ends (trialing only), else null. */
   trialEndsAt: string | null;
+  /** When the trial reminder goes out: trial end minus TRIAL_REMINDER_DAYS, the
+   *  same constant the reminder email cron uses, so the card can't promise a
+   *  different day than the email arrives. Null outside a trial. */
+  trialReminderAt: string | null;
   /** When the paid period renews, else null. */
   renewalAt: string | null;
   /** A downgrade waiting for renewal ("Plus until …, then Pro"), else null. */
@@ -63,12 +68,20 @@ export function planCardFor(input: PlanCardInput): PlanCard {
   const pendingChangeAt = pendingChangeTo ? input.planChangeAt ?? null : null;
   const paid = live && !founder && isPaidPlan(plan);
 
+  const trialing = live && input.tier === 'trialing';
+  const trialEndsAt = trialing ? input.trialEndsAt ?? input.currentPeriodEnd ?? null : null;
+  const trialEndMs = trialEndsAt ? Date.parse(trialEndsAt) : NaN;
+  const trialReminderAt = Number.isFinite(trialEndMs)
+    ? new Date(trialEndMs - TRIAL_REMINDER_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    : null;
+
   return {
     plan,
     name: founder ? 'Founder' : PLAN_NAMES[plan],
     founder,
     priceCents: paid ? PLAN_MONTHLY_CENTS[plan] : null,
-    trialEndsAt: live && input.tier === 'trialing' ? input.trialEndsAt ?? input.currentPeriodEnd ?? null : null,
+    trialEndsAt,
+    trialReminderAt,
     renewalAt: live ? input.currentPeriodEnd ?? null : null,
     pendingChangeTo,
     pendingChangeAt,
@@ -77,7 +90,9 @@ export function planCardFor(input: PlanCardInput): PlanCard {
     // A pending downgrade is undone with "Keep Plus", so the upgrade is not
     // offered beside it (board 06C).
     canUpgradeToPlus: paid && plan === 'pro' && pendingChangeTo === null,
-    canSwitchToPro: paid && plan === 'plus' && pendingChangeTo === null,
+    // Not during a trial: design/tiers 06 (6C) draws the trial card with no
+    // action. The store's manage page is still there for a change of mind.
+    canSwitchToPro: paid && plan === 'plus' && pendingChangeTo === null && !trialing,
     canKeepPlus: paid && plan === 'plus' && pendingChangeTo === 'pro',
     canRestore: !founder,
   };

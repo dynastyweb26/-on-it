@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { TRIAL_REMINDER_DAYS } from './trial';
 
 import { planCardFor } from './plan-card';
 
@@ -39,8 +40,20 @@ test('plan card: Plus trial — trial end and the store’s manage page', () => 
   assert.equal(card.renewalAt, TRIAL_END);
   assert.equal(card.billingSource, 'app_store');
   assert.deepEqual(card.manage, { target: 'app_store', url: 'https://apps.apple.com/account/subscriptions' });
-  assert.equal(card.canSwitchToPro, true);
+  // design/tiers 06 (6C): the trial card has no action, so no switch in a trial.
+  assert.equal(card.canSwitchToPro, false);
   assert.equal(card.canUpgradeToPlus, false);
+  // The reminder date is trial end minus the cron's own TRIAL_REMINDER_DAYS.
+  assert.equal(
+    Date.parse(card.trialEndsAt!) - Date.parse(card.trialReminderAt!),
+    TRIAL_REMINDER_DAYS * 24 * 60 * 60 * 1000,
+  );
+});
+
+test('plan card: a paid Plus plan (after the trial) can switch to Pro, and has no reminder', () => {
+  const card = planCardFor({ tier: 'active', plan: 'plus', currentPeriodEnd: TRIAL_END, billingSource: 'app_store' });
+  assert.equal(card.canSwitchToPro, true);
+  assert.equal(card.trialReminderAt, null);
 });
 
 test('plan card: a pending downgrade says Plus until …, then Pro, with Keep Plus', () => {
