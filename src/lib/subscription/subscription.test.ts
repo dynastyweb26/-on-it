@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { accessEndsISO, PAUSE_FROM_KEY, pauseStartsAt, planFromTier, profileFieldsFor, tierForSubscription, tierFromStatus } from './state';
-import { addMonthsClamped, nextRenewal, offerAllowed, offerEligible, offerFor, OFFER_WINDOW_MS, pauseResumesAt, pickRetentionCoupon, type OfferState } from './offers';
+import { addMonthsClamped, canPause, cancelOffersFor, nextRenewal, offerAllowed, offerEligible, offerFor, OFFER_WINDOW_MS, pauseResumesAt, pickRetentionCoupon, type OfferState } from './offers';
 import { averageDaysToPaid, statTiles } from './stats';
 import { cleanDetail, isCancelReason } from './reasons';
 import { discountLine, endsWithPlanLine, freePlanAfterLine, offerNotice, pausedLine, pauseOfferLine } from './copy';
@@ -313,4 +313,76 @@ test('coupon: anchor on the 29th, leap and non-leap February', () => {
 
 test('coupon: trial (anchor = trial end) mid-trial → x2', () => {
   assert.equal(pick('2026-10-16T12:00:00Z', '2026-10-30T12:00:00Z', '2026-10-30T12:00:00Z'), 'x2');
+});
+
+// ── Cancel offers, two plans (TIERS-SPEC table) ────────────────────
+
+const PRO = { plan: 'pro', trialing: false, billingSource: 'stripe', eligible: true } as const;
+const PLUS = { plan: 'plus', trialing: false, billingSource: 'stripe', eligible: true } as const;
+
+test('cancel offers: Pro keeps today’s table exactly', () => {
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: 'price' }), ['discount']);
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: 'seasonal' }), ['pause']);
+  for (const reason of ['feature', 'switching', 'other'] as const) {
+    assert.deepEqual(cancelOffersFor({ ...PRO, reason }), [], reason);
+  }
+  assert.equal(offerFor('price', 'active', true), 'discount');
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: 'price' }), [offerFor('price', 'active', true)]);
+});
+
+test('cancel offers: Plus + "Too expensive" picks one of the Pro switch or 50% off', () => {
+  assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'price' }), ['switch_pro', 'discount']);
+  // The switch is the preselected one (design/tiers 07A).
+  assert.equal(cancelOffersFor({ ...PLUS, reason: 'price' })[0], 'switch_pro');
+  // During a trial the discount still lands after it, so both stand.
+  assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'price', trialing: true }), ['switch_pro', 'discount']);
+  // Any billing source: this is a plan change inside the store's group too.
+  for (const billingSource of ['stripe', 'app_store', 'play_store'] as const) {
+    assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'price', billingSource }), ['switch_pro', 'discount'], billingSource);
+  }
+});
+
+test('cancel offers: pause only where the billing source supports it', () => {
+  assert.equal(canPause('stripe'), true);
+  assert.equal(canPause('play_store'), true);
+  assert.equal(canPause('app_store'), false);
+  assert.equal(canPause(null), true);
+
+  assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'seasonal', billingSource: 'play_store' }), ['pause']);
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: 'seasonal', billingSource: 'play_store' }), ['pause']);
+  // iOS has no pause: that reason offers the Pro switch instead (Plus only).
+  assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'seasonal', billingSource: 'app_store' }), ['switch_pro']);
+  // Pro has nothing lower to switch to, so a Pro user on iOS gets no offer.
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: 'seasonal', billingSource: 'app_store' }), []);
+});
+
+test('cancel offers: no pause during a trial, no offer on Free or once used', () => {
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: 'seasonal', trialing: true }), []);
+  assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'seasonal', trialing: true }), []);
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: 'price', eligible: false }), []);
+  assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'price', eligible: false }), []);
+  assert.deepEqual(cancelOffersFor({ plan: 'free', reason: 'price', trialing: false, billingSource: 'stripe', eligible: true }), []);
+  assert.deepEqual(cancelOffersFor({ ...PRO, reason: null }), []);
+});
+
+test('cancel offers: one offer per 12 months gates every kind', () => {
+  // The 12-month window is offerEligible: every kind above reads it, so taking
+  // the Pro switch spends the same window as a discount or a pause.
+  const used = new Date(NOW.getTime() - OFFER_WINDOW_MS + 60_000).toISOString();
+  const state = { status: 'active', cancelAtPeriodEnd: false, paused: false, retentionOfferUsedAt: used };
+  const eligible = offerEligible(state, NOW);
+  assert.equal(eligible, false);
+  for (const reason of ['price', 'seasonal'] as const) {
+    for (const plan of ['pro', 'plus'] as const) {
+      assert.deepEqual(
+        cancelOffersFor({ plan, reason, trialing: false, billingSource: 'stripe', eligible }),
+        [],
+        `${plan}/${reason}`,
+      );
+    }
+  }
+  // Once the window has passed the same user is eligible again.
+  const later = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
+  assert.equal(offerEligible(state, later), true);
+  assert.deepEqual(cancelOffersFor({ ...PLUS, reason: 'price', eligible: true }), ['switch_pro', 'discount']);
 });

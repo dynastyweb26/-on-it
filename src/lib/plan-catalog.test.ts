@@ -12,7 +12,10 @@ import {
   PLAN_NAMES,
   PLAN_OFFERS,
   PLAN_TRIAL_DAYS,
+  PLUS_RETENTION_OFFER,
+  SUBSCRIPTION_MANAGE,
   limitsForPlan,
+  manageSubscriptionLink,
   rowValueFor,
   type RowKey,
 } from './plan-catalog';
@@ -117,4 +120,30 @@ test('catalog: one row per feature, in display order, no duplicates', () => {
 test('catalog: the UI reads the same table the test proves', () => {
   assert.deepEqual(PLAN_CATALOG.plans, PLAN_OFFERS);
   assert.deepEqual(PLAN_CATALOG.rows, COMPARISON_ROWS);
+});
+
+test('catalog: the Plus retention offer is a fixed catalog price, not computed', () => {
+  assert.equal(PLUS_RETENTION_OFFER.plan, 'plus');
+  assert.equal(PLUS_RETENTION_OFFER.percentOff, 50);
+  assert.equal(PLUS_RETENTION_OFFER.months, 2);
+  // The store's own offer price. 16.99 × 50% is 849.5: the real price is 8.49,
+  // and no screen is allowed to round that itself.
+  assert.equal(PLUS_RETENTION_OFFER.monthlyCents, 849);
+  assert.equal(PLUS_RETENTION_OFFER.monthlyUsd, 8.49);
+  assert.equal(PLUS_RETENTION_OFFER.thenCents, PLAN_MONTHLY_CENTS.plus);
+  assert.equal(PLUS_RETENTION_OFFER.monthlyCents * 2, 1698, 'the fixed price is not exactly half of 1699');
+  assert.equal(PLAN_CATALOG.retentionOffer, PLUS_RETENTION_OFFER);
+});
+
+test('catalog: the manage link per billing source (stripe is today’s portal)', () => {
+  assert.deepEqual(manageSubscriptionLink('stripe'), { target: 'portal', url: null });
+  assert.equal(manageSubscriptionLink('app_store').target, 'app_store');
+  assert.equal(manageSubscriptionLink('app_store').url, 'https://apps.apple.com/account/subscriptions');
+  assert.equal(manageSubscriptionLink('play_store').target, 'play_store');
+  assert.equal(manageSubscriptionLink('play_store').url, 'https://play.google.com/store/account/subscriptions');
+  // A Stripe-era profile (no source yet) manages on the web; an unknown value
+  // never invents a store page.
+  assert.deepEqual(manageSubscriptionLink(null), { target: 'portal', url: null });
+  assert.deepEqual(manageSubscriptionLink('bogus'), { target: 'portal', url: null });
+  assert.deepEqual(PLAN_CATALOG.manage, SUBSCRIPTION_MANAGE);
 });

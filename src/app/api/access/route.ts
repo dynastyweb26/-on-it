@@ -14,6 +14,7 @@ import { aiLimitWindow } from '@/lib/ai-limit';
 import { rateLimit, rateIdentifier } from '@/lib/ratelimit';
 import { trialEligible } from '@/lib/trial';
 import { PLAN_CATALOG } from '@/lib/plan-catalog';
+import { planCardFor } from '@/lib/plan-card';
 import { subscriptionsEnabled } from '@/lib/subscriptions';
 
 const MEASURE = process.env.VERCEL_ENV === 'preview';
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
   const h0 = performance.now();
   const [access, { data: profile }, { data: billing }] = await Promise.all([
     hasAccess(user.id, timing),
-    step('trialProfile', supabase.from('profiles').select('trial_ends_at, subscription_status, timezone').eq('id', user.id).maybeSingle()),
+    step('trialProfile', supabase.from('profiles').select('trial_ends_at, subscription_status, timezone, current_period_end').eq('id', user.id).maybeSingle()),
     // The store-billing facts (RevenueCat, phase 5a). Its own query on purpose:
     // on a database before the migration these columns don't exist, this one
     // select fails alone, and all three read as null — nothing above changes.
@@ -90,6 +91,19 @@ export async function GET(req: NextRequest) {
         // The plan screens' one source: display names, prices, trial length and
         // the Free / Pro / Plus comparison rows (lib/plan-catalog).
         planCatalog: PLAN_CATALOG,
+        // Settings > Plan as data (design/tiers 06): the plan, its catalog
+        // price, the renewal or trial end, a pending change, who bills it and
+        // the founder case — decided in lib/plan-card, so the card renders and
+        // computes nothing.
+        planCard: planCardFor({
+          tier: access.tier,
+          plan: access.entitlements.plan,
+          billingSource: text(billing?.billing_source),
+          trialEndsAt: profile?.trial_ends_at ?? null,
+          currentPeriodEnd: profile?.current_period_end ?? null,
+          planChangeTo: text(billing?.plan_change_to),
+          planChangeAt: text(billing?.plan_change_at),
+        }),
       }
       : {}),
   });
