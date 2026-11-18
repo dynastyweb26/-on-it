@@ -19,7 +19,8 @@ const csp = [
   // Stripe.js (July 17 paywall) calls api.stripe.com and posts telemetry to
   // r./m.stripe.com — all XHR/fetch, so they must be in connect-src, not just
   // script-src/frame-src. Without these, Stripe.js fails silently in-browser.
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com https://m.stripe.com`,
+  // PostHog (product analytics): US ingest + its config/asset host.
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com https://m.stripe.com https://us.i.posthog.com https://us-assets.i.posthog.com`,
   `frame-src https://js.stripe.com https://*.stripe.com https://cdn.plaid.com`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,

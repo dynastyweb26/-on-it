@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import { Caveat, IBM_Plex_Mono } from 'next/font/google';
 import Splash from '@/components/Splash';
 import KeyboardAvoider from '@/components/KeyboardAvoider';
+import PostHogInit from '@/components/PostHogInit';
 import launchScreens from '@/lib/launch-screens.json';
 import './globals.css';
 
@@ -176,6 +177,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Splash />
         <KeyboardAvoider />
+        <PostHogInit />
         {children}
       </body>
     </html>
