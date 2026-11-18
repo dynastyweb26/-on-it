@@ -1,0 +1,49 @@
+/* Cancel flow, two-plan additions (07): design/tiers/Tiers_2_Locks_Plan_Cancel.dc.html.
+   Every value is the board's own. */
+@keyframes pc-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pc-spin { to { transform: rotate(360deg); } }
+
+.pc-step {
+  display: flex; flex-direction: column; min-height: 100%;
+  font-family: var(--font-inter), Inter, sans-serif; color: #1d1914; line-height: normal;
+  animation: pc-in 280ms cubic-bezier(.2, .8, .2, 1) both;
+}
+.pc-back { width: 48px; height: 48px; margin: 4px 8px 8px; border: 0; background: none; color: #1d1914; display: flex; align-items: center; justify-content: center; border-radius: 999px; cursor: pointer; }
+.pc-body { flex: 1; padding: 0 20px; display: flex; flex-direction: column; gap: 14px; }
+.pc-title { margin: 0; font: 800 26px/1.15 var(--font-montserrat), Montserrat, sans-serif; }
+.pc-sub { margin: 0; font: 400 14.5px/1.5 var(--font-inter), Inter, sans-serif; color: #4f473d; }
+.pc-cards { display: flex; flex-direction: column; gap: 14px; transition: opacity 200ms ease; }
+.pc-cards.is-frozen { opacity: .55; pointer-events: none; }
+.pc-card, .pc-seasonal {
+  text-align: left; color: #1d1914; border-radius: 20px; background: #fff; padding: 16px;
+  display: flex; flex-direction: column; gap: 6px; border: 2px solid #eadfcc;
+  transition: border-color 180ms ease-out, box-shadow 180ms ease-out;
+}
+.pc-card { cursor: pointer; }
+.pc-card.is-on, .pc-seasonal { border-color: #d4af37; box-shadow: 0 0 0 4px rgba(212, 175, 55, .22); }
+.pc-card:focus-visible { outline: 2px solid #735c00; outline-offset: 2px; }
+.pc-card-top { display: flex; justify-content: space-between; align-items: center; }
+.pc-seasonal-top { display: flex; align-items: center; gap: 10px; }
+.pc-card-title { font: 700 16px var(--font-inter), Inter, sans-serif; }
+.pc-radio { color: #b5a993; }
+.pc-card.is-on .pc-radio, .pc-radio.is-on { color: #735c00; }
+.pc-price { font: 800 24px var(--font-montserrat), Montserrat, sans-serif; }
+.pc-per { font: 500 13px var(--font-inter), Inter, sans-serif; color: #6b6257; }
+.pc-card-body { font: 400 13px/1.45 var(--font-inter), Inter, sans-serif; color: #4f473d; }
+.pc-actions { padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 4px; }
+.pc-gold {
+  height: 56px; border: 0; border-radius: 999px; background: #d4af37; color: #1d1914; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 10px; font: 700 16px var(--font-montserrat), Montserrat, sans-serif;
+}
+.pc-gold.is-pending { opacity: .8; cursor: default; }
+.pc-spin { width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; border: 2.5px solid rgba(29, 25, 20, .25); border-top-color: #1d1914; animation: pc-spin .8s linear infinite; }
+.pc-later { height: 56px; border: 0; background: none; cursor: pointer; font: 600 15px var(--font-inter), Inter, sans-serif; color: #4f473d; }
+.pc-later:disabled { color: #b5a993; cursor: default; }
+.pc-gold:focus-visible, .pc-later:focus-visible, .pc-back:focus-visible { outline: 2px solid #735c00; outline-offset: 2px; }
+.pc-err { display: flex; gap: 10px; align-items: flex-start; background: #fbe6dc; border: 1px solid #f0c7b5; border-radius: 14px; padding: 10px 12px; margin-bottom: 4px; font: 500 13px/1.4 var(--font-inter), Inter, sans-serif; color: #7d2c0f; }
+.pc-err .material-symbols-outlined { color: #a63d17; flex-shrink: 0; }
+.pc-done { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 48px 20px; text-align: center; }
+.pc-done-icon { width: 64px; height: 64px; border-radius: 32px; background: #d4af37; color: #1d1914; display: flex; align-items: center; justify-content: center; }
+.pc-done-text { font: 800 22px/1.25 var(--font-montserrat), Montserrat, sans-serif; }
+
+@media (prefers-reduced-motion: reduce) { .pc-step { animation: none; } .pc-card, .pc-cards { transition: none; } }
