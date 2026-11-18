@@ -72,6 +72,9 @@ export type RecapInput = {
 };
 
 // ── Output (stored as recaps.payload) ────────────────────────────────
+/** One direction of bank activity: how many bank rows, and their money total. */
+export type RecapBankMoney = { count: number; total: number };
+
 export type RecapInvoiceItem = { client: string; amount: number; status: 'viewed' | 'sent' | 'paid'; date: string };
 
 export type RecapPayload = {
@@ -84,6 +87,16 @@ export type RecapPayload = {
    *  tab cannot disagree: invoice payments + the other_income rows Books counts.
    *  Optional on read: payloads stored before the redesign do not have it. */
   collected?: RecapCollected;
+  /** Bank activity for this period, from the viewer's own connected bank(s):
+   *  money in (deposits) and money out (charges), counts + totals. Composed per
+   *  viewer on the server under RLS when the story opens (lib/recap/bank-server)
+   *  — never stored by the cron — and absent unless the viewer's plan includes
+   *  bank activity and a bank is connected. Optional on read: an old payload,
+   *  or one opened by a viewer without bank activity, simply has none. */
+  bank?: { in: RecapBankMoney; out: RecapBankMoney };
+  /** What the bank still has waiting on the owner: the pinned "Unaccounted
+   *  for" row's set (open charges), count + total. Same gating as `bank`. */
+  waiting?: RecapBankMoney;
   spend: {
     total: number;
     count: number;
@@ -510,7 +523,9 @@ export function recapSequence(p: RecapPayload): RecapSlide[] {
 }
 
 /** The redesign's slide order (design keys(), RULES 9–12). 'bank' and 'waiting'
- *  are deliberately absent: they wait for the tiers work (RULE 7). */
+ *  are not in the order yet: their payload fields (`bank`, `waiting`) are
+ *  composed per viewer, and the slide UI is Claude Code's, from
+ *  design/recaps/RecapPlayer.dc.html 07 and 08. */
 export type RedesignSlide =
   | 'opener' | 'glance' | 'in' | 'out' | 'kept' | 'inv' | 'client' | 'free' | 'aff' | 'quiet';
 
