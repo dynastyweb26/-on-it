@@ -4,7 +4,7 @@
 //   bank_auto_count       auto      of those, records a bank row produced
 //   bank_auto_in_count    autoIn    of those payments / other income
 //   bank_auto_out_count   autoOut   of those expenses
-//   bank name             name      the connected institution with most activity
+//   bank name · last4     name      the busiest institution + account ("Chase ···· 4821")
 //   bank_pending_count    pending   still unaccounted for (money in and out)
 //   pending_txn_name/date items     the newest few, for slide 08's list
 //   "+N more"             more      the rest of the pending rows
@@ -32,6 +32,7 @@ export const PENDING_MAX = 3;
 export type RecapBankDepositRow = {
   id: string;
   item_id?: string | null;
+  account_id?: string | null;
   name: string | null;
   merchant_name: string | null;
   occurred_on: string;
@@ -42,6 +43,7 @@ export type RecapBankDepositRow = {
 export type RecapBankTxnRow = {
   id: string;
   item_id?: string | null;
+  account_id?: string | null;
   merchant: string | null;
   description: string;
   occurred_on: string;
@@ -52,6 +54,39 @@ export type RecapBankTxnRow = {
 
 /** A linked bank login: the slide names one institution. */
 export type RecapBankItemRow = { id: string; institution_name: string | null };
+
+/** A bank account under a login: its last digits print beside the bank name
+ *  ("Chase ···· 4821", bank_last4). */
+export type RecapBankAccountRow = { id: string; item_id: string; mask: string | null };
+
+/** The last four digits of a Plaid mask, or null when it has none. */
+export function last4(mask: string | null | undefined): string | null {
+  const digits = String(mask ?? '').replace(/\D/g, '');
+  return digits.length >= 2 ? digits.slice(-4) : null;
+}
+
+/** Slide 07's bank line: the busiest institution, then the busiest account
+ *  under it with its last four digits ("Chase ···· 4821"). No digits on file:
+ *  the institution alone. */
+export function busiestBankLabel(
+  items: readonly RecapBankItemRow[],
+  accounts: readonly RecapBankAccountRow[],
+  periodDeposits: readonly RecapBankDepositRow[],
+  periodTransactions: readonly RecapBankTxnRow[],
+): string {
+  const name = busiestBankName(items, periodDeposits, periodTransactions);
+  const item = items.find((i) => (cleanName(i.institution_name) || 'Bank account') === name);
+  if (!item) return name;
+  const counts = new Map<string, number>();
+  for (const row of [...periodDeposits, ...periodTransactions]) {
+    if (row.account_id) counts.set(row.account_id, (counts.get(row.account_id) ?? 0) + 1);
+  }
+  const best = accounts
+    .filter((a) => a.item_id === item.id && last4(a.mask))
+    .sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.id.localeCompare(b.id))[0];
+  const digits = best ? last4(best.mask) : null;
+  return digits ? `${name} ···· ${digits}` : name;
+}
 
 /** A decision row on a deposit (bank_deposit_links.kind). */
 export type RecapBankDepositLinkRow = { deposit_id: string; kind: string };
@@ -135,6 +170,8 @@ export type RecapBankInput = {
   recordedIn: number;
   recordedOut: number;
   items: readonly RecapBankItemRow[];
+  /** The logins' accounts, for the last four digits (optional: none = name only). */
+  accounts?: readonly RecapBankAccountRow[];
   /** Deposits and charges that may belong to the period. */
   periodDeposits: readonly RecapBankDepositRow[];
   periodTransactions: readonly RecapBankTxnRow[];
@@ -204,7 +241,7 @@ export function recapBankFields(input: RecapBankInput): RecapBankFields {
     auto: autoIn + autoOut,
     autoIn,
     autoOut,
-    name: busiestBankName(input.items, periodDeposits, periodTransactions),
+    name: busiestBankLabel(input.items, input.accounts ?? [], periodDeposits, periodTransactions),
     pending: pending.length,
     items,
     more: pending.length - items.length,

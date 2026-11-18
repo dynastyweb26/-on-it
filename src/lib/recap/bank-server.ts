@@ -12,14 +12,15 @@ import {
   type RecapBankDepositRow,
   type RecapBankFields,
   type RecapBankItemRow,
+  type RecapBankAccountRow,
   type RecapBankTxnRow,
 } from './bank';
 import type { RecapPeriod } from './dates';
 
 /** The only columns these slides need: no Plaid id, token or cursor, and no
  *  amounts — the design prints counts, never money. */
-export const RECAP_DEPOSIT_COLS = 'id, item_id, name, merchant_name, occurred_on, removed_at';
-export const RECAP_TXN_COLS = 'id, item_id, merchant, description, occurred_on, bank_state, review_state, removed_at';
+export const RECAP_DEPOSIT_COLS = 'id, item_id, account_id, name, merchant_name, occurred_on, removed_at';
+export const RECAP_TXN_COLS = 'id, item_id, account_id, merchant, description, occurred_on, bank_state, review_state, removed_at';
 export const RECAP_PENDING_DEPOSIT_COLS = 'id, name, merchant_name, occurred_on, removed_at';
 
 /** The period's own record counts, straight from the stored payload: money in
@@ -60,7 +61,7 @@ export async function loadRecapBank(
   const items = (itemRows ?? []) as unknown as RecapBankItemRow[];
   if (!items.length) return {};
 
-  const [periodDeposits, openDeposits, periodTxns, openTxns, links, income] = await Promise.all([
+  const [periodDeposits, openDeposits, periodTxns, openTxns, links, income, accounts] = await Promise.all([
     // Money in the bank picked up in the period.
     supabase
       .from('bank_deposits')
@@ -104,9 +105,14 @@ export async function loadRecapBank(
       .eq('user_id', userId)
       .is('deleted_at', null)
       .not('deposit_id', 'is', null),
+    // The accounts' last digits only (mask): the slide prints "Chase ···· 4821".
+    supabase
+      .from('plaid_accounts')
+      .select('id, item_id, mask')
+      .eq('user_id', userId),
   ]);
   const failed = periodDeposits.error ?? openDeposits.error ?? periodTxns.error
-    ?? openTxns.error ?? links.error ?? income.error;
+    ?? openTxns.error ?? links.error ?? income.error ?? accounts.error;
   if (failed) {
     console.error('[recap] bank rows read failed', failed.code ?? failed.message);
     return {};
@@ -119,6 +125,7 @@ export async function loadRecapBank(
     recordedIn: recorded.in,
     recordedOut: recorded.out,
     items,
+    accounts: (accounts.data ?? []) as unknown as RecapBankAccountRow[],
     periodDeposits: (periodDeposits.data ?? []) as unknown as RecapBankDepositRow[],
     periodTransactions: (periodTxns.data ?? []) as unknown as RecapBankTxnRow[],
     openDeposits: (openDeposits.data ?? []) as unknown as RecapBankDepositRow[],
