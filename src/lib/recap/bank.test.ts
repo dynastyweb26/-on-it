@@ -241,3 +241,19 @@ test('the bank fields are composed through RLS only — no service role anywhere
   // The one client is the viewer's own session client (cookie auth → RLS).
   assert.match(route, /from '@\/lib\/supabase\/server'/);
 });
+
+test('bank_last4: the busiest account under the busiest bank prints its last four digits', async () => {
+  const { busiestBankLabel, last4 } = await import('./bank');
+  const items = [{ id: 'a', institution_name: 'Chase' }];
+  const accounts = [
+    { id: 'acc1', item_id: 'a', mask: '0001' },
+    { id: 'acc2', item_id: 'a', mask: '4821' },
+  ];
+  const dep = (id: string, account_id: string) => ({ id, item_id: 'a', account_id, name: null, merchant_name: null, occurred_on: '2026-09-23' });
+  assert.equal(busiestBankLabel(items, accounts, [dep('d1', 'acc2'), dep('d2', 'acc2'), dep('d3', 'acc1')], []), 'Chase ···· 4821');
+  // No digits on file: the institution alone, never a blank mask.
+  assert.equal(busiestBankLabel(items, [{ id: 'acc1', item_id: 'a', mask: null }], [dep('d1', 'acc1')], []), 'Chase');
+  assert.equal(busiestBankLabel(items, [], [], []), 'Chase');
+  assert.equal(last4('xxxx4821'), '4821');
+  assert.equal(last4(''), null);
+});
