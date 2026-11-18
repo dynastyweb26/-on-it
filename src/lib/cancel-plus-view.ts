@@ -89,3 +89,24 @@ export function seasonalSwitchCard(catalog: PlanCatalog | null | undefined, rene
     body: `${usd(pro.monthlyCents)}/mo${from ? ` from ${from}` : ''}. Move back to ${plus.name} any time, it opens right away.`,
   };
 }
+
+// ── Web, store-billed Plus ─────────────────────────────────────────────────
+// A Plus subscription is always a store one (App Store / Google Play). On the
+// web neither offer can be taken: the 50% is a store promotional offer and the
+// Pro switch is a store product change (purchases answers store_only). So the
+// web shows where to manage the plan instead; a native build keeps 7A.
+
+export interface StoreManage { store: 'App Store' | 'Google Play'; url: string; line: string }
+
+export function storeManageFor(
+  billingSource: string | null | undefined,
+  native: boolean,
+  catalog: PlanCatalog | null | undefined,
+): StoreManage | null {
+  if (native) return null;
+  if (billingSource !== 'app_store' && billingSource !== 'play_store') return null;
+  const url = catalog?.manage?.[billingSource]?.url;
+  if (!url) return null;
+  const store = billingSource === 'app_store' ? 'App Store' : 'Google Play';
+  return { store, url, line: store === 'App Store' ? 'Manage your plan in the App Store' : 'Manage your plan in Google Play' };
+}

@@ -35,3 +35,12 @@ test('the 7A step: pending freezes the cards and disables Cancel anyway; a ref i
 test('no price or plan name typed in the step (the 50% price is the catalog’s)', () => {
   assert.doesNotMatch(step, /\$\d|['"](Pro|Plus)['"]|\b(50|8\.49|16\.99)\b/);
 });
+
+test('web, store-billed Plus: 7A shows no offers and no Switch to Pro, only where to manage it; 7B too', () => {
+  assert.match(screen, /const storeManage = plusCtx \? storeManageFor\(plusCtx\.billingSource, purchases\.source === 'native', plusCtx\.catalog\) : null;/);
+  assert.match(screen, /storeManage=\{storeManage\}/);
+  assert.match(screen, /\{storeManage \? <StoreManageCard manage=\{storeManage\} \/> : \(/);
+  const branch = step.slice(step.indexOf('if (storeManage) {'), step.indexOf('return (\n    <div className="pc-step" data-plus-cancel={state}>'));
+  assert.ok(branch.length > 0);
+  assert.doesNotMatch(branch, /pc-cards|plusOfferCta|onTake/, 'no offer cards, no CTA in the store branch');
+});

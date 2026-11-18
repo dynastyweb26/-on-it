@@ -47,3 +47,7 @@
 .pc-done-text { font: 800 22px/1.25 var(--font-montserrat), Montserrat, sans-serif; }
 
 @media (prefers-reduced-motion: reduce) { .pc-step { animation: none; } .pc-card, .pc-cards { transition: none; } }
+
+/* Web, store-billed Plus: a link card in the existing card look. */
+.pc-store { text-decoration: none; cursor: pointer; }
+.pc-store:focus-visible { outline: 2px solid #735c00; outline-offset: 2px; }

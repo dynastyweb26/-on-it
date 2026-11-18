@@ -24,11 +24,11 @@ import { discountCta, discountLine, discountTitle, endsWithPlanLine, fmtPlanDate
 import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 import { planScreenData } from '@/lib/plan-screen-view';
 import { cancelOffersFor } from '@/lib/subscription/offers';
-import { plusOfferCta, plusPriceStep, plusSeasonalSwitch, type PlusChoice } from '@/lib/cancel-plus-view';
+import { plusOfferCta, plusPriceStep, plusSeasonalSwitch, storeManageFor, type PlusChoice } from '@/lib/cancel-plus-view';
 import { purchases } from '@/lib/subscription/start';
 import { recordSwitchToPro } from '@/lib/subscription-actions';
 import type { PlanCatalog } from '@/lib/plan-catalog';
-import { PlusPriceStep, SeasonalSwitchCard } from '@/components/tiers/PlusCancel';
+import { PlusPriceStep, SeasonalSwitchCard, StoreManageCard } from '@/components/tiers/PlusCancel';
 
 
 const REASONS: { key: CancelReason; label: string; icon: IconName }[] = [
@@ -207,6 +207,10 @@ export default function CancelScreen() {
   }
 
   // 7A: one new step for a Plus user who picked Too expensive.
+  // Web, store-billed Plus: neither offer can be taken here (both are the
+  // store's); 7A and 7B show where to manage the plan instead.
+  const storeManage = plusCtx ? storeManageFor(plusCtx.billingSource, purchases.source === 'native', plusCtx.catalog) : null;
+
   if (plusCtx && plusOffers && plusPriceStep(plusOffers)) {
     return (
       <div className="mx-auto max-w-lg">
@@ -216,6 +220,7 @@ export default function CancelScreen() {
           onBack={() => setReason(null)}
           onTake={takePlus}
           onCancelAnyway={() => { setReason(null); void doCancel(); }}
+          storeManage={storeManage}
         />
       </div>
     );
@@ -293,10 +298,14 @@ export default function CancelScreen() {
         {plusCtx && plusOffers && plusSeasonalSwitch(plusOffers) && (
           // 7B: where the store can't pause (iOS), the Pro switch replaces it.
           <div className="space-y-2">
-            <SeasonalSwitchCard catalog={plusCtx.catalog} renewalAt={plusCtx.renewalAt} />
-            <button className="btn-primary w-full" disabled={busy !== null} onClick={() => void takeSeasonalSwitch()}>
-              {busy === 'offer' ? 'Switching…' : plusOfferCta('switch_pro', plusCtx.catalog)}
-            </button>
+            {storeManage ? <StoreManageCard manage={storeManage} /> : (
+              <>
+                <SeasonalSwitchCard catalog={plusCtx.catalog} renewalAt={plusCtx.renewalAt} />
+                <button className="btn-primary w-full" disabled={busy !== null} onClick={() => void takeSeasonalSwitch()}>
+                  {busy === 'offer' ? 'Switching…' : plusOfferCta('switch_pro', plusCtx.catalog)}
+                </button>
+              </>
+            )}
           </div>
         )}
         {(reason === 'feature' || reason === 'other') && (

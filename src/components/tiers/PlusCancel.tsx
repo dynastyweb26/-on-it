@@ -11,7 +11,7 @@
 import { useRef, useState } from 'react';
 import Icon from '@/components/Icon';
 import {
-  SEVEN_A, plusOfferCards, plusOfferCta, seasonalSwitchCard, switchedLine, type PlusChoice,
+  SEVEN_A, plusOfferCards, plusOfferCta, seasonalSwitchCard, switchedLine, type PlusChoice, type StoreManage,
 } from '@/lib/cancel-plus-view';
 import type { PlanCatalog } from '@/lib/plan-catalog';
 import './plus-cancel.css';
@@ -19,7 +19,7 @@ import './plus-cancel.css';
 export type PlusCancelState = 'idle' | 'pending' | 'success' | 'error';
 
 export function PlusPriceStep({
-  catalog, renewalAt, onBack, onTake, onCancelAnyway, initialState = 'idle', initialError = null,
+  catalog, renewalAt, onBack, onTake, onCancelAnyway, initialState = 'idle', initialError = null, storeManage = null,
 }: {
   catalog: PlanCatalog | null;
   renewalAt: string | null;
@@ -29,6 +29,8 @@ export function PlusPriceStep({
   onCancelAnyway: () => void;
   initialState?: PlusCancelState;
   initialError?: string | null;
+  /** Web, store-billed Plus: no offer can be taken here; say where to manage it. */
+  storeManage?: StoreManage | null;
 }) {
   const cards = plusOfferCards(catalog, renewalAt);
   const [choice, setChoice] = useState<PlusChoice>('switch_pro');
@@ -59,6 +61,22 @@ export function PlusPriceStep({
         <div className="pc-done" role="status">
           <span className="pc-done-icon"><Icon name="check" size={28} /></span>
           <span className="pc-done-text">{switchedLine(catalog, renewalAt)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (storeManage) {
+    return (
+      <div className="pc-step" data-plus-cancel="store">
+        <button type="button" className="pc-back" aria-label="Back" onClick={onBack}>
+          <Icon name="arrow_back" size={24} />
+        </button>
+        <div className="pc-body">
+          <StoreManageCard manage={storeManage} />
+        </div>
+        <div className="pc-actions">
+          <button type="button" className="pc-later" onClick={onCancelAnyway}>{SEVEN_A.cancelAnyway}</button>
         </div>
       </div>
     );
@@ -111,5 +129,17 @@ export function SeasonalSwitchCard({ catalog, renewalAt }: { catalog: PlanCatalo
       <div className="pc-seasonal-top"><Icon name="trending_down" size={22} className="pc-radio is-on" /><span className="pc-card-title">{c.title}</span></div>
       <span className="pc-card-body">{c.body}</span>
     </div>
+  );
+}
+
+/** Web, store-billed Plus: the one thing to do, in the store the plan came from. */
+export function StoreManageCard({ manage }: { manage: StoreManage }) {
+  return (
+    <a className="pc-card pc-store" href={manage.url} target="_blank" rel="noopener noreferrer" data-plus-store={manage.store}>
+      <span className="pc-card-top">
+        <span className="pc-card-title">{manage.line}</span>
+        <Icon name="open_in_new" size={22} className="pc-radio is-on" />
+      </span>
+    </a>
   );
 }

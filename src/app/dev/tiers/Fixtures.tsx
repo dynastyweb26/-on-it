@@ -14,7 +14,8 @@ import TiersPlanPage from '@/components/paywall/TiersPlanPage';
 import PaywallModal from '@/components/PaywallModal';
 import { seedPlanTiersForDev } from '@/components/tiers/store';
 import { useEffect, useState } from 'react';
-import { PlusPriceStep, SeasonalSwitchCard, type PlusCancelState } from '@/components/tiers/PlusCancel';
+import { PlusPriceStep, SeasonalSwitchCard, StoreManageCard, type PlusCancelState } from '@/components/tiers/PlusCancel';
+import { storeManageFor } from '@/lib/cancel-plus-view';
 import type { PaywallEntry } from '@/lib/paywall-entry';
 import type { PayState } from '@/lib/paywall-plan-view';
 import { PLUS_STORE_ONLY } from '@/lib/subscription/start';
@@ -233,6 +234,21 @@ export default function Fixtures() {
         ))}
         <div data-fixture="cancel-7b"><SeasonalSwitchCard catalog={PLAN_CATALOG} renewalAt={RENEW} /></div>
         <Label>7B iOS · slow season · replaces the pause card</Label>
+        <div data-fixture="cancel-7a-web-store">
+          <div style={{ border: '1px solid #eadfcc', borderRadius: 24, overflow: 'hidden', background: '#fff8f0' }}>
+            <PlusPriceStep
+              catalog={PLAN_CATALOG}
+              renewalAt={RENEW}
+              onBack={() => {}}
+              onTake={() => new Promise<'done'>(() => {})}
+              onCancelAnyway={() => {}}
+              storeManage={storeManageFor('app_store', false, PLAN_CATALOG)}
+            />
+          </div>
+        </div>
+        <Label>7A web · App Store-billed Plus · no offers, manage in the store</Label>
+        <div data-fixture="cancel-7b-web-store"><StoreManageCard manage={storeManageFor('play_store', false, PLAN_CATALOG)!} /></div>
+        <Label>7B web · Google Play-billed Plus · manage in the store</Label>
       </div>
     </main>
   );

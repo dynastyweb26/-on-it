@@ -1,7 +1,7 @@
 // design/tiers 07 (cancel flow, two-plan additions): the pure wording.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { plusOfferCards, plusOfferCta, plusPriceStep, plusSeasonalSwitch, seasonalSwitchCard, switchedLine } from './cancel-plus-view';
+import { plusOfferCards, plusOfferCta, plusPriceStep, plusSeasonalSwitch, seasonalSwitchCard, storeManageFor, switchedLine } from './cancel-plus-view';
 import { cancelOffersFor } from './subscription/offers';
 import { PLAN_CATALOG } from './plan-catalog';
 import { usd } from './plan-lock-view';
@@ -37,4 +37,14 @@ test('the CTA follows the selection; success and 7B lines', () => {
     title: `Drop to ${pro.name} for the quiet months`,
     body: `${usd(pro.monthlyCents!)}/mo from Dec 15. Move back to Plus any time, it opens right away.`,
   });
+});
+
+test('web, store-billed Plus: manage in the store the plan came from; native keeps the offers', () => {
+  assert.deepEqual(storeManageFor('app_store', false, PLAN_CATALOG), {
+    store: 'App Store', url: PLAN_CATALOG.manage.app_store.url!, line: 'Manage your plan in the App Store',
+  });
+  assert.equal(storeManageFor('play_store', false, PLAN_CATALOG)?.line, 'Manage your plan in Google Play');
+  assert.equal(storeManageFor('app_store', true, PLAN_CATALOG), null, 'native keeps 7A as built');
+  assert.equal(storeManageFor('stripe', false, PLAN_CATALOG), null, 'not store-billed');
+  assert.equal(storeManageFor(null, false, PLAN_CATALOG), null);
 });
