@@ -6234,7 +6234,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
       {paywallFor && <PaywallModal variant={paywallFor} onClose={() => setPaywallFor(null)} />}
       {aiPaywall !== null && (
         // Opened from the AI limit card (board 03): Free → the paywall with Pro.
-        <PaywallModal variant="invoice" reason={aiPaywallReason(PLAN_NAMES[tiers.plan ?? 'free'], aiPaywall)} returnTo="chat" onClose={() => setAiPaywall(null)} />
+        <PaywallModal variant="invoice" entry="ai-limit" reason={NEXT_PUBLIC_TIERS ? undefined : aiPaywallReason(PLAN_NAMES[tiers.plan ?? 'free'], aiPaywall)} returnTo="chat" onClose={() => setAiPaywall(null)} />
       )}
       {softWall && (
         <PaywallModal variant={softWall.variant ?? 'invoice'} reason={softWall.reason} returnTo="chat" onClose={() => setSoftWall(null)} />

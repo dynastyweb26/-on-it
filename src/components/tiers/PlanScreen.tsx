@@ -89,7 +89,8 @@ function PlanScreenLive({ data, reload, above, below }: {
 
   const action = planAction(data.card, data.catalog);
   const onAction = (a: PlanAction) => {
-    if (a.kind === 'see-plans') {
+    // See plans and Upgrade to Plus open paywall page 3 (design/tiers 01).
+    if (a.kind === 'see-plans' || a.kind === 'upgrade') {
       if (busyRef.current) return;
       busyRef.current = true;
       setBusy('action');
@@ -97,8 +98,7 @@ function PlanScreenLive({ data, reload, above, below }: {
       return;
     }
     void run('action', () => (
-      a.kind === 'upgrade' ? purchases.upgrade({ returnTo: 'settings' })
-        : a.kind === 'switch-pro' ? purchases.switchToPro()
+      a.kind === 'switch-pro' ? purchases.switchToPro()
           : purchases.keepPlus()
     ));
   };
@@ -133,7 +133,7 @@ function PlanScreenLive({ data, reload, above, below }: {
       {paywall && (
         <PaywallModal
           variant="invoice"
-          reason={plansPaywallReason(data.card)}
+          reason={data.card.plan === 'free' ? plansPaywallReason(data.card) : undefined}
           returnTo="settings"
           onClose={() => { setPaywall(false); busyRef.current = false; setBusy(null); }}
         />

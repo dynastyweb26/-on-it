@@ -15,11 +15,14 @@ import {
   clearPhotosNotice, closePlanLock, closePlanPaywall, openPlanPaywall,
   useLockRequest, usePhotosNotice, usePlanPaywall, usePlanTiers,
 } from './store';
-import { includedChip, lockActions, lockPaywallReason, lockSheetCopy, offerOf, showPhotosSkipped } from '@/lib/plan-lock-view';
+import { includedChip, lockActions, lockSheetCopy, offerOf, showPhotosSkipped } from '@/lib/plan-lock-view';
 import type { PlanFeature } from '@/lib/plan-lock';
+import type { PaywallEntry } from '@/lib/paywall-entry';
 
 const RETURN_TO: Record<PlanFeature, CheckoutReturn> = { bank: 'books', recurring: 'recurring', attachments: 'invoices' };
 const VARIANT: Record<PlanFeature, PaywallVariant> = { bank: 'invoice', recurring: 'recurring', attachments: 'invoice' };
+/** Page 3's top line and preselected plan (lib/paywall-entry): every lock is Plus. */
+const ENTRY: Record<PlanFeature, PaywallEntry> = { bank: 'bank', recurring: 'recurring', attachments: 'photos' };
 
 export default function TiersHost() {
   const tiers = usePlanTiers();
@@ -65,7 +68,7 @@ export default function TiersHost() {
       {paywall && (
         <PaywallModal
           variant={VARIANT[paywall]}
-          reason={lockPaywallReason(paywall, plusName ?? '')}
+          entry={ENTRY[paywall]}
           returnTo={RETURN_TO[paywall]}
           onClose={closePlanPaywall}
         />
