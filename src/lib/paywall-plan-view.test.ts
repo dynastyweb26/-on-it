@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   canBuy, ctaFor, headline, payStateFor, pickerFrozen, planCards, plusAdds, plusAddsTitle,
-  reminderLine, tableRows, topLineFor, entryForVariant, freeCapsFrom,
+  reminderLine, tableRows, topLineFor, entryForVariant, freeCapsFrom, preselectFor,
 } from './paywall-plan-view';
 import { PLAN_CATALOG } from './plan-catalog';
 import { paywallEntryFor } from './paywall-entry';
@@ -112,4 +112,21 @@ test('a Pro viewer never gets a Free-limit line: only a Plus entry speaks to the
   assert.equal(topLineFor(forPro('invoice')?.topLineKey, PLAN_CATALOG, freeCapsFrom(PLAN_CATALOG, 'pro')), null);
   assert.equal(topLineFor(forPro('bank')?.topLineKey, PLAN_CATALOG, freeCapsFrom(PLAN_CATALOG, 'pro'))?.text, 'Connecting a bank is part of Plus.');
   assert.match(topLineFor(forPro('ai-limit')?.topLineKey, PLAN_CATALOG, freeCapsFrom(PLAN_CATALOG, 'pro'))?.text ?? '', /^Pro includes 30 AI questions a day/);
+});
+
+test('first open (a free limit): Plus preselected on native, Pro on the web; every other entry unchanged', () => {
+  const t = (e: Parameters<typeof paywallEntryFor>[0], v: 'free' | 'pro' = 'free') => paywallEntryFor(e, v);
+  for (const e of ['invoice', 'estimate', 'expense'] as const) {
+    assert.equal(preselectFor(t(e), 'free', true), 'plus', e + ' native');
+    assert.equal(preselectFor(t(e), 'free', false), 'pro', e + ' web');
+  }
+  // Lock sheets / photos: Plus; AI limit card (See Pro): Pro; Settings (no entry): Pro, on both builds.
+  for (const native of [true, false]) {
+    assert.equal(preselectFor(t('bank'), 'free', native), 'plus');
+    assert.equal(preselectFor(t('photos'), 'free', native), 'plus');
+    assert.equal(preselectFor(t('ai-limit'), 'free', native), 'pro');
+    assert.equal(preselectFor(null, 'free', native), 'pro');
+    assert.equal(preselectFor(t('pdfs'), 'free', native), 'pro');
+    assert.equal(preselectFor(t('invoice', 'pro'), 'pro', native), 'plus', 'a Pro viewer is only sold Plus');
+  }
 });

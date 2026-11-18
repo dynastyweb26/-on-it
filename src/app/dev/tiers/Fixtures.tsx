@@ -86,9 +86,10 @@ function Plan({ input, usage, state }: { input: PlanCardInput; usage: UsageInput
   );
 }
 
-type PageRow = [string, PaywallEntry | null, 'free' | 'pro', boolean, PayState, string];
+type PageRow = [string, PaywallEntry | null, 'free' | 'pro', boolean, PayState, string, boolean?];
 const PAGES: PageRow[] = [
-  ['pw-free-invoice', 'invoice', 'free', true, 'idle', '1A free · from the 4th invoice, Pro preselected'],
+  ['pw-free-invoice', 'invoice', 'free', true, 'idle', '1A free · from the 4th invoice · web: Pro preselected'],
+  ['pw-free-invoice-native', 'invoice', 'free', true, 'idle', '1A free · from the 4th invoice · native: Plus preselected', true],
   ['pw-free-bank', 'bank', 'free', true, 'idle', '1A free · from the bank lock, Plus preselected'],
   ['pw-returning', 'invoice', 'free', false, 'idle', 'returning customer · today’s Subscribe wording, no trial'],
   ['pw-pro', 'bank', 'pro', false, 'idle', '1B pro · move up to Plus'],
@@ -185,7 +186,7 @@ export default function Fixtures() {
         <div data-fixture="plan-load-error"><PlanScreenView state="error" onRetry={() => {}} /></div>
         <Label>load error · retry</Label>
         <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '24px 0 16px' }}>01 Paywall page 3</h1>
-        {PAGES.map(([id, entry, plan, trial, state, label]) => (
+        {PAGES.map(([id, entry, plan, trial, state, label, native]) => (
           <div key={id} data-fixture={id}>
             <div style={{ height: 780, display: 'flex', flexDirection: 'column', border: '1px solid #eadfcc', borderRadius: 24, overflow: 'hidden', background: '#fff8f0' }}>
               <TiersPlanPage
@@ -198,6 +199,7 @@ export default function Fixtures() {
                 onRedeemed={() => {}}
                 initialState={state}
                 initialError={state === 'failed' ? PLUS_STORE_ONLY : null}
+                native={native}
               />
             </div>
             <Label>{label}</Label>

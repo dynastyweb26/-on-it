@@ -28,7 +28,7 @@ import { TRIAL_REMINDER_DAYS, trialDates } from '@/lib/trial';
 import type { TierPlan } from '@/lib/entitlements';
 import type { PlanCatalog } from '@/lib/plan-catalog';
 import {
-  CODE_ROW, CONFIRM_COPY, canBuy, ctaFor, freeCapsFrom, headline, payStateFor, pickerFrozen,
+  CODE_ROW, CONFIRM_COPY, canBuy, preselectFor, ctaFor, freeCapsFrom, headline, payStateFor, pickerFrozen,
   planCards, plusAdds, plusAddsTitle, reminderLine, tableRows, topLineFor,
   type Cell, type CtaView, type PaidChoice, type PayState,
 } from '@/lib/paywall-plan-view';
@@ -48,6 +48,8 @@ export interface TiersPlanPageProps {
   /** /dev fixtures: start in a given state. */
   initialState?: PayState;
   initialError?: string | null;
+  /** /dev fixtures: draw as the native build would (default: purchases.source). */
+  native?: boolean;
 }
 
 /** Laptop (1C) from 1280 wide, by the viewport (not the container). */
@@ -72,7 +74,8 @@ export default function TiersPlanPage(props: TiersPlanPageProps) {
   const rawTarget = entry ? paywallEntryFor(entry, viewerPlan) : null;
   const target = rawTarget && (viewerPlan !== 'pro' || rawTarget.plan === 'plus') ? rawTarget : null;
   const isPro = viewerPlan === 'pro';
-  const [selected, setSelected] = useState<PaidChoice>(isPro ? 'plus' : target?.plan ?? 'pro');
+  const native = props.native ?? purchases.source === 'native';
+  const [selected, setSelected] = useState<PaidChoice>(() => preselectFor(target, viewerPlan, native));
   const [pay, setPay] = useState<PayState>(props.initialState ?? 'idle');
   const [error, setError] = useState<string | null>(props.initialError ?? null);
   const [showCode, setShowCode] = useState(false);
@@ -89,7 +92,7 @@ export default function TiersPlanPage(props: TiersPlanPageProps) {
   const head = headline(viewerPlan, catalog, trialEligible);
   const cards = planCards(catalog, trialEligible);
   const rows = tableRows(catalog, caps);
-  const cta = ctaFor({ viewerPlan, selected, catalog, trialEligible, native: purchases.source === 'native', freeUntil });
+  const cta = ctaFor({ viewerPlan, selected, catalog, trialEligible, native, freeUntil });
 
   async function landed() {
     // Success only after the server confirms: publishing the new access plays
