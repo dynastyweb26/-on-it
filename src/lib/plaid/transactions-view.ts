@@ -61,7 +61,7 @@ const OPEN_STATES = new Set(['new', 'needs_review']);
  * Still the owner's to decide. A charge the bank pulled is never in the stack,
  * whichever half of the pair the caller forgot to filter.
  */
-export const isOpenBankRow = (row: BankRowRow): boolean =>
+export const isOpenBankRow = (row: Pick<BankRowRow, 'review_state' | 'bank_state' | 'removed_at'>): boolean =>
   OPEN_STATES.has(row.review_state) && row.bank_state !== 'removed' && !row.removed_at;
 
 export const openBankRows = (rows: BankRowRow[]): BankRowRow[] => rows.filter(isOpenBankRow);

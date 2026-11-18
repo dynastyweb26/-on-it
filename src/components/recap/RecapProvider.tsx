@@ -40,11 +40,18 @@ import {
   type RecapRow,
 } from '@/lib/recap/rows';
 import { getSharedUser } from '@/lib/auth-client';
+import { entitlementsFor } from '@/lib/entitlements';
+import { bankFieldsFromJson } from '@/lib/recap/bank';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 // The story's code and CSS load only when a recap opens.
 const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr: false });
 
 const LATEST = 8;   // rows kept here (with payload): Books card, dot, prompt
+/** The two bank slides' numbers, composed per open on the server (RLS only)
+ *  for a viewer whose plan includes bank activity. */
+const BANK_FIELDS_URL = '/api/recaps/bank';
+const BANK_FIELDS_TIMEOUT_MS = 1200;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** 'off' = RECAPS_LIVE off or signed out. */
@@ -89,6 +96,9 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
   const pathname = usePathname();
   const [access, setAccess] = useState<RecapAccess>(RECAPS_LIVE ? 'loading' : 'off');
   const [freePlan, setFreePlan] = useState(false);
+  /** The viewer's plan includes bank activity (Plus, founder): only then are
+   *  the two bank slides' fields asked for. */
+  const [canBank, setCanBank] = useState(false);
   const [userId, setUserId] = useState('');
   const [rows, setRows] = useState<RecapRow[]>([]);
   const [watched, setWatched] = useState<ReadonlySet<string>>(() => new Set());
@@ -106,17 +116,20 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     const load = () => (async () => {
       const { data: { user } } = await getSharedUser();
       if (!user) { if (live) setAccess('off'); return; }
-      let free = false;
-      if (PAYWALL_ENABLED) {
-        const { data: prof } = await supabase.from('profiles').select('access_tier').eq('id', user.id).maybeSingle();
-        free = !isPaidTier((prof?.access_tier as string | null) ?? null);
-      }
+      // The plan decides two things here: the free-story allowance, and whether
+      // the bank slides belong to this viewer at all. entitlementsFor is the one
+      // place a plan is resolved, so a founder reads as Plus here too.
+      const { data: prof } = await supabase.from('profiles').select('access_tier, plan').eq('id', user.id).maybeSingle();
+      const tier = (prof?.access_tier as string | null) ?? null;
+      const free = PAYWALL_ENABLED && !isPaidTier(tier);
+      const canBankPlan = entitlementsFor(tier, (prof?.plan as string | null) ?? null).canBank;
       // Free owners load their rows like everyone else: the first two weekly
       // recaps are theirs to play, and the rest are shown locked.
       const { data } = await supabase.from('recaps').select(RECAP_FULL_COLS)
         .order('period_end', { ascending: false }).limit(LATEST);
       if (!live) return;
       setFreePlan(free);
+      setCanBank(canBankPlan);
       setUserId(user.id);
       setRows(sortRows(((data ?? []) as Record<string, unknown>[]).map(normalizeRow)));
       setAccess('open');
@@ -171,18 +184,49 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     void createClient().from('recaps').update({ seen_at: at }).eq('id', row.id).then(() => undefined);
   }, []);
 
+  // The bank fields are composed for THIS viewer's plan, so they are read on
+  // the server at open (lib/recap/bank-server · session client, RLS) and joined
+  // to the payload BEFORE the story mounts: a payload swap mid-story would
+  // restart the current slide. A failure (offline, slow, not entitled) leaves
+  // the payload exactly as stored and the story plays without those fields.
+  const loadBankFields = useCallback(async (row: RecapRow): Promise<RecapRow | null> => {
+    if (!row.payload) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), BANK_FIELDS_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${BANK_FIELDS_URL}?id=${encodeURIComponent(row.id)}`, {
+        cache: 'no-store', signal: controller.signal,
+      });
+      if (!res.ok) return null;
+      const fields = bankFieldsFromJson(await res.json().catch(() => null));
+      return Object.keys(fields).length ? { ...row, payload: { ...row.payload, ...fields } } : null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }, []);
+
   const open = useCallback((row: RecapRow) => {
     primeRecapAudio();          // synchronously, inside the caller's tap
     setPrompt(null);
     // Locked rows never play, whatever called this (the UI opens the wall).
     const plays = (r: RecapRow) => playable(r) && recapUnlocked(r, freePlan);
-    const show = (r: RecapRow) => { if (plays(r)) { markWatched(r); setStory(r); } };
+    const show = (r: RecapRow) => {
+      if (!plays(r)) return;
+      markWatched(r);
+      // Tiers flag off: the bank slides don't exist yet, so no read and no wait.
+      if (!NEXT_PUBLIC_TIERS || !canBank || !r.payload) { setStory(r); return; }
+      // Only this open may mount: a slower read never replaces a story another
+      // tap already opened.
+      void loadBankFields(r).then((enriched) => setStory((cur) => cur ?? enriched ?? r));
+    };
     const have = plays(row) ? row : rows.find((r) => r.id === row.id && plays(r));
     if (have) { show(have); return; }
     // A history row (listed without its payload): fetch it, then play.
     void createClient().from('recaps').select(RECAP_FULL_COLS).eq('id', row.id).maybeSingle()
       .then(({ data }) => { if (data) show(normalizeRow(data as Record<string, unknown>)); });
-  }, [rows, markWatched, freePlan]);
+  }, [rows, markWatched, freePlan, canBank, loadBankFields]);
 
   function later() {
     const row = prompt;
