@@ -37,6 +37,7 @@ test('every URL property is cleaned, in properties and person sets', () => {
 
 test('options: no autocapture, replay, surveys, heatmaps or exceptions; identified people only', () => {
   const o = posthogOptions();
+  assert.equal(o.api_host, '/ingest');
   assert.equal(o.autocapture, false);
   assert.equal(o.disable_session_recording, true);
   assert.equal(o.disable_surveys, true);

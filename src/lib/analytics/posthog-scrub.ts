@@ -42,7 +42,8 @@ export function scrubCapture<T extends CaptureLike>(cap: T): T | null {
 /** The init options, shared and tested. Off without a key. */
 export function posthogOptions() {
   return {
-    api_host: 'https://us.i.posthog.com',
+    // Our own origin, rewritten to PostHog in next.config.mjs.
+    api_host: '/ingest',
     ui_host: 'https://us.posthog.com',
     defaults: '2025-05-24' as const,
     capture_pageview: 'history_change' as const,

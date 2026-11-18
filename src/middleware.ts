@@ -72,6 +72,6 @@ export const config = {
   // so it warns and silently falls back to the default matcher — middleware on
   // EVERY request, assets and webhooks included.
   matcher: [
-    '/((?!login|auth/|i/|pay/|e/|api/followups|api/trial-reminders|api/webhooks/stripe|_next/static|_next/image|manifest\\.json|sw\\.js|icons/|brands/|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff2?)$).*)',
+    '/((?!login|auth/|i/|pay/|e/|ingest/|api/followups|api/trial-reminders|api/webhooks/stripe|_next/static|_next/image|manifest\\.json|sw\\.js|icons/|brands/|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff2?)$).*)',
   ],
 };

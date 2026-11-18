@@ -19,8 +19,7 @@ const csp = [
   // Stripe.js (July 17 paywall) calls api.stripe.com and posts telemetry to
   // r./m.stripe.com — all XHR/fetch, so they must be in connect-src, not just
   // script-src/frame-src. Without these, Stripe.js fails silently in-browser.
-  // PostHog (product analytics): US ingest + its config/asset host.
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com https://m.stripe.com https://us.i.posthog.com https://us-assets.i.posthog.com`,
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com https://m.stripe.com`,
   `frame-src https://js.stripe.com https://*.stripe.com https://cdn.plaid.com`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,
@@ -37,6 +36,14 @@ const nextConfig = {
     config.module.rules.push({ test: /\.md$/, type: 'asset/source' });
     return config;
   },
+  // PostHog through our own origin (/ingest), so tracking blockers that list
+  // posthog.com don't silently drop events; CSP needs no PostHog host.
+  skipTrailingSlashRedirect: true,
+  rewrites: async () => [
+    { source: '/ingest/static/:path*', destination: 'https://us-assets.i.posthog.com/static/:path*' },
+    { source: '/ingest/array/:path*', destination: 'https://us-assets.i.posthog.com/array/:path*' },
+    { source: '/ingest/:path*', destination: 'https://us.i.posthog.com/:path*' },
+  ],
   headers: async () => [
     {
       source: '/(.*)',
