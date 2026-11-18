@@ -13,6 +13,7 @@
 // Repeat taps are ignored structurally: a second start() or retry() while a
 // wait is in flight returns that same wait instead of starting a second one.
 import type { PurchaseOutcome, PurchasePlan } from './start';
+import { entitlementsFor } from '../entitlements';
 
 /** How often the server is asked. */
 export const CONFIRM_INTERVAL_MS = 1000;
@@ -32,6 +33,10 @@ export type ConfirmDeps = {
   sleep: (ms: number) => Promise<void>;
   /** Injected so "20 seconds" is measurable. Defaults to Date.now. */
   now?: () => number;
+  /** The plan that was bought. Set, the wait succeeds only once the server
+   *  shows it (a Pro user buying Plus is already "paid" on the first read).
+   *  Unset, any paid plan is success (today's Pro start). */
+  expect?: PurchasePlan;
 };
 
 /** The wait's answer. `confirming` is the in-flight state the caller shows. */
@@ -51,6 +56,19 @@ export interface PlanConfirmation {
   readonly waiting: boolean;
 }
 
+/** The plan in a GET /api/access body: entitlements.plan, else the tier
+ *  through entitlementsFor. Free (or nothing readable) is null. */
+export function planOf(body: unknown): PurchasePlan | null {
+  if (!body || typeof body !== 'object') return null;
+  const o = body as { entitlements?: { plan?: unknown }; tier?: unknown };
+  const fromEnt = o.entitlements?.plan;
+  if (fromEnt === 'pro' || fromEnt === 'plus') return fromEnt;
+  if (fromEnt === 'free') return null;
+  if (typeof o.tier !== 'string') return null;
+  const p = entitlementsFor(o.tier, null).plan;
+  return p === 'free' ? null : p;
+}
+
 /** One read per second, and the read at 20s decides. Bounded, so a frozen
  *  clock can never spin. */
 const MAX_POLLS = Math.ceil(CONFIRM_SLOW_MS / CONFIRM_INTERVAL_MS) + 1;
@@ -66,9 +84,12 @@ export function createPlanConfirmation(deps: ConfirmDeps): PlanConfirmation {
     try {
       const res = await deps.fetch('/api/access', { method: 'GET' });
       if (!res.ok) return null;
-      const body = (await res.json()) as { plan?: unknown } | null;
-      if (body?.plan === 'plus') return 'plus';
-      if (body?.plan === 'pro') return 'pro';
+      const body = (await res.json()) as unknown;
+      // /api/access has no top-level plan: the plan is entitlements.plan
+      // (lib/entitlements). An older body without it falls back to the tier,
+      // through the same entitlementsFor the server uses (founder = Plus).
+      const plan = planOf(body);
+      if (plan === 'plus' || plan === 'pro') return plan;
       return null;
     } catch {
       return null;
@@ -80,7 +101,9 @@ export function createPlanConfirmation(deps: ConfirmDeps): PlanConfirmation {
     for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
       if (cancelled) return { status: 'cancelled' };
       const plan = await readPlan();
-      if (plan) return { status: 'success', plan };
+      // With a plan bought, only that plan is success; Plus also covers a Pro
+      // expectation (it unlocks Pro). Anything short of it is "not yet".
+      if (plan && (!deps.expect || plan === deps.expect || plan === 'plus')) return { status: 'success', plan };
       if (now() - startedAt >= CONFIRM_SLOW_MS) return { status: 'slow' };
       await deps.sleep(CONFIRM_INTERVAL_MS);
     }
