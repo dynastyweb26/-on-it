@@ -9,6 +9,8 @@ import DesignOut from '@/components/recap/design/DesignOut';
 import DesignKept from '@/components/recap/design/DesignKept';
 import DesignInv from '@/components/recap/design/DesignInv';
 import DesignClient from '@/components/recap/design/DesignClient';
+import DesignBank from '@/components/recap/design/DesignBank';
+import DesignWaiting from '@/components/recap/design/DesignWaiting';
 import DesignFree from '@/components/recap/design/DesignFree';
 import DesignAff from '@/components/recap/design/DesignAff';
 
@@ -24,6 +26,8 @@ export const DESIGN_SLIDES: Record<RedesignSlide, ComponentType<SlideProps>> = {
   kept: DesignKept,
   inv: DesignInv,
   client: DesignClient,
+  bank: DesignBank,
+  waiting: DesignWaiting,
   free: DesignFree,
   aff: DesignAff,
   quiet: Unbuilt,

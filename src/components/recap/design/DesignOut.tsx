@@ -6,6 +6,7 @@ import { money, per } from '@/components/recap/copy';
 import { categoryLabel } from '@/lib/recap/categories';
 import { iconStyle, s } from '@/components/recap/design/css';
 import Stage from '@/components/recap/design/Stage';
+import BankPickedUp from '@/components/recap/design/BankPickedUp';
 
 const DC = ['#d4af37', '#2f8a83', '#c0693f', '#5b77a8', '#6f8c5c'];
 const C1 = 2 * Math.PI * 60;
@@ -93,6 +94,7 @@ export default function DesignOut({ payload: p, clock, reduced }: SlideProps) {
             </div>
           )}
           <div style={s('flex:1 1 0')} />
+          {p.bank && <BankPickedUp count={p.bank.autoOut} field="bank_auto_out_count" d={2400} />}
         </div>
       </div>
     </Stage>

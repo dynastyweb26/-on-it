@@ -8,6 +8,7 @@ import { money, moneyInNote, plural } from '@/components/recap/copy';
 import { clientsCount, collectedOf, invoicesPaidTotal, otherReceivedTotal, paymentsCount } from '@/components/recap/design/data';
 import { iconStyle, s } from '@/components/recap/design/css';
 import Stage from '@/components/recap/design/Stage';
+import BankPickedUp from '@/components/recap/design/BankPickedUp';
 import type { PaymentMethodKey } from '@/lib/recap/payload';
 import { payMark, segmentInk } from '@/lib/recap/paymarks';
 
@@ -100,6 +101,7 @@ export default function DesignIn({ payload: p, clock, reduced }: SlideProps) {
             <div data-a="up" data-d="2000" data-f="encouragement_line" style={s('margin-top:22px;font:700 17px/23px Montserrat,system-ui,sans-serif;text-wrap:pretty')}>{note}</div>
           )}
           <div style={s('flex:1 1 0')} />
+          {p.bank && <BankPickedUp count={p.bank.autoIn} field="bank_auto_in_count" d={2300} />}
         </div>
       </div>
     </Stage>

@@ -27,7 +27,7 @@ export function createClock(): SlideClock {
 }
 
 /** `data-act` values a slide's buttons can raise (the player routes them). */
-export type RecapAction = 'view-invoices' | 'new-invoice' | 'upgrade';
+export type RecapAction = 'view-invoices' | 'new-invoice' | 'upgrade' | 'review-bank';
 
 export type SlideProps = {
   payload: RecapPayload;

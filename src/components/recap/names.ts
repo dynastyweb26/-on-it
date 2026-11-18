@@ -4,5 +4,6 @@ import type { RedesignSlide } from '@/lib/recap/payload';
 // screen-reader announcement on each slide change.
 export const RECAP_SLIDE_NAMES: Record<RedesignSlide, string> = {
   opener: 'Overview', glance: 'Month at a glance', in: 'Money in', out: 'Money out', kept: 'What you kept',
-  inv: 'Invoices and estimates', client: 'Top client', free: 'Free plan', aff: 'Affirmation', quiet: 'Nothing at all',
+  inv: 'Invoices and estimates', client: 'Top client', bank: 'Bank activity', waiting: 'Waiting for you',
+  free: 'Free plan', aff: 'Affirmation', quiet: 'Nothing at all',
 };
