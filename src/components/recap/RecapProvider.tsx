@@ -42,6 +42,7 @@ import {
 import { getSharedUser } from '@/lib/auth-client';
 import { entitlementsFor } from '@/lib/entitlements';
 import { bankFieldsFromJson } from '@/lib/recap/bank';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
 
 // The story's code and CSS load only when a recap opens.
 const RecapStory = dynamic(() => import('@/components/recap/RecapStory'), { ssr: false });
@@ -214,7 +215,8 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     const show = (r: RecapRow) => {
       if (!plays(r)) return;
       markWatched(r);
-      if (!canBank || !r.payload) { setStory(r); return; }
+      // Tiers flag off: the bank slides don't exist yet, so no read and no wait.
+      if (!NEXT_PUBLIC_TIERS || !canBank || !r.payload) { setStory(r); return; }
       // Only this open may mount: a slower read never replaces a story another
       // tap already opened.
       void loadBankFields(r).then((enriched) => setStory((cur) => cur ?? enriched ?? r));
