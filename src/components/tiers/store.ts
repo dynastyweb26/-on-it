@@ -152,8 +152,9 @@ export function usePhotosNotice(): (SkippedPhotos & { key: number }) | null {
 
 /** /dev fixtures only: seed the plan so the real paywall can be opened as
  *  Free, Pro or Plus without an account. Production never calls it (the
- *  /dev pages 404 there). */
+ *  /dev pages 404 there). This runs in the browser, where only NEXT_PUBLIC_
+ *  vars exist, so the guard reads Vercel's exposed NEXT_PUBLIC_VERCEL_ENV. */
 export function seedPlanTiersForDev(tiers: PlanTiers): void {
-  if (process.env.VERCEL_ENV === 'production') return;
+  if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'production') return;
   set({ tiers: { ...tiers, loaded: true } });
 }

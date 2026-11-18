@@ -67,7 +67,7 @@ export default function TiersHost() {
         closePlanLock();
         return;
       }
-      if (out.status === 'failed') { setProError({ icon: 'wifi_off', text: out.message }); setProState('error'); return; }
+      if (out.status === 'failed') { setProError({ icon: out.cause === 'store_only' ? 'install_mobile' : 'wifi_off', text: out.message }); setProState('error'); return; }
       if (out.status === 'slow') { setProError({ icon: 'schedule', text: CONFIRM_COPY.slow }); setProState('error'); return; }
       if (out.status === 'pending') return; // handed to the store / checkout page
       setProState('idle'); // cancelled: back to idle, no message
