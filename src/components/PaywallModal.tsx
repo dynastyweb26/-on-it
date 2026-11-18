@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { paywallDismissible } from '@/lib/popups/status';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { subscribeAccess } from '@/lib/upgrade-return';
 import ShowcaseStep from '@/components/paywall/ShowcaseStep';
@@ -137,6 +138,16 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   const planTiers = usePlanTiers();
   const tiersOn = NEXT_PUBLIC_TIERS;
   const viewerPlan = planTiers.plan ?? 'free';
+  // A Plus user has nothing to buy: the wall never shows for them. Every entry
+  // point already hides itself for Plus; this is the last guard: close and go
+  // to Settings > Plan instead.
+  const router = useRouter();
+  const plusViewer = tiersOn && planTiers.loaded && viewerPlan === 'plus';
+  useEffect(() => {
+    if (!plusViewer) return;
+    onCloseRef.current();
+    router.push('/settings/plan');
+  }, [plusViewer, router]);
   const steps = tiersOn && viewerPlan === 'pro' ? (['plan'] as const).slice() : stepsFor(variant, state, subscribable);
   const [step, setStep] = useState(0);
   // A step can disappear when the check answers (trial → plan): clamp, never
@@ -245,7 +256,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // transform, a filter), so it covered only the area under the app header and
   // left the header (and its tour button) showing and tappable above the wall.
   // Mounted only after a tap, never during SSR, so document exists here.
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined' || plusViewer) return null;
   return createPortal(
     <div
       ref={pageRef}

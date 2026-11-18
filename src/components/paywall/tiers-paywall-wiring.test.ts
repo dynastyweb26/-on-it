@@ -54,3 +54,13 @@ test('board 04: a Pro user’s lock button buys from the sheet; Free opens the p
 test('a Pro viewer drops an entry that sells Pro (no "Free includes" line on 1B)', () => {
   assert.match(page, /const target = rawTarget && \(viewerPlan !== 'pro' \|\| rawTarget\.plan === 'plus'\) \? rawTarget : null;/);
 });
+
+test('a Plus user never sees the wall: every entry hides for Plus, and the wall routes to Settings > Plan', () => {
+  assert.match(modal, /const plusViewer = tiersOn && planTiers\.loaded && viewerPlan === 'plus';/);
+  assert.match(modal, /onCloseRef\.current\(\);\n\s+router\.push\('\/settings\/plan'\);/);
+  assert.match(modal, /if \(typeof document === 'undefined' \|\| plusViewer\) return null;/);
+  // The entry points themselves:
+  assert.match(read('src/components/tiers/store.ts'), /if \(plan === needs \|\| plan === 'plus'\) return null;/, 'no lock for Plus');
+  assert.match(read('src/lib/plan-lock-view.ts'), /plan !== 'plus'\);/, 'no photos notice for Plus');
+  assert.match(read('src/lib/ai-meter-view.ts'), /if \(!next \|\| next\.plan === 'free' \|\| next\.monthlyCents == null\) return null;/, 'no AI upgrade row above Plus');
+});
