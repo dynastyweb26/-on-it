@@ -28,3 +28,8 @@ Founder decisions:
    stops and asks.
 8. Plan names "Pro" and "Plus" are display names kept in one place, so a
    rename is one edit.
+9. Preselected plan on paywall page 3 (founder, 2026-11-17; overrides board
+   01's drawn preselect): in the native app every open preselects Plus. On
+   the web each entry keeps its own preselect (Pro for free limits, the AI
+   limit card and Settings; Plus for lock sheets), because Plus can't be
+   bought on the web. A Pro viewer always lands on Plus.
