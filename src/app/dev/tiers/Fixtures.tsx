@@ -13,7 +13,7 @@ import { PlanScreenView } from '@/components/tiers/PlanScreen';
 import TiersPlanPage from '@/components/paywall/TiersPlanPage';
 import PaywallModal from '@/components/PaywallModal';
 import { seedPlanTiersForDev } from '@/components/tiers/store';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PaywallEntry } from '@/lib/paywall-entry';
 import type { PayState } from '@/lib/paywall-plan-view';
 import { PLUS_STORE_ONLY } from '@/lib/subscription/start';
@@ -122,6 +122,12 @@ function RealPaywall() {
 }
 
 export default function Fixtures() {
+  // Client only: the fixtures print local dates and live clocks ("Renews Dec 15",
+  // the meter's midnight), which never match a server render in another
+  // timezone; rendering after mount ends the hydration errors (React 418/425).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
   const free = limitOf('free'), pro = limitOf('pro'), plus = limitOf('plus');
   const noop = () => {};
   return (
