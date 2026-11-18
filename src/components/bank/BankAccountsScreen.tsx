@@ -16,7 +16,7 @@ import Icon from '@/components/Icon';
 import type { PlaidLinkOnSuccessMetadata } from 'react-plaid-link';
 import PlaidConnect from './PlaidConnect';
 import BankSheet from './BankSheet';
-import BankToast from './BankToast';
+import BankToast, { type BankToastTone } from './BankToast';
 import { useBankTracking } from './BankTrackingProvider';
 import {
   ACCOUNT_STATUS_COPY, DIGEST_OPTIONS, DISCONNECTED_TOAST, STARTER_ACCOUNTS,
@@ -50,7 +50,10 @@ export default function BankAccountsScreen() {
   const [digestOpen, setDigestOpen] = useState(false);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToastState] = useState<{ message: string; tone: BankToastTone } | null>(null);
+  // Success toasts keep the gold check; every failure shows the error icon.
+  const setToast = (message: string | null) => setToastState(message === null ? null : { message, tone: 'done' });
+  const setErrorToast = (message: string) => setToastState({ message, tone: 'error' });
   // ?bankState= is the only source of fixtures; anything else is the real item.
   const [fixture, setFixture] = useState(false);
   const firstToggleRef = useRef<HTMLButtonElement>(null);
@@ -159,11 +162,11 @@ export default function BankAccountsScreen() {
           body: JSON.stringify(trackingBatch(id, draft)),
         });
         if (!res.ok) {
-          setToast(TRACK_FAILED_TOAST);
+          setErrorToast(TRACK_FAILED_TOAST);
           return;
         }
       } catch {
-        setToast(TRACK_FAILED_TOAST);
+        setErrorToast(TRACK_FAILED_TOAST);
         return;
       }
       const next = await loadAccounts();
@@ -208,14 +211,14 @@ export default function BankAccountsScreen() {
       }
       if (plan.kind === 'error') {
         setFlow('idle');
-        setToast(plan.message);
+        setErrorToast(plan.message);
         return;
       }
       setFlow('handoff');
       setLinkToken(plan.token);
     } catch {
       setFlow('idle');
-      setToast(OPEN_BANK_FAILED_TOAST);
+      setErrorToast(OPEN_BANK_FAILED_TOAST);
     }
   }
 
@@ -235,7 +238,7 @@ export default function BankAccountsScreen() {
       if (plan.kind === 'error') {
         // A failed exchange never advances to the mock "choose accounts" step.
         setFlow('idle');
-        setToast(plan.message);
+        setErrorToast(plan.message);
         return;
       }
       // Remember the real item (for disconnect), then re-read it: Choose
@@ -249,7 +252,7 @@ export default function BankAccountsScreen() {
       setFlow('success');
     } catch {
       setFlow('idle');
-      setToast(CONNECT_FAILED_TOAST);
+      setErrorToast(CONNECT_FAILED_TOAST);
     }
   }
 
@@ -278,7 +281,7 @@ export default function BankAccountsScreen() {
       setDisconnectBusy(false);
       if (!result.ok) {
         setDisconnectOpen(false);
-        setToast(result.message);
+        setErrorToast(result.message);
         return;
       }
     }
@@ -336,7 +339,7 @@ export default function BankAccountsScreen() {
           onError={(message) => {
             setLinkToken(null);
             setFlow('idle');
-            setToast(message);
+            setErrorToast(message);
           }}
         />
       )}
@@ -436,7 +439,7 @@ export default function BankAccountsScreen() {
 
       {toast && (
         <div className="fixed inset-x-4 bottom-[calc(64px+env(safe-area-inset-bottom)+8px)] z-[90] mx-auto flex max-w-md justify-center">
-          <BankToast message={toast} onDone={() => setToast(null)} />
+          <BankToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />
         </div>
       )}
     </div>
