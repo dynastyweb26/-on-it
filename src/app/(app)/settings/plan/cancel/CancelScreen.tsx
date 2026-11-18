@@ -21,6 +21,14 @@ import { DETAIL_MAX, type CancelReason } from '@/lib/subscription/reasons';
 import { offerFor, pauseResumesAt, PAUSE_MONTHS, type PauseMonths } from '@/lib/subscription/offers';
 import type { StatTile } from '@/lib/subscription/stats';
 import { discountCta, discountLine, discountTitle, endsWithPlanLine, fmtPlanDate, pauseOfferLine } from '@/lib/subscription/copy';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
+import { planScreenData } from '@/lib/plan-screen-view';
+import { cancelOffersFor } from '@/lib/subscription/offers';
+import { plusOfferCta, plusPriceStep, plusSeasonalSwitch, storeManageFor, type PlusChoice } from '@/lib/cancel-plus-view';
+import { purchases } from '@/lib/subscription/start';
+import { recordSwitchToPro } from '@/lib/subscription-actions';
+import type { PlanCatalog } from '@/lib/plan-catalog';
+import { PlusPriceStep, SeasonalSwitchCard, StoreManageCard } from '@/components/tiers/PlusCancel';
 
 
 const REASONS: { key: CancelReason; label: string; icon: IconName }[] = [
@@ -51,6 +59,9 @@ export default function CancelScreen() {
   const [months, setMonths] = useState<PauseMonths>(1);
   const [busy, setBusy] = useState<'cancel' | 'offer' | 'resume' | null>(null);
   const [notice, setNotice] = useState('');
+  // Tiers (flag on): a Plus user's offers (design/tiers 07). Null for every
+  // other plan, so Pro and Free keep today's flow exactly.
+  const [plusCtx, setPlusCtx] = useState<{ catalog: PlanCatalog | null; renewalAt: string | null; billingSource: string | null } | null>(null);
 
   async function load() {
     setLoadFailed(false);
@@ -64,6 +75,12 @@ export default function CancelScreen() {
     }
     // Founders and anyone without a live subscription have nothing to cancel.
     if (!s.subscribed || s.tier === 'founder') { router.replace('/settings/plan'); return; }
+    if (NEXT_PUBLIC_TIERS) {
+      const d = await fetch('/api/access').then((r) => (r.ok ? r.json() : null)).then(planScreenData).catch(() => null);
+      if (d && d.card.plan === 'plus' && !d.card.founder) {
+        setPlusCtx({ catalog: d.catalog, renewalAt: d.card.renewalAt, billingSource: d.card.billingSource });
+      }
+    }
     setSummary(s);
   }
 
@@ -120,7 +137,14 @@ export default function CancelScreen() {
   }
 
   const tiles = summary.tiles ?? [];
-  const offer = offerFor(reason, summary.status ?? '', Boolean(summary.offerEligible));
+  // Plus (flag on): cancelOffersFor decides; pause stays today's card where
+  // the store can pause. Everyone else: today's single offer.
+  const plusOffers = plusCtx
+    ? cancelOffersFor({ plan: 'plus', reason, trialing, billingSource: plusCtx.billingSource, eligible: Boolean(summary.offerEligible) })
+    : null;
+  const offer = plusOffers
+    ? (plusOffers.includes('pause') ? 'pause' : null)
+    : offerFor(reason, summary.status ?? '', Boolean(summary.offerEligible));
   // The pause starts when the paid period ends (summary.endsAt for a paid
   // period) and lasts N months from there — the same dates the route sets.
   const pauseFrom = summary.endsAt;
@@ -135,6 +159,42 @@ export default function CancelScreen() {
     void getSummary().then((s) => { if (s) setSummary(s); });
   }
 
+  /** Plus → Pro at the end of the paid period. The switch goes through the one
+   *  purchase interface first; only once it worked is it recorded as the offer
+   *  taken (offer route, kind switch_pro), so a failed switch never spends it. */
+  async function switchToPro(): Promise<boolean> {
+    const out = await purchases.switchToPro();
+    if (out.status === 'failed') throw new Error(out.message);
+    if (out.status === 'cancelled') return false;
+    const rec = await recordSwitchToPro();
+    if (!rec.ok) console.error('[cancel] Pro switch not recorded as the offer', rec.message);
+    return true;
+  }
+
+  async function takePlus(choice: PlusChoice): Promise<'done' | 'switched'> {
+    if (choice === 'discount') {
+      const r = await applyOffer('discount');
+      if (!r.ok) throw new Error(r.message);
+      router.push('/settings/plan?done=discount');
+      return 'done';
+    }
+    if (!(await switchToPro())) return 'done';
+    // "You're set" shows, then the flow ends on Plan.
+    setTimeout(() => router.push('/settings/plan'), 1600);
+    return 'switched';
+  }
+
+  async function takeSeasonalSwitch() {
+    if (busy) return;
+    setBusy('offer'); setNotice('');
+    try {
+      if (await switchToPro()) { router.push('/settings/plan'); return; }
+      setBusy(null);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : ''); setBusy(null);
+    }
+  }
+
   async function doCancel() {
     setBusy('cancel'); setNotice('');
     const r = await cancel({ reason, detail: reason === 'feature' || reason === 'other' ? detail : null });
@@ -144,6 +204,26 @@ export default function CancelScreen() {
     // summary read is late.
     setSummary(s ?? { ...summary!, cancelAtPeriodEnd: true, endsAt: r.endsAt ?? summary!.endsAt });
     setBusy(null);
+  }
+
+  // 7A: one new step for a Plus user who picked Too expensive.
+  // Web, store-billed Plus: neither offer can be taken here (both are the
+  // store's); 7A and 7B show where to manage the plan instead.
+  const storeManage = plusCtx ? storeManageFor(plusCtx.billingSource, purchases.source === 'native', plusCtx.catalog) : null;
+
+  if (plusCtx && plusOffers && plusPriceStep(plusOffers)) {
+    return (
+      <div className="mx-auto max-w-lg">
+        <PlusPriceStep
+          catalog={plusCtx.catalog}
+          renewalAt={plusCtx.renewalAt}
+          onBack={() => setReason(null)}
+          onTake={takePlus}
+          onCancelAnyway={() => { setReason(null); void doCancel(); }}
+          storeManage={storeManage}
+        />
+      </div>
+    );
   }
 
   return (
@@ -213,6 +293,19 @@ export default function CancelScreen() {
             <button className="btn-primary w-full" disabled={busy !== null} onClick={() => void takeOffer('pause')}>
               {busy === 'offer' ? 'Pausing…' : `Pause for ${months} ${months === 1 ? 'month' : 'months'}`}
             </button>
+          </div>
+        )}
+        {plusCtx && plusOffers && plusSeasonalSwitch(plusOffers) && (
+          // 7B: where the store can't pause (iOS), the Pro switch replaces it.
+          <div className="space-y-2">
+            {storeManage ? <StoreManageCard manage={storeManage} /> : (
+              <>
+                <SeasonalSwitchCard catalog={plusCtx.catalog} renewalAt={plusCtx.renewalAt} />
+                <button className="btn-primary w-full" disabled={busy !== null} onClick={() => void takeSeasonalSwitch()}>
+                  {busy === 'offer' ? 'Switching…' : plusOfferCta('switch_pro', plusCtx.catalog)}
+                </button>
+              </>
+            )}
           </div>
         )}
         {(reason === 'feature' || reason === 'other') && (

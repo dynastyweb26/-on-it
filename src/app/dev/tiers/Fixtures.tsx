@@ -14,6 +14,8 @@ import TiersPlanPage from '@/components/paywall/TiersPlanPage';
 import PaywallModal from '@/components/PaywallModal';
 import { seedPlanTiersForDev } from '@/components/tiers/store';
 import { useEffect, useState } from 'react';
+import { PlusPriceStep, SeasonalSwitchCard, StoreManageCard, type PlusCancelState } from '@/components/tiers/PlusCancel';
+import { storeManageFor } from '@/lib/cancel-plus-view';
 import type { PaywallEntry } from '@/lib/paywall-entry';
 import type { PayState } from '@/lib/paywall-plan-view';
 import { PLUS_STORE_ONLY } from '@/lib/subscription/start';
@@ -98,6 +100,13 @@ const PAGES: PageRow[] = [
   ['pw-slow', 'invoice', 'free', true, 'slow', 'confirming > 20s · try again re-asks the server'],
   ['pw-failed', 'bank', 'free', true, 'failed', 'failed · Plus on the web (store only), CTA stays live'],
 ];
+const CANCELS: [string, PlusCancelState, string][] = [
+  ['cancel-7a', 'idle', '7A plus · too expensive · switch to Pro preselected'],
+  ['cancel-7a-pending', 'pending', 'pending · spinner in CTA, cards frozen, cancel anyway disabled'],
+  ['cancel-7a-error', 'error', 'error · rust above the CTA, CTA stays live'],
+  ['cancel-7a-success', 'success', 'success · offer taken, flow ends'],
+];
+
 function Label({ children }: { children: string }) {
   return <div style={{ font: "500 10.5px ui-monospace, Menlo, monospace", color: '#6b6257', margin: '6px 0 18px' }}>{children}</div>;
 }
@@ -205,6 +214,41 @@ export default function Fixtures() {
             <Label>{label}</Label>
           </div>
         ))}
+
+        <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '24px 0 16px' }}>07 Cancel flow · two-plan additions</h1>
+        {CANCELS.map(([id, state, label]) => (
+          <div key={id} data-fixture={id}>
+            <div style={{ border: '1px solid #eadfcc', borderRadius: 24, overflow: 'hidden', background: '#fff8f0' }}>
+              <PlusPriceStep
+                catalog={PLAN_CATALOG}
+                renewalAt={RENEW}
+                onBack={() => {}}
+                onTake={() => new Promise<'done'>(() => {})}
+                onCancelAnyway={() => {}}
+                initialState={state}
+                initialError={state === 'error' ? PLUS_STORE_ONLY : null}
+              />
+            </div>
+            <Label>{label}</Label>
+          </div>
+        ))}
+        <div data-fixture="cancel-7b"><SeasonalSwitchCard catalog={PLAN_CATALOG} renewalAt={RENEW} /></div>
+        <Label>7B iOS · slow season · replaces the pause card</Label>
+        <div data-fixture="cancel-7a-web-store">
+          <div style={{ border: '1px solid #eadfcc', borderRadius: 24, overflow: 'hidden', background: '#fff8f0' }}>
+            <PlusPriceStep
+              catalog={PLAN_CATALOG}
+              renewalAt={RENEW}
+              onBack={() => {}}
+              onTake={() => new Promise<'done'>(() => {})}
+              onCancelAnyway={() => {}}
+              storeManage={storeManageFor('app_store', false, PLAN_CATALOG)}
+            />
+          </div>
+        </div>
+        <Label>7A web · App Store-billed Plus · no offers, manage in the store</Label>
+        <div data-fixture="cancel-7b-web-store"><StoreManageCard manage={storeManageFor('play_store', false, PLAN_CATALOG)!} /></div>
+        <Label>7B web · Google Play-billed Plus · manage in the store</Label>
       </div>
     </main>
   );
