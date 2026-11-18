@@ -16,6 +16,7 @@
 // reduced path (usePrefersReducedMotion).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { track } from '@/lib/analytics/track';
 import { subscribeAccess } from '@/lib/upgrade-return';
 import { isPaidTier } from '@/lib/paywall';
 import { usePrefersReducedMotion } from '@/lib/use-reduced-motion';
@@ -213,6 +214,7 @@ export default function ProCelebration() {
   const play = useCallback(() => {
     if (activeRef.current) return; // one at a time
     activeRef.current = true;
+    track('subscription_started', {});
     setActive(true);
   }, []);
 

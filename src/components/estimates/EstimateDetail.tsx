@@ -1,5 +1,6 @@
 'use client';
 import { postOwnerCard } from '@/lib/owner-cards';
+import { track } from '@/lib/analytics/track';
 import { formatDocNumber } from '@/lib/documents';
 // ═══ Estimate detail (owner) ═══
 // Spec §3 of design/estimates/ESTIMATES-DESIGN-SPEC.md, mounted from the
@@ -389,6 +390,7 @@ export default function EstimateDetail({
         due_date: defaultDueDate(),
         finalize_key: idempotencyKey,
       }).select('id, invoice_number').single();
+      if (!error) track('document_created', { kind: 'invoice', source: 'estimate' });
       if (error) {
         if (error.hint === 'PAYWALL_LIMIT') {
           setPaywallFor('invoice');

@@ -8,6 +8,7 @@
 // PR D) and the native store exist, that is today's paywall: it opens with
 // the lock's line above the headline, and the sheet closes behind it (4D spec).
 import { useEffect, useRef, useState } from 'react';
+import { track } from '@/lib/analytics/track';
 import { purchases } from '@/lib/subscription/start';
 import { createPlanConfirmation } from '@/lib/subscription/confirm';
 import { publishAccess } from '@/lib/upgrade-return';
@@ -55,6 +56,7 @@ export default function TiersHost() {
     setProState('pending');
     setProError(null);
     try {
+      track('checkout_started', { plan: 'plus', from: 'lock_sheet' });
       let out = await purchases.upgrade({ returnTo: 'settings' });
       if (out.status === 'confirming' || out.status === 'slow') {
         const c = createPlanConfirmation({ fetch: (u, i) => fetch(u, i), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), expect: 'plus' });

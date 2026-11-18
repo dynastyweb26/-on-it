@@ -17,6 +17,7 @@
 // cause, the CTA stays live); success (only after the server confirms: the
 // access is published, which plays today's celebration and closes the wall).
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { track } from '@/lib/analytics/track';
 import Icon from '@/components/Icon';
 import CodeEntry from '@/components/CodeEntry';
 import { purchases, type CheckoutReturn, type PurchaseOutcome } from '@/lib/subscription/start';
@@ -121,6 +122,7 @@ export default function TiersPlanPage(props: TiersPlanPageProps) {
     busyRef.current = true;
     setError(null);
     setPay('pending'); // visible in the tap's frame
+    track('checkout_started', { plan: isPro ? 'plus' : selected, from: 'paywall' });
     try {
       const out: PurchaseOutcome = isPro
         ? await purchases.upgrade({ returnTo })
