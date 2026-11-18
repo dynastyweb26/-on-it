@@ -7,7 +7,13 @@
 // The sheet's button goes to the one purchase path. Until the plan page (01,
 // PR D) and the native store exist, that is today's paywall: it opens with
 // the lock's line above the headline, and the sheet closes behind it (4D spec).
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { purchases } from '@/lib/subscription/start';
+import { createPlanConfirmation } from '@/lib/subscription/confirm';
+import { publishAccess } from '@/lib/upgrade-return';
+import type { AccessRead } from '@/lib/access-poll';
+import { CONFIRM_COPY } from '@/lib/paywall-plan-view';
+import type { LockSheetState } from './LockSheet';
 import PaywallModal, { type CheckoutReturn, type PaywallVariant } from '@/components/PaywallModal';
 import LockSheet from './LockSheet';
 import { PhotosSkippedToast } from './PhotosSkipped';
@@ -36,6 +42,39 @@ export default function TiersHost() {
   }, [request, tiers.plan]);
 
   const plusName = offerOf(tiers.catalog, 'plus')?.name ?? null;
+  // Board 04: a Pro user's lock button goes to the store directly (no
+  // paywall), then waits on the server like paywall 1A. Free goes to the paywall.
+  const [proState, setProState] = useState<LockSheetState>('idle');
+  const [proError, setProError] = useState<{ icon: string; text: string } | null>(null);
+  const proBusy = useRef(false);
+  useEffect(() => { setProState('idle'); setProError(null); }, [request?.key]);
+
+  async function upgradeFromSheet() {
+    if (proBusy.current) return;
+    proBusy.current = true;
+    setProState('pending');
+    setProError(null);
+    try {
+      let out = await purchases.upgrade({ returnTo: 'settings' });
+      if (out.status === 'confirming' || out.status === 'slow') {
+        const c = createPlanConfirmation({ fetch: (u, i) => fetch(u, i), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), expect: 'plus' });
+        out = await c.start();
+      }
+      if (out.status === 'success') {
+        // The feature opens where the user tapped: the new access is published.
+        const res = await fetch('/api/access').catch(() => null);
+        if (res?.ok) publishAccess((await res.json()) as AccessRead);
+        closePlanLock();
+        return;
+      }
+      if (out.status === 'failed') { setProError({ icon: 'wifi_off', text: out.message }); setProState('error'); return; }
+      if (out.status === 'slow') { setProError({ icon: 'schedule', text: CONFIRM_COPY.slow }); setProState('error'); return; }
+      if (out.status === 'pending') return; // handed to the store / checkout page
+      setProState('idle'); // cancelled: back to idle, no message
+    } finally {
+      proBusy.current = false;
+    }
+  }
   const actions = request ? lockActions(request.lock, tiers.catalog, tiers.trialEligible) : null;
 
   return (
@@ -48,7 +87,10 @@ export default function TiersHost() {
           chip={includedChip(request.lock, tiers.catalog)}
           actions={actions}
           isPro={request.lock.plan !== 'free'}
+          state={request.lock.plan === 'free' ? 'idle' : proState}
+          error={proError}
           onPrimary={() => {
+            if (request.lock.plan !== 'free') { void upgradeFromSheet(); return; }
             openPlanPaywall(request.lock.feature);
             // The paywall is up first; the sheet closes behind it.
             requestAnimationFrame(() => closePlanLock());

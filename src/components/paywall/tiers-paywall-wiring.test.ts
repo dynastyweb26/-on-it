@@ -43,3 +43,10 @@ test('no reminder toggle: the line uses TRIAL_REMINDER_DAYS', () => {
 test('no price, plan name, trial length or cap typed in the page', () => {
   assert.doesNotMatch(page, /\$\d|['"](Pro|Plus|Free)['"]|\b14[- ]day|\bof (3|5)\b/);
 });
+
+test('board 04: a Pro user’s lock button buys from the sheet; Free opens the paywall with Plus', () => {
+  const host = read('src/components/tiers/TiersHost.tsx');
+  assert.match(host, /if \(request\.lock\.plan !== 'free'\) \{ void upgradeFromSheet\(\); return; \}\n\s+openPlanPaywall\(request\.lock\.feature\);/);
+  assert.match(host, /let out = await purchases\.upgrade\(\{ returnTo: 'settings' \}\);/);
+  assert.match(host, /createPlanConfirmation\(\{[^}]*expect: 'plus' \}\)/);
+});
