@@ -242,6 +242,8 @@ export default function RecapProvider({ suppressed, children }: { suppressed: bo
     setStory(null);
     if (a === 'view-invoices') router.push('/invoices?filter=unpaid');
     else if (a === 'upgrade') router.push('/settings/plan');
+    // Slide 08's Review: the bank review sheet, wherever the story was opened.
+    else if (a === 'review-bank') window.dispatchEvent(new Event('onit:bank-review-open'));
     // Already on Chat: the page won't remount for ?new=1, so ask it directly.
     else if (pathname?.startsWith('/chat')) window.dispatchEvent(new Event('onit-new-chat'));
     else router.push('/chat?new=1');

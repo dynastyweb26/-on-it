@@ -539,10 +539,10 @@ export function recapSequence(p: RecapPayload): RecapSlide[] {
 }
 
 /** The redesign's slide order (design keys(), RULES 9–12). 'bank' and 'waiting'
- *  are not in the order yet: both slides read the per-viewer `bank` field, and
- *  their UI is Claude Code's, from design/recaps/RecapPlayer.dc.html 07 and 08. */
+ *  read the per-viewer `bank` field, which only exists with the tiers flag on
+ *  and a plan that includes bank activity (RULE 7). */
 export type RedesignSlide =
-  | 'opener' | 'glance' | 'in' | 'out' | 'kept' | 'inv' | 'client' | 'free' | 'aff' | 'quiet';
+  | 'opener' | 'glance' | 'in' | 'out' | 'kept' | 'inv' | 'client' | 'bank' | 'waiting' | 'free' | 'aff' | 'quiet';
 
 export type RedesignPlan = 'free' | 'pro';
 
@@ -551,12 +551,17 @@ export type RedesignPlan = 'free' | 'pro';
  *  - in, out, kept and inv always show, zero states included, and a loss week
  *    still uses kept (RULE 11);
  *  - client only with a named top client, free only on the free plan;
+ *  - bank (07) and waiting (08) only when the payload carries `bank` (RULE 7):
+ *    07 when the bank produced at least one record, 08 when rows are pending
+ *    (the design's keys(): `s.bank.auto > 0`, `s.bank.pending > 0`);
  *  - a month keeps the old opener and the glance, then in … aff (RULE 12). */
 export function redesignSequence(p: RecapPayload, ctx: { plan: RedesignPlan }): RedesignSlide[] {
   if (recapFlags(p).nothing) return ['quiet', 'aff'];
   const k: RedesignSlide[] = p.kind === 'month' ? ['opener', 'glance'] : ['opener'];
   k.push('in', 'out', 'kept', 'inv');
   if (slidesWithData(p).includes('topClient')) k.push('client');
+  if (p.bank && p.bank.auto > 0) k.push('bank');
+  if (p.bank && p.bank.pending > 0) k.push('waiting');
   // Free only on the free plan AND only for a row that owns one of the two
   // free recaps (quota.ts's slots): a locked or pro row has no free slide.
   if (ctx.plan === 'free' && isEntitledSlot(p.freeRecapNumber)) k.push('free');

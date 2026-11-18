@@ -17,15 +17,21 @@ Founder decisions that settle what the files leave open:
 5. Every element animates as the file specifies (`data-a`, `data-d`,
    `data-dur`). Nothing just appears.
 6. The sound button is drawn and toggles its icon. It plays nothing yet.
-7. Bank activity and "Waiting for you" slides are built after the tiers work
-   (they need the Plus plan). Until then they never show.
+7. Bank activity (07) and "Waiting for you" (08) show only when the payload
+   carries `bank`, which the server adds only with `NEXT_PUBLIC_TIERS` on and
+   a plan that includes bank activity (Plus). With it, 07 shows when the bank
+   produced at least one record (`bank.auto > 0`) and 08 only when rows are
+   still pending (`bank.pending > 0`), in the design's keys() order: after
+   client, before free. The "N of these were picked up from your bank" cards
+   on money in and money out follow the same rule, each only when its count
+   (`autoIn` / `autoOut`) is above zero. No `bank`: none of them show.
 8. Light only. Material Symbols Outlined only. No emojis.
 
 Founder decisions, 2026-11-15 (after the slide-order audit):
 
 9. Slide order follows the design's `keys()`: opener, in, out, kept, inv,
-   then client (if a named top client), bank and waiting (never shown until
-   the tiers work, RULE 7), free (free plan only), and aff last. In, out,
+   then client (if a named top client), bank and waiting (only with the
+   payload's `bank`, RULE 7), free (free plan only), and aff last. In, out,
    kept and inv always show, using their designed zero states.
 10. A week with nothing at all (no money in or out, no invoices) keeps the
     old quiet slide, then the affirmation.
