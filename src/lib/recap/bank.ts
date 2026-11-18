@@ -22,7 +22,6 @@
 //   pending    open bank_transactions (the pinned row's rule) + undecided
 //              bank_deposits, newest first
 import { isOpenBankRow } from '@/lib/plaid/transactions-view';
-import { holdsExpense, type ReviewState } from '@/lib/bank-ledger';
 import { NAME_MAX, type RecapBank, type RecapBankPendingItem, type RecapPayload } from './payload';
 import type { RecapPeriod } from './dates';
 
@@ -60,9 +59,11 @@ export type RecapBankDepositLinkRow = { deposit_id: string; kind: string };
 /** The payload fields this module composes; absent = "not for this viewer". */
 export type RecapBankFields = Pick<RecapPayload, 'bank'>;
 
-/** Deposit links that put money in the ledger: a new payment, or an existing
- *  one. Ignored, a non-income classification and a Stripe payout did not. */
-const INCOME_LINKS: ReadonlySet<string> = new Set(['recorded', 'linked']);
+/** Deposit links where the bank produced the record: 'recorded' made a new
+ *  payment from the deposit. 'linked' matched a payment the owner had already
+ *  added by hand, so it is "Added by you", not "From your bank". Ignored, a
+ *  non-income classification and a Stripe payout made no record at all. */
+const INCOME_LINKS: ReadonlySet<string> = new Set(['recorded']);
 
 const cleanName = (value: string | null | undefined): string =>
   String(value ?? '').trim().slice(0, NAME_MAX);
@@ -182,7 +183,9 @@ export function recapBankFields(input: RecapBankInput): RecapBankFields {
   const autoIn = Math.min(recordedIn, periodDeposits.filter((row) => becameRecord(row.id)).length);
   const autoOut = Math.min(
     recordedOut,
-    periodTransactions.filter((row) => holdsExpense(row.review_state as ReviewState)).length,
+    // 'added' made a new expense from the charge. 'already' matched one the
+    // owner had typed in, so it is theirs, not the bank's.
+    periodTransactions.filter((row) => row.review_state === 'added').length,
   );
 
   const decidedDepositIds = new Set<string>([

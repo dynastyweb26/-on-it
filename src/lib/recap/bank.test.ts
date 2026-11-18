@@ -74,7 +74,7 @@ test('bank_auto_in: only deposits that became a payment or other income', () => 
     recordedIn: 10,
     periodDeposits: [
       deposit({ id: 'd1' }),                                     // recorded → a payment
-      deposit({ id: 'd2' }),                                     // linked → an existing payment
+      deposit({ id: 'd2' }),                                     // linked → a payment the owner added: not the bank's
       deposit({ id: 'd3' }),                                     // other income
       deposit({ id: 'd4' }),                                     // ignored
       deposit({ id: 'd5' }),                                     // classified, not income
@@ -93,14 +93,14 @@ test('bank_auto_in: only deposits that became a payment or other income', () => 
     incomeDepositIds: ['d3'],
   }));
   assert.ok(bank);
-  assert.equal(bank.autoIn, 3);
-  assert.equal(bank.auto, 3);
+  assert.equal(bank.autoIn, 2);
+  assert.equal(bank.auto, 2);
 
   // "Of these": a bank-sourced record never outnumbers the records.
   assert.equal(recapBankFields(base({
     recordedIn: 1,
     periodDeposits: [deposit({ id: 'd1' }), deposit({ id: 'd2' })],
-    depositLinks: [{ deposit_id: 'd1', kind: 'recorded' }, { deposit_id: 'd2', kind: 'linked' }],
+    depositLinks: [{ deposit_id: 'd1', kind: 'recorded' }, { deposit_id: 'd2', kind: 'recorded' }],
   })).bank?.autoIn, 1);
 });
 
@@ -109,7 +109,7 @@ test('bank_auto_out: only accounted charges → expenses; unreviewed rows do not
     recordedOut: 8,
     periodTransactions: [
       txn({ id: 't1', review_state: 'added' }),
-      txn({ id: 't2', review_state: 'already' }),
+      txn({ id: 't2', review_state: 'already' }),               // typed in by the owner: not the bank's
       txn({ id: 't3', review_state: 'new' }),
       txn({ id: 't4', review_state: 'needs_review' }),
       txn({ id: 't5', review_state: 'ignored' }),
@@ -118,13 +118,13 @@ test('bank_auto_out: only accounted charges → expenses; unreviewed rows do not
     ],
   }));
   assert.ok(bank);
-  assert.equal(bank.autoOut, 2);
+  assert.equal(bank.autoOut, 1);
 
   assert.equal(recapBankFields(base({
     recordedOut: 1,
     periodTransactions: [
       txn({ id: 't1', review_state: 'added' }),
-      txn({ id: 't2', review_state: 'already' }),
+      txn({ id: 't2', review_state: 'added' }),
     ],
   })).bank?.autoOut, 1);
 });
