@@ -50,3 +50,7 @@ test('board 04: a Pro user’s lock button buys from the sheet; Free opens the p
   assert.match(host, /let out = await purchases\.upgrade\(\{ returnTo: 'settings' \}\);/);
   assert.match(host, /createPlanConfirmation\(\{[^}]*expect: 'plus' \}\)/);
 });
+
+test('a Pro viewer drops an entry that sells Pro (no "Free includes" line on 1B)', () => {
+  assert.match(page, /const target = rawTarget && \(viewerPlan !== 'pro' \|\| rawTarget\.plan === 'plus'\) \? rawTarget : null;/);
+});

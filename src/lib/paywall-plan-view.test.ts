@@ -101,3 +101,15 @@ test('free caps come from the catalog, so a Pro viewer’s Free column shows the
   const inv = tableRows(PLAN_CATALOG, caps).find((r) => r.key === 'invoices')!;
   assert.deepEqual(inv.free, { kind: 'text', text: String(PLAN_CATALOG.freeCaps.invoices) });
 });
+
+test('a Pro viewer never gets a Free-limit line: only a Plus entry speaks to them (1B)', () => {
+  // The rule TiersPlanPage applies: a target that sells Pro is dropped for Pro.
+  const forPro = (e: Parameters<typeof paywallEntryFor>[0]) => {
+    const t = paywallEntryFor(e, 'pro');
+    return t && t.plan === 'plus' ? t : null;
+  };
+  assert.equal(forPro('invoice'), null);
+  assert.equal(topLineFor(forPro('invoice')?.topLineKey, PLAN_CATALOG, freeCapsFrom(PLAN_CATALOG, 'pro')), null);
+  assert.equal(topLineFor(forPro('bank')?.topLineKey, PLAN_CATALOG, freeCapsFrom(PLAN_CATALOG, 'pro'))?.text, 'Connecting a bank is part of Plus.');
+  assert.match(topLineFor(forPro('ai-limit')?.topLineKey, PLAN_CATALOG, freeCapsFrom(PLAN_CATALOG, 'pro'))?.text ?? '', /^Pro includes 30 AI questions a day/);
+});

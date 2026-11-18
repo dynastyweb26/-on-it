@@ -67,7 +67,10 @@ const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 
 
 export default function TiersPlanPage(props: TiersPlanPageProps) {
   const { entry, reason, viewerPlan, catalog, trialEligible, returnTo, onBusy, onRedeemed } = props;
-  const target = entry ? paywallEntryFor(entry, viewerPlan) : null;
+  // A Pro viewer is only ever sold Plus (1B): an entry that would sell Pro
+  // (a free limit, or the variant default from Settings) has no line for them.
+  const rawTarget = entry ? paywallEntryFor(entry, viewerPlan) : null;
+  const target = rawTarget && (viewerPlan !== 'pro' || rawTarget.plan === 'plus') ? rawTarget : null;
   const isPro = viewerPlan === 'pro';
   const [selected, setSelected] = useState<PaidChoice>(isPro ? 'plus' : target?.plan ?? 'pro');
   const [pay, setPay] = useState<PayState>(props.initialState ?? 'idle');
