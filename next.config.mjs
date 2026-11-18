@@ -1,4 +1,4 @@
-/** @type {import('next').NextConfig} */
+import { withSentryConfig } from '@sentry/nextjs';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -19,7 +19,8 @@ const csp = [
   // Stripe.js (July 17 paywall) calls api.stripe.com and posts telemetry to
   // r./m.stripe.com — all XHR/fetch, so they must be in connect-src, not just
   // script-src/frame-src. Without these, Stripe.js fails silently in-browser.
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com https://m.stripe.com`,
+  // Sentry (error reports): its US ingest host only.
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://r.stripe.com https://m.stripe.com https://*.ingest.us.sentry.io`,
   `frame-src https://js.stripe.com https://*.stripe.com https://cdn.plaid.com`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,
@@ -27,6 +28,7 @@ const csp = [
   `object-src 'none'`,
 ].join('; ');
 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   // Legal documents (privacy-policy.md / terms-of-service.md) are imported as
@@ -57,4 +59,13 @@ const nextConfig = {
     },
   ],
 };
-export default nextConfig;
+// Sentry wraps the build. Source maps upload only when SENTRY_AUTH_TOKEN is
+// set in Vercel (then they are deleted from the public build); without it the
+// build is unchanged apart from the SDK.
+export default withSentryConfig(nextConfig, {
+  org: 'on-it',
+  project: 'on-it-web',
+  silent: !process.env.CI,
+  telemetry: false,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN, deleteSourcemapsAfterUpload: true },
+});
