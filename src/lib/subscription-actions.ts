@@ -70,3 +70,10 @@ export function resume() {
 export function applyOffer(kind: OfferKind, months?: PauseMonths) {
   return post<{ kind: OfferKind; pausedUntil: string | null }>('/api/subscription/offer', { kind, months });
 }
+
+/** Record the Pro switch as the one retention offer taken (kind switch_pro,
+ *  tiers flag on). The route only records it — the plan change itself goes
+ *  through purchases.switchToPro(). */
+export function recordSwitchToPro() {
+  return post<{ kind: 'switch_pro' }>('/api/subscription/offer', { kind: 'switch_pro' });
+}
