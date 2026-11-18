@@ -5,6 +5,7 @@
 // (enforce_free_expense_limit) opens the paywall with the form still filled,
 // and a save right after an upgrade waits for the webhook first.
 import { useState } from 'react';
+import { track } from '@/lib/analytics/track';
 import Icon from '@/components/Icon';
 import PaywallModal from '@/components/PaywallModal';
 import { recentlyUpgraded, waitForAccess } from '@/lib/upgrade-return';
@@ -125,6 +126,7 @@ export default function AddExpenseSheet({ onClose, onSaved, initial }: {
         return;
       }
       resetForm();
+      track('expense_recorded', { source: 'sheet' });
       onSaved();
     } finally {
       setSaving(false);

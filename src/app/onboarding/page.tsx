@@ -1,5 +1,6 @@
 'use client';
 import { userMessage } from '@/lib/errors';
+import { track } from '@/lib/analytics/track';
 /* ═══ Onboarding — the brand moment ═══
    Steps: 1 business name + trade → 2 logo, team size, website, slogan
           (all optional) → 3 pick 2-3 colors → 4 pick background
@@ -288,6 +289,7 @@ export default function Onboarding() {
   // Continue button below finishes the exit, so it is never silently dropped.
   function goToChat() {
     if (logoFailedRef.current) { setLogoNotice(true); return; }
+    track('onboarding_completed', {});
     router.push('/chat');
   }
 

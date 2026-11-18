@@ -6,6 +6,7 @@
    Text mode is silent. The gold circle is a "+": Mic starts a voice session
    (the circle is then the mic/stop button until the session ends).  */
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { track } from '@/lib/analytics/track';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Icon from '@/components/Icon';
@@ -2638,6 +2639,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
 
         let newId: string;
         let newNo: number;
+        if (!insErr && saved?.id) track('document_created', { kind: rd0.kind === 'quote' ? 'estimate' : 'invoice', source: 'chat' });
         if (insErr || !saved?.id) {
           // Server-side cap (enforce_free_invoice_limit trigger). The /api/access
           // gate above normally catches this first, but the trigger is the real
@@ -3539,6 +3541,7 @@ export default function Chat({ active = true }: { active?: boolean }) {
         receipt_url: receiptPath,
         receipt_hash: receipt?.hash ?? null,
       }).select('id').single();
+      if (!insErr) track('expense_recorded', { source: 'chat' });
       if (insErr) {
         // 23505 = the (user_id, receipt_hash) unique index. Reachable despite
         // the pre-check if the same receipt was saved on another device while

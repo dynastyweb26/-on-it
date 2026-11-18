@@ -24,6 +24,7 @@
 
    Focus trap, Escape dismiss, body scroll lock, safe-area padding. */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { safeLabel, track } from '@/lib/analytics/track';
 import { paywallDismissible } from '@/lib/popups/status';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
@@ -109,6 +110,9 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // so the wall never offers a button that can only fail. `true` (and unknown,
   // which checkout answers with the same message inline) keeps today's wall.
   const [subsOn, setSubsOn] = useState<boolean | null>(null);
+  // Funnel: the wall was seen, with its variant and entry (app enums only).
+  useEffect(() => { track('paywall_viewed', { variant: safeLabel(variant), entry: safeLabel(entry ? String(entry) : null) }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     let active = true;
     fetch('/api/access')
@@ -221,6 +225,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
     setBusy(true);
     setNotice('');
     try {
+      track('checkout_started', { plan: 'pro', from: 'paywall' });
       const outcome = await startSubscription(back);
       if (!outcome.started) {
         setNotice(outcome.message);

@@ -36,6 +36,14 @@ const nextConfig = {
     config.module.rules.push({ test: /\.md$/, type: 'asset/source' });
     return config;
   },
+  // PostHog through our own origin (/ingest), so tracking blockers that list
+  // posthog.com don't silently drop events; CSP needs no PostHog host.
+  skipTrailingSlashRedirect: true,
+  rewrites: async () => [
+    { source: '/ingest/static/:path*', destination: 'https://us-assets.i.posthog.com/static/:path*' },
+    { source: '/ingest/array/:path*', destination: 'https://us-assets.i.posthog.com/array/:path*' },
+    { source: '/ingest/:path*', destination: 'https://us.i.posthog.com/:path*' },
+  ],
   headers: async () => [
     {
       source: '/(.*)',
