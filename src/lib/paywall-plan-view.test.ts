@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   canBuy, ctaFor, headline, payStateFor, pickerFrozen, planCards, plusAdds, plusAddsTitle,
-  reminderLine, tableRows, topLineFor, entryForVariant,
+  reminderLine, tableRows, topLineFor, entryForVariant, freeCapsFrom,
 } from './paywall-plan-view';
 import { PLAN_CATALOG } from './plan-catalog';
 import { paywallEntryFor } from './paywall-entry';
@@ -92,4 +92,12 @@ test('pay states: cancelled is idle, repeat taps only from idle or failed, picke
 test('variant → entry for callers that pass only a variant', () => {
   assert.equal(entryForVariant('reports'), 'pdfs');
   assert.equal(entryForVariant('nope'), null);
+});
+
+test('free caps come from the catalog, so a Pro viewer’s Free column shows the real caps', () => {
+  const caps = freeCapsFrom(PLAN_CATALOG, 'pro');
+  assert.deepEqual([caps.invoices, caps.estimates, caps.expenses], [PLAN_CATALOG.freeCaps.invoices, PLAN_CATALOG.freeCaps.estimates, PLAN_CATALOG.freeCaps.expenses]);
+  assert.equal(caps.ai, pro.limits.aiDailyLimit, 'the AI line names the viewer’s own plan limit');
+  const inv = tableRows(PLAN_CATALOG, caps).find((r) => r.key === 'invoices')!;
+  assert.deepEqual(inv.free, { kind: 'text', text: String(PLAN_CATALOG.freeCaps.invoices) });
 });

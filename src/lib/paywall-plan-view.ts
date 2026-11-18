@@ -11,12 +11,25 @@ import { offerOf, usd } from './plan-lock-view';
 
 export type PaidChoice = 'pro' | 'plus';
 
-/** What /api/access tells the page about the free caps (null when unknown). */
+/** The free caps the page shows: documents from the catalog (the enforced
+ *  numbers, so a Pro viewer sees them too); AI from the viewer's plan. */
 export interface FreeCaps {
   invoices: number | null;
   estimates: number | null;
   expenses: number | null;
   ai: number | null;
+}
+
+/** The Free column's caps, from the catalog, with the AI number for the line
+ *  above the headline (the viewer's own plan limit). */
+export function freeCapsFrom(catalog: PlanCatalog | null | undefined, viewerPlan: TierPlan): FreeCaps {
+  const caps = catalog?.freeCaps;
+  return {
+    invoices: caps?.invoices ?? null,
+    estimates: caps?.estimates ?? null,
+    expenses: caps?.expenses ?? null,
+    ai: offerOf(catalog, viewerPlan)?.limits.aiDailyLimit ?? null,
+  };
 }
 
 const nameOf = (catalog: PlanCatalog | null | undefined, plan: TierPlan, fallback: string) =>

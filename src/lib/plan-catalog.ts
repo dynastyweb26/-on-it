@@ -194,6 +194,14 @@ export const COMPARISON_ROWS: readonly ComparisonRow[] = ROW_LABELS.map(({ key, 
   plus: rowValueFor(key, limitsForPlan('plus')),
 }));
 
+// ── Free caps ───────────────────────────────────────────────────────────────
+// The Free column's numbers. The database enforces them (free_invoice_limit(),
+// free_estimate_limit(), free_expense_limit()); these are the same values,
+// and plan-catalog-free-caps.test.ts reads the latest migration of each
+// function and fails if the two ever disagree. Served in the catalog so a Pro
+// viewer (whose /api/access limits are null) still sees the real caps.
+export const FREE_CAPS = { invoices: 3, estimates: 3, expenses: 5 } as const satisfies Record<'invoices' | 'estimates' | 'expenses', number>;
+
 /** Everything the plan screens need to draw: the offers and the table, the
  *  store's fixed retention price, and where Manage subscription goes. */
 export interface PlanCatalog {
@@ -201,6 +209,8 @@ export interface PlanCatalog {
   rows: readonly ComparisonRow[];
   retentionOffer: typeof PLUS_RETENTION_OFFER;
   manage: Readonly<Record<BillingSource, ManageSubscription>>;
+  /** The free plan's document caps (the Free column). */
+  freeCaps: typeof FREE_CAPS;
 }
 
 export const PLAN_CATALOG: PlanCatalog = {
@@ -208,4 +218,5 @@ export const PLAN_CATALOG: PlanCatalog = {
   rows: COMPARISON_ROWS,
   retentionOffer: PLUS_RETENTION_OFFER,
   manage: SUBSCRIPTION_MANAGE,
+  freeCaps: FREE_CAPS,
 };
