@@ -114,19 +114,17 @@ test('a Pro viewer never gets a Free-limit line: only a Plus entry speaks to the
   assert.match(topLineFor(forPro('ai-limit')?.topLineKey, PLAN_CATALOG, freeCapsFrom(PLAN_CATALOG, 'pro'))?.text ?? '', /^Pro includes 30 AI questions a day/);
 });
 
-test('first open (a free limit): Plus preselected on native, Pro on the web; every other entry unchanged', () => {
+test('native: every open preselects Plus; web keeps the entry map (Pro, Plus for locks)', () => {
   const t = (e: Parameters<typeof paywallEntryFor>[0], v: 'free' | 'pro' = 'free') => paywallEntryFor(e, v);
-  for (const e of ['invoice', 'estimate', 'expense'] as const) {
+  for (const e of ['invoice', 'estimate', 'expense', 'ai-limit', 'pdfs', 'recaps', 'bank', 'photos'] as const) {
     assert.equal(preselectFor(t(e), 'free', true), 'plus', e + ' native');
-    assert.equal(preselectFor(t(e), 'free', false), 'pro', e + ' web');
   }
-  // Lock sheets / photos: Plus; AI limit card (See Pro): Pro; Settings (no entry): Pro, on both builds.
-  for (const native of [true, false]) {
-    assert.equal(preselectFor(t('bank'), 'free', native), 'plus');
-    assert.equal(preselectFor(t('photos'), 'free', native), 'plus');
-    assert.equal(preselectFor(t('ai-limit'), 'free', native), 'pro');
-    assert.equal(preselectFor(null, 'free', native), 'pro');
-    assert.equal(preselectFor(t('pdfs'), 'free', native), 'pro');
-    assert.equal(preselectFor(t('invoice', 'pro'), 'pro', native), 'plus', 'a Pro viewer is only sold Plus');
-  }
+  assert.equal(preselectFor(null, 'free', true), 'plus', 'Settings See plans, native');
+  // Web: Plus is store-only, so the entry map decides.
+  assert.equal(preselectFor(t('invoice'), 'free', false), 'pro');
+  assert.equal(preselectFor(t('ai-limit'), 'free', false), 'pro');
+  assert.equal(preselectFor(null, 'free', false), 'pro');
+  assert.equal(preselectFor(t('bank'), 'free', false), 'plus');
+  assert.equal(preselectFor(t('photos'), 'free', false), 'plus');
+  for (const native of [true, false]) assert.equal(preselectFor(t('invoice', 'pro'), 'pro', native), 'plus', 'Pro viewer');
 });

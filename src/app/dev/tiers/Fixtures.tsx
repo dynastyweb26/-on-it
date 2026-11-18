@@ -89,7 +89,7 @@ function Plan({ input, usage, state }: { input: PlanCardInput; usage: UsageInput
 type PageRow = [string, PaywallEntry | null, 'free' | 'pro', boolean, PayState, string, boolean?];
 const PAGES: PageRow[] = [
   ['pw-free-invoice', 'invoice', 'free', true, 'idle', '1A free · from the 4th invoice · web: Pro preselected'],
-  ['pw-free-invoice-native', 'invoice', 'free', true, 'idle', '1A free · from the 4th invoice · native: Plus preselected', true],
+  ['pw-free-invoice-native', 'invoice', 'free', true, 'idle', '1A free · native: every open preselects Plus', true],
   ['pw-free-bank', 'bank', 'free', true, 'idle', '1A free · from the bank lock, Plus preselected'],
   ['pw-returning', 'invoice', 'free', false, 'idle', 'returning customer · today’s Subscribe wording, no trial'],
   ['pw-pro', 'bank', 'pro', false, 'idle', '1B pro · move up to Plus'],

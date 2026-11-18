@@ -266,22 +266,19 @@ export const CONFIRM_COPY = {
   opensNow: 'Opens right away',
 } as const;
 
-/** The first paywall open: a free limit (invoices, estimates, expenses). */
-const FIRST_OPEN: ReadonlySet<string> = new Set(['limit.invoice', 'limit.estimate', 'limit.expense']);
-
 /**
- * The plan page 3 opens with. A Pro viewer is only sold Plus (1B). The first
- * open (a free limit) preselects Plus on a native build, where Plus can be
- * bought, and Pro on the web, where Plus is store-only. Every other entry
- * keeps the entry map's plan (lock sheets: Plus; AI limit card: Pro; Settings: Pro).
+ * The plan page 3 opens with. A Pro viewer is only sold Plus (1B). On a native
+ * build, where Plus can be bought, every open preselects Plus. On the web,
+ * where Plus is store-only, each entry keeps the entry map's plan (a free
+ * limit, the AI limit card and Settings: Pro; a lock sheet or the photos
+ * notice: Plus).
  */
 export function preselectFor(
   target: { plan: PaidChoice; topLineKey: string } | null,
   viewerPlan: TierPlan,
   native: boolean,
 ): PaidChoice {
-  if (viewerPlan === 'pro') return 'plus';
-  if (target && FIRST_OPEN.has(target.topLineKey)) return native ? 'plus' : 'pro';
+  if (viewerPlan === 'pro' || native) return 'plus';
   return target?.plan ?? 'pro';
 }
 

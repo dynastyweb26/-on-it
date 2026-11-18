@@ -65,7 +65,7 @@ test('a Plus user never sees the wall: every entry hides for Plus, and the wall 
   assert.match(read('src/lib/ai-meter-view.ts'), /if \(!next \|\| next\.plan === 'free' \|\| next\.monthlyCents == null\) return null;/, 'no AI upgrade row above Plus');
 });
 
-test('the page opens on preselectFor (first open: Plus native, Pro web)', () => {
+test('the page opens on preselectFor (native: Plus on every open; web: the entry map)', () => {
   assert.match(page, /const native = props\.native \?\? purchases\.source === 'native';/);
   assert.match(page, /useState<PaidChoice>\(\(\) => preselectFor\(target, viewerPlan, native\)\)/);
 });
