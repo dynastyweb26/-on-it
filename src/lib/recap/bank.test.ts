@@ -2,105 +2,236 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  bankActivity, bankFieldsFromJson, countAndTotal, recapBankFields, waitingFor,
-  type RecapBankTxnRow,
+  bankFieldsFromJson, busiestBankName, recapBankFields,
+  type RecapBankDepositRow, type RecapBankInput, type RecapBankTxnRow,
 } from './bank';
-import { isOpenBankRow } from '@/lib/plaid/transactions-view';
 
 const WEEK = { start: '2026-09-21', end: '2026-09-27' };
 
+const deposit = (over: Partial<RecapBankDepositRow> = {}): RecapBankDepositRow => ({
+  id: 'd1',
+  item_id: 'item-a',
+  name: 'DEPOSIT',
+  merchant_name: null,
+  occurred_on: '2026-09-22',
+  removed_at: null,
+  ...over,
+});
+
 const txn = (over: Partial<RecapBankTxnRow> = {}): RecapBankTxnRow => ({
-  amount: 10,
-  occurred_on: WEEK.start,
+  id: 't1',
+  item_id: 'item-a',
+  merchant: 'Shell',
+  description: 'SHELL OIL',
+  occurred_on: '2026-09-22',
   bank_state: 'posted',
   review_state: 'new',
   removed_at: null,
   ...over,
 });
 
-test('counts and totals are cents-exact', () => {
-  assert.deepEqual(countAndTotal([]), { count: 0, total: 0 });
-  assert.deepEqual(countAndTotal([{ amount: '0.10' }, { amount: 0.2 }, { amount: 1 }]),
-    { count: 3, total: 1.3 });
-});
+const ITEMS = [
+  { id: 'item-a', institution_name: 'Chase' },
+  { id: 'item-b', institution_name: 'Capital One' },
+];
 
-test('bank activity: each direction counted and totalled inside the period only', () => {
-  const bank = bankActivity({
-    period: WEEK,
-    deposits: [
-      { amount: '400.00', occurred_on: '2026-09-22' },
-      { amount: 85.05, occurred_on: '2026-09-23' },
-      { amount: '0.10', occurred_on: '2026-09-27' },
-      { amount: 100, occurred_on: '2026-09-28' },                     // the next week
-      { amount: 50, occurred_on: '2026-09-24', removed_at: '2026-09-25T15:00:00Z' }, // pulled by the bank
-    ],
-    transactions: [
-      txn({ amount: 30.38, occurred_on: '2026-09-21', review_state: 'added' }),
-      txn({ amount: '12.34', occurred_on: '2026-09-27', bank_state: 'pending' }),
-      txn({ amount: 99, occurred_on: '2026-09-20' }),                  // the week before
-      txn({ amount: 61.2, occurred_on: '2026-09-22', bank_state: 'removed', removed_at: '2026-09-23T15:00:00Z' }),
-    ],
-  });
-  assert.deepEqual(bank.in, { count: 3, total: 485.15 });
-  assert.deepEqual(bank.out, { count: 2, total: 42.72 });
-});
-
-test('waiting is the pinned "Unaccounted for" set: open only, any date, removed excluded', () => {
-  const rows: RecapBankTxnRow[] = [
-    txn({ amount: 30.38 }),
-    txn({ amount: 432.98, review_state: 'needs_review', occurred_on: '2026-08-01' }),
-    txn({ amount: 12, review_state: 'added' }),
-    txn({ amount: 55, review_state: 'already' }),
-    txn({ amount: 7, review_state: 'ignored' }),
-    txn({ amount: 88, bank_state: 'removed', removed_at: '2026-09-22T15:00:00Z' }),
-  ];
-  assert.deepEqual(waitingFor(rows), { count: 2, total: 463.36 });
-  // The bar's own rule, on the same rows: the same two, in the same order.
-  assert.deepEqual(rows.filter(isOpenBankRow).map((r) => r.amount), [30.38, 432.98]);
+const base = (over: Partial<RecapBankInput> = {}): RecapBankInput => ({
+  canBank: true,
+  connected: true,
+  period: WEEK,
+  recordedIn: 0,
+  recordedOut: 0,
+  items: ITEMS,
+  periodDeposits: [],
+  periodTransactions: [],
+  openDeposits: [],
+  openTransactions: [],
+  depositLinks: [],
+  incomeDepositIds: [],
+  ...over,
 });
 
 test('fields are absent for a plan without bank activity, or with no connected bank', () => {
-  const input = {
-    canBank: true,
-    connected: true,
-    period: WEEK,
-    deposits: [{ amount: 100, occurred_on: WEEK.start }],
-    transactions: [txn()],
-    open: [txn()],
-  };
+  const input = base({ recordedIn: 3, recordedOut: 2, periodTransactions: [txn()] });
   assert.deepEqual(recapBankFields({ ...input, canBank: false }), {});
   assert.deepEqual(recapBankFields({ ...input, connected: false }), {});
 });
 
-test('eligible with a connected bank: both fields, zeros included', () => {
-  assert.deepEqual(
-    recapBankFields({ canBank: true, connected: true, period: WEEK, deposits: [], transactions: [], open: [] }),
-    {
-      bank: { in: { count: 0, total: 0 }, out: { count: 0, total: 0 } },
-      waiting: { count: 0, total: 0 },
-    },
-  );
+test('activity_total is payments + expenses recorded in the period, every source', () => {
+  const { bank } = recapBankFields(base({ recordedIn: 4, recordedOut: 6 }));
+  assert.ok(bank);
+  assert.equal(bank.total, 10);
+  assert.equal(bank.auto, 0);
+  assert.equal(bank.autoIn, 0);
+  assert.equal(bank.autoOut, 0);
+  // The design prints counts only: no money, no leftover fields.
+  assert.deepEqual(Object.keys(bank).sort(),
+    ['auto', 'autoIn', 'autoOut', 'items', 'more', 'name', 'pending', 'total']);
+});
+
+test('bank_auto_in: only deposits that became a payment or other income', () => {
+  const { bank } = recapBankFields(base({
+    recordedIn: 10,
+    periodDeposits: [
+      deposit({ id: 'd1' }),                                     // recorded → a payment
+      deposit({ id: 'd2' }),                                     // linked → an existing payment
+      deposit({ id: 'd3' }),                                     // other income
+      deposit({ id: 'd4' }),                                     // ignored
+      deposit({ id: 'd5' }),                                     // classified, not income
+      deposit({ id: 'd6' }),                                     // still undecided
+      deposit({ id: 'd7', removed_at: '2026-09-23T15:00:00Z' }), // pulled by the bank
+      deposit({ id: 'd8', occurred_on: '2026-09-28' }),          // next week
+    ],
+    depositLinks: [
+      { deposit_id: 'd1', kind: 'recorded' },
+      { deposit_id: 'd2', kind: 'linked' },
+      { deposit_id: 'd4', kind: 'ignored' },
+      { deposit_id: 'd5', kind: 'classified' },
+      { deposit_id: 'd7', kind: 'recorded' },
+      { deposit_id: 'd8', kind: 'recorded' },
+    ],
+    incomeDepositIds: ['d3'],
+  }));
+  assert.ok(bank);
+  assert.equal(bank.autoIn, 3);
+  assert.equal(bank.auto, 3);
+
+  // "Of these": a bank-sourced record never outnumbers the records.
+  assert.equal(recapBankFields(base({
+    recordedIn: 1,
+    periodDeposits: [deposit({ id: 'd1' }), deposit({ id: 'd2' })],
+    depositLinks: [{ deposit_id: 'd1', kind: 'recorded' }, { deposit_id: 'd2', kind: 'linked' }],
+  })).bank?.autoIn, 1);
+});
+
+test('bank_auto_out: only accounted charges → expenses; unreviewed rows do not count', () => {
+  const { bank } = recapBankFields(base({
+    recordedOut: 8,
+    periodTransactions: [
+      txn({ id: 't1', review_state: 'added' }),
+      txn({ id: 't2', review_state: 'already' }),
+      txn({ id: 't3', review_state: 'new' }),
+      txn({ id: 't4', review_state: 'needs_review' }),
+      txn({ id: 't5', review_state: 'ignored' }),
+      txn({ id: 't6', review_state: 'added', bank_state: 'removed', removed_at: '2026-09-23T15:00:00Z' }),
+      txn({ id: 't7', review_state: 'added', occurred_on: '2026-09-20' }),
+    ],
+  }));
+  assert.ok(bank);
+  assert.equal(bank.autoOut, 2);
+
+  assert.equal(recapBankFields(base({
+    recordedOut: 1,
+    periodTransactions: [
+      txn({ id: 't1', review_state: 'added' }),
+      txn({ id: 't2', review_state: 'already' }),
+    ],
+  })).bank?.autoOut, 1);
+});
+
+test('the bank named is the connected institution with the most activity', () => {
+  assert.equal(busiestBankName(
+    [{ id: 'a', institution_name: 'Chase' }, { id: 'b', institution_name: 'Amex' }],
+    [deposit({ id: 'd1', item_id: 'b' }), deposit({ id: 'd2', item_id: 'b' })],
+    [txn({ id: 't1', item_id: 'a' })],
+  ), 'Amex');
+  // A tie settles by name, so the same period always names the same bank.
+  assert.equal(busiestBankName(
+    [{ id: 'a', institution_name: 'Chase' }, { id: 'b', institution_name: 'Amex' }],
+    [deposit({ id: 'd1', item_id: 'a' })],
+    [txn({ id: 't1', item_id: 'b' })],
+  ), 'Amex');
+  // Only the period's rows count, and a nameless institution still reads.
+  assert.equal(recapBankFields(base({
+    items: [{ id: 'item-a', institution_name: null }],
+    periodTransactions: [txn({ id: 't1', item_id: 'item-a' })],
+  })).bank?.name, 'Bank account');
+});
+
+test('pending: open charges and undecided deposits, money in and out, newest first, three shown', () => {
+  const { bank } = recapBankFields(base({
+    openTransactions: [
+      txn({ id: 'c1', merchant: 'Shell', occurred_on: '2026-09-25' }),
+      txn({ id: 'c2', merchant: null, description: 'HOME DEPOT', occurred_on: '2026-09-24' }),
+      txn({ id: 'c3', review_state: 'added', occurred_on: '2026-09-26' }),   // decided
+      txn({ id: 'c4', bank_state: 'removed', removed_at: '2026-09-26T15:00:00Z' }),
+      txn({ id: 'c5', merchant: 'Lowes', occurred_on: '2026-09-20' }),
+    ],
+    openDeposits: [
+      deposit({ id: 'd1', name: null, merchant_name: 'STRIPE', occurred_on: '2026-09-26' }),
+      deposit({ id: 'd2', occurred_on: '2026-09-23' }),                       // decided below
+      deposit({ id: 'd3', occurred_on: '2026-09-22', removed_at: '2026-09-23T15:00:00Z' }),
+    ],
+    depositLinks: [{ deposit_id: 'd2', kind: 'ignored' }],
+  }));
+  assert.ok(bank);
+  assert.equal(bank.pending, 4);
+  // Newest first: the deposit, then the two charges, then the oldest charge.
+  assert.deepEqual(bank.items, [
+    { name: 'STRIPE', date: '2026-09-26' },
+    { name: 'Shell', date: '2026-09-25' },
+    { name: 'HOME DEPOT', date: '2026-09-24' },
+  ]);
+  assert.equal(bank.more, 1);
+});
+
+test('eligible with no activity: zeros, the bank, and nothing waiting', () => {
+  const { bank } = recapBankFields(base());
+  assert.deepEqual(bank, {
+    // No activity enywhere: the tie settles on the name, alphabetically.
+    total: 0, auto: 0, autoIn: 0, autoOut: 0, name: 'Capital One',
+    pending: 0, items: [], more: 0,
+  });
 });
 
 test('a route response is validated before it joins the payload', () => {
-  assert.deepEqual(bankFieldsFromJson({
-    bank: { in: { count: 3, total: 485.15 }, out: { count: 2, total: 42.725 } },
-    waiting: { count: 2, total: 463.36 },
+  const body = {
+    bank: {
+      total: 10, auto: 5, autoIn: 3, autoOut: 2, name: ' Chase ',
+      pending: 5,
+      items: [
+        { name: 'Shell', date: '2026-09-25' },
+        { name: 'STRIPE', date: '2026-09-26' },
+        { name: 'Home Depot', date: '2026-09-24' },
+        { name: 'Ignored, over the cap', date: '2026-09-23' },
+      ],
+      more: 99,                                                              // derived, never trusted
+    },
     extra: 'ignored',
-  }), {
-    bank: { in: { count: 3, total: 485.15 }, out: { count: 2, total: 42.73 } },
-    waiting: { count: 2, total: 463.36 },
+  };
+  assert.deepEqual(bankFieldsFromJson(body), {
+    bank: {
+      total: 10, auto: 5, autoIn: 3, autoOut: 2, name: 'Chase',
+      pending: 5,
+      items: [
+        { name: 'Shell', date: '2026-09-25' },
+        { name: 'STRIPE', date: '2026-09-26' },
+        { name: 'Home Depot', date: '2026-09-24' },
+      ],
+      more: 2,
+    },
   });
 
-  for (const bad of [null, undefined, 'x', 42, []]) assert.deepEqual(bankFieldsFromJson(bad), {});
-  // A count that is not a count, a total that is not money: dropped, not printed.
-  assert.deepEqual(bankFieldsFromJson({ bank: { in: { count: -1, total: 10 }, out: { count: 0, total: 0 } } }), {});
-  assert.deepEqual(bankFieldsFromJson({ bank: { in: { count: 1, total: '10' }, out: { count: 0, total: 0 } } }), {});
-  assert.deepEqual(bankFieldsFromJson({ bank: { in: { count: 1.5, total: 10 }, out: { count: 0, total: 0 } } }), {});
-  assert.deepEqual(bankFieldsFromJson({ waiting: { count: 2, total: Number.NaN } }), {});
-  // One valid half still lands: the waiting slide never needs the activity pair.
-  assert.deepEqual(bankFieldsFromJson({ waiting: { count: 2, total: 10 } }),
-    { waiting: { count: 2, total: 10 } });
+  for (const bad of [null, undefined, 'x', 42, [], { bank: null }, { bank: 'x' }]) {
+    assert.deepEqual(bankFieldsFromJson(bad), {});
+  }
+  const ok = { total: 1, auto: 0, autoIn: 0, autoOut: 0, name: 'Chase', pending: 0, items: [] };
+  // A value that is not a count, a name that is not a name: the field is absent.
+  for (const patch of [{ total: '1' }, { auto: -1 }, { autoIn: 1.5 }, { pending: Number.NaN }, { name: '  ' }]) {
+    assert.deepEqual(bankFieldsFromJson({ bank: { ...ok, ...patch } }), {});
+  }
+  // The slide's invariants hold on arrival too.
+  assert.deepEqual(bankFieldsFromJson({ bank: { ...ok, total: 0, auto: 1 } }), {});
+  assert.deepEqual(bankFieldsFromJson({ bank: { ...ok, pending: 0, items: [{ name: 'Shell', date: '2026-09-25' }] } }), {});
+  // A row without a name or a real date is dropped, not printed.
+  assert.deepEqual(
+    bankFieldsFromJson({ bank: { ...ok, pending: 2, items: [
+      { name: 'Shell', date: '9/25' },
+      { name: '', date: '2026-09-25' },
+      { name: 'Lowes', date: '2026-09-20' },
+    ] } }).bank?.items,
+    [{ name: 'Lowes', date: '2026-09-20' }],
+  );
 });
 
 test('the bank fields are composed through RLS only — no service role anywhere', () => {

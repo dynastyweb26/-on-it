@@ -72,8 +72,28 @@ export type RecapInput = {
 };
 
 // ── Output (stored as recaps.payload) ────────────────────────────────
-/** One direction of bank activity: how many bank rows, and their money total. */
-export type RecapBankMoney = { count: number; total: number };
+/** One open bank row on slide 08's list. `date` is yyyy-mm-dd (the bank's
+ *  posted day); the slide owns how it is written. */
+export type RecapBankPendingItem = { name: string; date: string };
+
+/** Slides 07 (bank activity) and 08 (waiting for you), from the design's
+ *  data-f list. Counts only: the slides print no money.
+ *    total   payments + expenses recorded in the period, all sources
+ *    auto    of those, the records a bank row produced
+ *    autoIn  of those, payments / other income; autoOut expenses
+ *    name    the connected institution with the most activity
+ *    pending still unaccounted for (money in and out), newest first in items */
+export type RecapBank = {
+  total: number;
+  auto: number;
+  autoIn: number;
+  autoOut: number;
+  name: string;
+  pending: number;
+  items: RecapBankPendingItem[];
+  /** pending − items.length: slide 08's "+N more". */
+  more: number;
+};
 
 export type RecapInvoiceItem = { client: string; amount: number; status: 'viewed' | 'sent' | 'paid'; date: string };
 
@@ -87,16 +107,12 @@ export type RecapPayload = {
    *  tab cannot disagree: invoice payments + the other_income rows Books counts.
    *  Optional on read: payloads stored before the redesign do not have it. */
   collected?: RecapCollected;
-  /** Bank activity for this period, from the viewer's own connected bank(s):
-   *  money in (deposits) and money out (charges), counts + totals. Composed per
-   *  viewer on the server under RLS when the story opens (lib/recap/bank-server)
-   *  — never stored by the cron — and absent unless the viewer's plan includes
-   *  bank activity and a bank is connected. Optional on read: an old payload,
-   *  or one opened by a viewer without bank activity, simply has none. */
-  bank?: { in: RecapBankMoney; out: RecapBankMoney };
-  /** What the bank still has waiting on the owner: the pinned "Unaccounted
-   *  for" row's set (open charges), count + total. Same gating as `bank`. */
-  waiting?: RecapBankMoney;
+  /** Slides 07 and 08, composed per viewer on the server under RLS when the
+   *  story opens (lib/recap/bank-server) — never stored by the cron — and absent
+   *  unless the viewer's plan includes bank activity and a bank is connected.
+   *  Optional on read: an old payload, or one opened by a viewer without bank
+   *  activity, simply has none. */
+  bank?: RecapBank;
   spend: {
     total: number;
     count: number;
@@ -523,9 +539,8 @@ export function recapSequence(p: RecapPayload): RecapSlide[] {
 }
 
 /** The redesign's slide order (design keys(), RULES 9–12). 'bank' and 'waiting'
- *  are not in the order yet: their payload fields (`bank`, `waiting`) are
- *  composed per viewer, and the slide UI is Claude Code's, from
- *  design/recaps/RecapPlayer.dc.html 07 and 08. */
+ *  are not in the order yet: both slides read the per-viewer `bank` field, and
+ *  their UI is Claude Code's, from design/recaps/RecapPlayer.dc.html 07 and 08. */
 export type RedesignSlide =
   | 'opener' | 'glance' | 'in' | 'out' | 'kept' | 'inv' | 'client' | 'free' | 'aff' | 'quiet';
 

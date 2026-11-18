@@ -1,7 +1,7 @@
 // GET /api/recaps/bank?id=<recap id>
-// The two bank slides' numbers for the viewer opening a recap: what the bank
-// picked up inside that recap's period (money in and money out), and what is
-// still unaccounted for.
+// Slides 07 and 08 for the viewer opening a recap: payments and expenses
+// recorded in its period, how many came from a bank row, which bank, and what
+// is still unaccounted for. Counts only — the design prints no money.
 //
 // Composed on the request with the viewer's OWN session client, so RLS is the
 // boundary: the admin key / service role is never used here. Every gate runs
@@ -30,9 +30,11 @@ export async function GET(req: NextRequest) {
   }
 
   // RLS: only the owner's own recap comes back; another owner's id reads as none.
+  // The two counts are the story's own numbers (collected payments, all sources;
+  // recorded expenses), read as JSON paths so the payload never travels.
   const { data: row, error } = await supabase
     .from('recaps')
-    .select('id, period_start, period_end')
+    .select('id, period_start, period_end, p_pay:payload->collected->>payments, p_inc:payload->income->>payments, p_exp:payload->spend->>count')
     .eq('id', id)
     .maybeSingle();
   if (error) {
@@ -41,8 +43,15 @@ export async function GET(req: NextRequest) {
   }
   if (!row) return NextResponse.json({});
 
-  return NextResponse.json(await loadRecapBank(supabase, user.id, {
-    start: row.period_start as string,
-    end: row.period_end as string,
-  }));
+  const count = (value: unknown): number => {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  };
+
+  return NextResponse.json(await loadRecapBank(
+    supabase,
+    user.id,
+    { start: row.period_start as string, end: row.period_end as string },
+    { in: count(row.p_pay ?? row.p_inc), out: count(row.p_exp) },
+  ));
 }
