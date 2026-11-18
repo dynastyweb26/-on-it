@@ -8,19 +8,18 @@
 .twp-scroll {
   min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none;
   font-family: var(--font-inter), Inter, sans-serif; color: #1d1914; line-height: normal;
-  animation: oi-slide .4s cubic-bezier(.2,.8,.2,1) both;
+  /* A fade, not a slide: a transform on the scroller left it offset and
+     clipped on iPhone when the animation didn't settle. */
+  animation: oi-in .3s ease both;
 }
 .twp-scroll::-webkit-scrollbar { display: none; }
-.twp-page { padding: 4px 16px 20px; display: flex; flex-direction: column; gap: 16px; }
-.twp-left, .twp-right { display: contents; }
-/* Phone order (1A): head, cards, Cyril, rows, table, legal. */
-.twp-head { order: 1; display: flex; flex-direction: column; gap: 8px; padding: 0 4px; }
-.twp-cards { order: 2; }
-.twp-right > figure { order: 3; }
-.twp-rows { order: 4; }
-.twp-table { order: 5; }
-.twp-legal { order: 6; }
-.twp-cta-wide { display: none; order: 3; }
+/* Phone (1A/1B): one column, in the board's order (the markup's own order). */
+.twp-page { padding: 4px 16px 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.twp-page > * { min-width: 0; max-width: 100%; }
+.twp-head { display: flex; flex-direction: column; gap: 8px; padding: 0 4px; }
+/* Laptop (1C): its own markup, two columns. */
+.twp-page.is-wide { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 40px; padding: 12px 40px 28px; align-items: start; }
+.twp-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
 .twp-top { display: flex; align-items: center; gap: 6px; font: 600 13px/1.35 var(--font-inter), Inter, sans-serif; color: #735c00; text-wrap: balance; }
 .twp-title { margin: 0; font: 800 28px/1.1 var(--font-montserrat), Montserrat, sans-serif; letter-spacing: -.01em; outline: none; }
@@ -137,8 +136,6 @@
 
 /* Laptop, board 1C */
 @media (min-width: 1280px) {
-  .twp-page { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 40px; padding: 12px 40px 28px; align-items: start; }
-  .twp-left, .twp-right { display: flex; flex-direction: column; gap: 20px; }
   .twp-top { font-size: 15px; }
   .twp-top .material-symbols-outlined { font-size: 20px !important; }
   .twp-title { font-size: 44px; line-height: 1.05; letter-spacing: -.02em; }
@@ -150,14 +147,8 @@
   .twp-per { font-size: 14px; }
   .twp-blurb { font-size: 14px; line-height: 1.45; min-height: 0; }
   .twp-chip { font-size: 12px; padding: 5px 10px; }
-  .twp-cta-wide { display: block; }
-  /* Right column (1C): the table, then Cyril, then the legal lines below the fold. */
-  .twp-right .twp-table { order: 1; }
-  .twp-right > figure { order: 2; }
-  .twp-right .twp-legal { order: 3; }
   .twp-cta-wide .twp-gold { height: 60px; font-size: 17px; }
   .twp-cta-wide .twp-ctasub { font-size: 13.5px; }
-  .twp-footer { display: none; }
   .twp-row { padding: 0 16px; }
   .twp-table { border-radius: 20px; }
   .twp-table thead th { padding: 14px 0; font-size: 12px; }

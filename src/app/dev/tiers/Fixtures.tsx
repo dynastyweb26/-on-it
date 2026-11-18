@@ -11,6 +11,9 @@ import { includedChip, lockActions, lockSheetCopy, type LockDoc } from '@/lib/pl
 import type { PlanFeature } from '@/lib/plan-lock';
 import { PlanScreenView } from '@/components/tiers/PlanScreen';
 import TiersPlanPage from '@/components/paywall/TiersPlanPage';
+import PaywallModal from '@/components/PaywallModal';
+import { seedPlanTiersForDev } from '@/components/tiers/store';
+import { useState } from 'react';
 import type { PaywallEntry } from '@/lib/paywall-entry';
 import type { PayState } from '@/lib/paywall-plan-view';
 import { PLUS_STORE_ONLY } from '@/lib/subscription/start';
@@ -98,12 +101,33 @@ function Label({ children }: { children: string }) {
   return <div style={{ font: "500 10.5px ui-monospace, Menlo, monospace", color: '#6b6257', margin: '6px 0 18px' }}>{children}</div>;
 }
 
+/** Opens the real paywall (the modal, at the real viewport) as a seeded plan. */
+function RealPaywall() {
+  const [open, setOpen] = useState<null | { plan: 'free' | 'pro' | 'plus'; entry: PaywallEntry | undefined }>(null);
+  const go = (plan: 'free' | 'pro' | 'plus', entry?: PaywallEntry) => {
+    seedPlanTiersForDev({ loaded: true, plan, catalog: PLAN_CATALOG, trialEligible: plan === 'free' });
+    setOpen({ plan, entry });
+  };
+  const btn = { padding: '10px 12px', borderRadius: 999, border: '1px solid #d9ccb4', background: '#fff', font: '600 13px var(--font-inter)', margin: '0 6px 6px 0' } as const;
+  return (
+    <div data-fixture="real-paywall" style={{ marginBottom: 24 }}>
+      <button style={btn} data-open="free-invoice" onClick={() => go('free', 'invoice')}>Free · 4th invoice</button>
+      <button style={btn} data-open="free-bank" onClick={() => go('free', 'bank')}>Free · bank lock</button>
+      <button style={btn} data-open="pro-bank" onClick={() => go('pro', 'bank')}>Pro · bank lock</button>
+      <button style={btn} data-open="pro-settings" onClick={() => go('pro')}>Pro · Settings upgrade</button>
+      <button style={btn} data-open="plus" onClick={() => go('plus', 'invoice')}>Plus · any entry</button>
+      {open && <PaywallModal variant="invoice" entry={open.entry} returnTo="settings" onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
 export default function Fixtures() {
   const free = limitOf('free'), pro = limitOf('pro'), plus = limitOf('plus');
   const noop = () => {};
   return (
     <main style={{ background: '#fff8f0', minHeight: '100vh', padding: '24px 14px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <RealPaywall />
         <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '0 0 16px' }}>02 AI meter</h1>
         {[1, 2, 4].map((used) => (
           <div key={used} data-fixture={`meter-${used}`}>

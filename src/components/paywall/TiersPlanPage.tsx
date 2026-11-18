@@ -50,6 +50,19 @@ export interface TiersPlanPageProps {
   initialError?: string | null;
 }
 
+/** Laptop (1C) from 1280 wide, by the viewport (not the container). */
+function useWide(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setWide(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  return wide;
+}
+
 const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function TiersPlanPage(props: TiersPlanPageProps) {
@@ -63,6 +76,7 @@ export default function TiersPlanPage(props: TiersPlanPageProps) {
   const busyRef = useRef(false);
   const confirmRef = useRef<PlanConfirmation | null>(null);
   const [freeUntil] = useState(() => short(trialDates().end));
+  const wide = useWide();
 
   useEffect(() => { onBusy(pay === 'pending' || pay === 'confirming' || pay === 'slow'); }, [pay, onBusy]);
   useEffect(() => () => confirmRef.current?.cancel(), []);
@@ -138,127 +152,138 @@ export default function TiersPlanPage(props: TiersPlanPageProps) {
     <CtaBlock cta={cta} pay={pay} error={error} onBuy={() => void buy()} onRetry={() => void retry()} onRestore={() => void restore()} isPro={isPro} />
   );
 
+  const headEl = (
+    <div className="twp-head">
+      {top && (
+        <div className="twp-top"><Icon name={top.icon as 'description'} size={18} />{top.text}</div>
+      )}
+      <h2 id="paywall-step-title" tabIndex={-1} className="twp-title">{head.title}</h2>
+      {head.sub && <div className="twp-sub">{head.sub}</div>}
+    </div>
+  );
+
+  const cardsEl = (
+    <div className={`twp-cards${frozen ? ' is-frozen' : ''}`} role="radiogroup" aria-label={head.title}>
+      {cards.map((c, i) => {
+        const mine = isPro && c.plan === 'pro';
+        const on = selected === c.plan && !mine;
+        return (
+          <button
+            key={c.plan}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            disabled={mine || frozen || (isPro && c.plan !== 'plus')}
+            onClick={() => setSelected(c.plan)}
+            className={`twp-card${on ? ' is-on' : ''}${mine ? ' is-mine' : ''}`}
+            style={{ animationDelay: `${i * 40}ms` }}
+            data-plan={c.plan}
+          >
+            <span className="twp-card-top">
+              <span className="twp-card-name">{c.name}</span>
+              {!mine && <Icon name={on ? 'radio_button_checked' : 'radio_button_unchecked'} size={22} className="twp-radio" />}
+            </span>
+            <span className="twp-price">{c.price}<span className="twp-per">/mo</span></span>
+            {!isPro && <span className="twp-blurb">{c.blurb}</span>}
+            {mine ? (
+              <span className="twp-chip is-mine"><Icon name="check" size={14} />{CONFIRM_COPY.yourPlan}</span>
+            ) : isPro ? (
+              <span className="twp-chip">{CONFIRM_COPY.opensNow}</span>
+            ) : c.chip ? (
+              <span className="twp-chip">{c.chip}</span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const rowsEl = isPro ? (
+    <div className="twp-rows">
+      <div className="twp-rows-title">{plusAddsTitle(catalog)}</div>
+      {plusAdds(catalog).map((r) => (
+        <div key={r.label} className="twp-row is-adds">
+          <Icon name={r.icon as 'forum'} size={22} className="twp-row-icon" />
+          <span className="twp-row-label">{r.label}</span>
+          {r.from && <s className="twp-from">{r.from}</s>}
+          {r.to && <span className="twp-to">{r.to}</span>}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="twp-rows">
+      {/* Decided (founder): no reminder toggle. The email goes out
+          TRIAL_REMINDER_DAYS before the end; the line says so. */}
+      {trialEligible && (
+        <div className="twp-row">
+          <Icon name="notifications" size={22} className="twp-row-icon" />
+          <span className="twp-row-label">{reminderLine(TRIAL_REMINDER_DAYS)}</span>
+        </div>
+      )}
+      <button type="button" className="twp-row is-tap" aria-expanded={showCode} onClick={() => setShowCode((v) => !v)}>
+        <Icon name="key" size={22} className="twp-row-icon" />
+        <span className="twp-row-label">{CODE_ROW}</span>
+        <Icon name="chevron_right" size={20} className={`twp-chev${showCode ? ' is-open' : ''}`} />
+      </button>
+      {showCode && (
+        <div className="twp-code"><CodeEntry autoFocus onEscape={() => setShowCode(false)} onRedeemed={onRedeemed} /></div>
+      )}
+    </div>
+  );
+
+  const tableEl = (
+    <table className="twp-table" data-selected={selected}>
+      <caption className="sr-only">What each plan includes</caption>
+      <thead>
+        <tr>
+          <th scope="col"><span className="sr-only">Feature</span></th>
+          {(['free', 'pro', 'plus'] as const).map((p) => (
+            <th key={p} scope="col" className={selected === p ? 'is-on' : undefined}>
+              {(catalog?.plans.find((o) => o.plan === p)?.name ?? p).toUpperCase()}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.key}>
+            <th scope="row">{r.label}</th>
+            <td><CellView c={r.free} /></td>
+            <td className={selected === 'pro' ? 'is-on' : undefined}><CellView c={r.pro} paid /></td>
+            <td className={selected === 'plus' ? 'is-on' : undefined}><CellView c={r.plus} paid /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  const legalEl = cta && (
+    <div className="twp-legal">
+      <span>{cta.legal}</span>
+      <span className="twp-links">
+        <a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/eula">EULA</a>
+      </span>
+    </div>
+  );
+
+  // The layout follows the viewport (board: phone 1A/1B below 1280, laptop 1C
+  // from 1280), resolved on the client like today's PlanStep. Each layout is
+  // its own markup in the board's order: no display:contents, no reordering.
   return (
     <>
-      <div className="twp-scroll" data-tiers-paywall={isPro ? 'pro' : 'free'} data-pay={pay}>
-        <div className="twp-page">
-          <div className="twp-left">
-            <div className="twp-head">
-              {top && (
-                <div className="twp-top"><Icon name={top.icon as 'description'} size={18} />{top.text}</div>
-              )}
-              <h2 id="paywall-step-title" tabIndex={-1} className="twp-title">{head.title}</h2>
-              {head.sub && <div className="twp-sub">{head.sub}</div>}
-            </div>
-
-            <div className={`twp-cards${frozen ? ' is-frozen' : ''}`} role="radiogroup" aria-label={head.title}>
-              {cards.map((c, i) => {
-                const mine = isPro && c.plan === 'pro';
-                const on = selected === c.plan && !mine;
-                return (
-                  <button
-                    key={c.plan}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    disabled={mine || frozen || (isPro && c.plan !== 'plus')}
-                    onClick={() => setSelected(c.plan)}
-                    className={`twp-card${on ? ' is-on' : ''}${mine ? ' is-mine' : ''}`}
-                    style={{ animationDelay: `${i * 40}ms` }}
-                    data-plan={c.plan}
-                  >
-                    <span className="twp-card-top">
-                      <span className="twp-card-name">{c.name}</span>
-                      {!mine && <Icon name={on ? 'radio_button_checked' : 'radio_button_unchecked'} size={22} className="twp-radio" />}
-                    </span>
-                    <span className="twp-price">{c.price}<span className="twp-per">/mo</span></span>
-                    {!isPro && <span className="twp-blurb">{c.blurb}</span>}
-                    {mine ? (
-                      <span className="twp-chip is-mine"><Icon name="check" size={14} />{CONFIRM_COPY.yourPlan}</span>
-                    ) : isPro ? (
-                      <span className="twp-chip">{CONFIRM_COPY.opensNow}</span>
-                    ) : c.chip ? (
-                      <span className="twp-chip">{c.chip}</span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Laptop (1C): the CTA sits in this column; the phone pins it below. */}
-            <div className="twp-cta-wide">{ctaBlock}</div>
-
-            {isPro ? (
-              <div className="twp-rows">
-                <div className="twp-rows-title">{plusAddsTitle(catalog)}</div>
-                {plusAdds(catalog).map((r) => (
-                  <div key={r.label} className="twp-row is-adds">
-                    <Icon name={r.icon as 'forum'} size={22} className="twp-row-icon" />
-                    <span className="twp-row-label">{r.label}</span>
-                    {r.from && <s className="twp-from">{r.from}</s>}
-                    {r.to && <span className="twp-to">{r.to}</span>}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="twp-rows">
-                {/* Decided (founder): no reminder toggle. The email goes out
-                    TRIAL_REMINDER_DAYS before the end; the line says so. */}
-                {trialEligible && (
-                  <div className="twp-row">
-                    <Icon name="notifications" size={22} className="twp-row-icon" />
-                    <span className="twp-row-label">{reminderLine(TRIAL_REMINDER_DAYS)}</span>
-                  </div>
-                )}
-                <button type="button" className="twp-row is-tap" aria-expanded={showCode} onClick={() => setShowCode((v) => !v)}>
-                  <Icon name="key" size={22} className="twp-row-icon" />
-                  <span className="twp-row-label">{CODE_ROW}</span>
-                  <Icon name="chevron_right" size={20} className={`twp-chev${showCode ? ' is-open' : ''}`} />
-                </button>
-                {showCode && (
-                  <div className="twp-code"><CodeEntry autoFocus onEscape={() => setShowCode(false)} onRedeemed={onRedeemed} /></div>
-                )}
-              </div>
-            )}
+      <div className="twp-scroll" data-tiers-paywall={isPro ? 'pro' : 'free'} data-pay={pay} data-layout={wide ? 'laptop' : 'phone'}>
+        {wide ? (
+          <div className="twp-page is-wide">
+            <div className="twp-col">{headEl}{cardsEl}<div className="twp-cta-wide">{ctaBlock}</div>{rowsEl}</div>
+            <div className="twp-col">{tableEl}<Testimonial />{legalEl}</div>
           </div>
-
-          <div className="twp-right">
-            <Testimonial />
-            <table className="twp-table" data-selected={selected}>
-              <caption className="sr-only">What each plan includes</caption>
-              <thead>
-                <tr>
-                  <th scope="col"><span className="sr-only">Feature</span></th>
-                  {(['free', 'pro', 'plus'] as const).map((p) => (
-                    <th key={p} scope="col" className={selected === p ? 'is-on' : undefined}>
-                      {(catalog?.plans.find((o) => o.plan === p)?.name ?? p).toUpperCase()}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.key}>
-                    <th scope="row">{r.label}</th>
-                    <td><CellView c={r.free} /></td>
-                    <td className={selected === 'pro' ? 'is-on' : undefined}><CellView c={r.pro} paid /></td>
-                    <td className={selected === 'plus' ? 'is-on' : undefined}><CellView c={r.plus} paid /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {cta && (
-              <div className="twp-legal">
-                <span>{cta.legal}</span>
-                <span className="twp-links">
-                  <a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/eula">EULA</a>
-                </span>
-              </div>
-            )}
+        ) : (
+          <div className="twp-page">
+            {headEl}{cardsEl}<Testimonial />{rowsEl}{tableEl}{legalEl}
           </div>
-        </div>
+        )}
       </div>
-      <div className="twp-footer" data-kb-hide="">{ctaBlock}</div>
+      {!wide && <div className="twp-footer" data-kb-hide="">{ctaBlock}</div>}
     </>
   );
 }
