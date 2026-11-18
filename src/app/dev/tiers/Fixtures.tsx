@@ -10,6 +10,13 @@ import { planLock } from '@/lib/plan-lock';
 import { includedChip, lockActions, lockSheetCopy, type LockDoc } from '@/lib/plan-lock-view';
 import type { PlanFeature } from '@/lib/plan-lock';
 import { PlanScreenView } from '@/components/tiers/PlanScreen';
+import TiersPlanPage from '@/components/paywall/TiersPlanPage';
+import PaywallModal from '@/components/PaywallModal';
+import { seedPlanTiersForDev } from '@/components/tiers/store';
+import { useEffect, useState } from 'react';
+import type { PaywallEntry } from '@/lib/paywall-entry';
+import type { PayState } from '@/lib/paywall-plan-view';
+import { PLUS_STORE_ONLY } from '@/lib/subscription/start';
 import { planCardFor, type PlanCardInput } from '@/lib/plan-card';
 import { planAction, planCardView, manageLabel, usageRows, type UsageInput } from '@/lib/plan-screen-view';
 
@@ -79,16 +86,55 @@ function Plan({ input, usage, state }: { input: PlanCardInput; usage: UsageInput
   );
 }
 
+type PageRow = [string, PaywallEntry | null, 'free' | 'pro', boolean, PayState, string, boolean?];
+const PAGES: PageRow[] = [
+  ['pw-free-invoice', 'invoice', 'free', true, 'idle', '1A free · from the 4th invoice · web: Pro preselected'],
+  ['pw-free-invoice-native', 'invoice', 'free', true, 'idle', '1A free · native: every open preselects Plus', true],
+  ['pw-free-bank', 'bank', 'free', true, 'idle', '1A free · from the bank lock, Plus preselected'],
+  ['pw-returning', 'invoice', 'free', false, 'idle', 'returning customer · today’s Subscribe wording, no trial'],
+  ['pw-pro', 'bank', 'pro', false, 'idle', '1B pro · move up to Plus'],
+  ['pw-pending', 'invoice', 'free', true, 'pending', 'pending · picker frozen at 55%'],
+  ['pw-confirming', 'invoice', 'free', true, 'confirming', 'confirming · store said yes, server hasn’t'],
+  ['pw-slow', 'invoice', 'free', true, 'slow', 'confirming > 20s · try again re-asks the server'],
+  ['pw-failed', 'bank', 'free', true, 'failed', 'failed · Plus on the web (store only), CTA stays live'],
+];
 function Label({ children }: { children: string }) {
   return <div style={{ font: "500 10.5px ui-monospace, Menlo, monospace", color: '#6b6257', margin: '6px 0 18px' }}>{children}</div>;
 }
 
+/** Opens the real paywall (the modal, at the real viewport) as a seeded plan. */
+function RealPaywall() {
+  const [open, setOpen] = useState<null | { plan: 'free' | 'pro' | 'plus'; entry: PaywallEntry | undefined }>(null);
+  const go = (plan: 'free' | 'pro' | 'plus', entry?: PaywallEntry) => {
+    seedPlanTiersForDev({ loaded: true, plan, catalog: PLAN_CATALOG, trialEligible: plan === 'free' });
+    setOpen({ plan, entry });
+  };
+  const btn = { padding: '10px 12px', borderRadius: 999, border: '1px solid #d9ccb4', background: '#fff', font: '600 13px var(--font-inter)', margin: '0 6px 6px 0' } as const;
+  return (
+    <div data-fixture="real-paywall" style={{ marginBottom: 24 }}>
+      <button style={btn} data-open="free-invoice" onClick={() => go('free', 'invoice')}>Free · 4th invoice</button>
+      <button style={btn} data-open="free-bank" onClick={() => go('free', 'bank')}>Free · bank lock</button>
+      <button style={btn} data-open="pro-bank" onClick={() => go('pro', 'bank')}>Pro · bank lock</button>
+      <button style={btn} data-open="pro-settings" onClick={() => go('pro')}>Pro · Settings upgrade</button>
+      <button style={btn} data-open="plus" onClick={() => go('plus', 'invoice')}>Plus · any entry</button>
+      {open && <PaywallModal variant="invoice" entry={open.entry} returnTo="settings" onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
 export default function Fixtures() {
+  // Client only: the fixtures print local dates and live clocks ("Renews Dec 15",
+  // the meter's midnight), which never match a server render in another
+  // timezone; rendering after mount ends the hydration errors (React 418/425).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
   const free = limitOf('free'), pro = limitOf('pro'), plus = limitOf('plus');
   const noop = () => {};
   return (
     <main style={{ background: '#fff8f0', minHeight: '100vh', padding: '24px 14px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <RealPaywall />
         <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '0 0 16px' }}>02 AI meter</h1>
         {[1, 2, 4].map((used) => (
           <div key={used} data-fixture={`meter-${used}`}>
@@ -139,6 +185,26 @@ export default function Fixtures() {
         <Label>loading · skeleton, shimmer 1.4s</Label>
         <div data-fixture="plan-load-error"><PlanScreenView state="error" onRetry={() => {}} /></div>
         <Label>load error · retry</Label>
+        <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '24px 0 16px' }}>01 Paywall page 3</h1>
+        {PAGES.map(([id, entry, plan, trial, state, label, native]) => (
+          <div key={id} data-fixture={id}>
+            <div style={{ height: 780, display: 'flex', flexDirection: 'column', border: '1px solid #eadfcc', borderRadius: 24, overflow: 'hidden', background: '#fff8f0' }}>
+              <TiersPlanPage
+                entry={entry}
+                viewerPlan={plan}
+                catalog={PLAN_CATALOG}
+                trialEligible={trial}
+                returnTo="chat"
+                onBusy={() => {}}
+                onRedeemed={() => {}}
+                initialState={state}
+                initialError={state === 'failed' ? PLUS_STORE_ONLY : null}
+                native={native}
+              />
+            </div>
+            <Label>{label}</Label>
+          </div>
+        ))}
       </div>
     </main>
   );

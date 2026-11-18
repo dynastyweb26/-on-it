@@ -23,9 +23,12 @@ test('the cancel flow keeps its entry from Plan for a paid plan', () => {
 });
 
 test('every plan action goes through the one purchase interface', () => {
-  for (const call of ['purchases.upgrade(', 'purchases.switchToPro()', 'purchases.keepPlus()', 'purchases.restore()', 'purchases.manage()']) {
+  for (const call of ['purchases.switchToPro()', 'purchases.keepPlus()', 'purchases.restore()', 'purchases.manage()']) {
     assert.ok(screen.includes(call), call);
   }
+  // Upgrade to Plus opens paywall page 3 (design/tiers 01), which buys through purchases.upgrade.
+  assert.match(screen, /a.kind === 'see-plans' || a.kind === 'upgrade'/);
+  assert.ok(read('src/components/paywall/TiersPlanPage.tsx').includes('purchases.upgrade('), 'the page upgrades through purchases');
   assert.doesNotMatch(screen, /fetch\('\/api\/(checkout|billing-portal)/, 'no second payment path');
 });
 

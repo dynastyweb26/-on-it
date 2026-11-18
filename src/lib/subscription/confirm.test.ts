@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CONFIRM_INTERVAL_MS, CONFIRM_SLOW_MS, createPlanConfirmation, type FetchLike } from './confirm';
+import { CONFIRM_INTERVAL_MS, CONFIRM_SLOW_MS, createPlanConfirmation, planOf, type FetchLike } from './confirm';
 
 // A clock the sleep moves: no test ever waits, and "20 seconds" is measurable.
 function clock() {
@@ -15,13 +15,16 @@ function clock() {
   };
 }
 
+/** The real GET /api/access shape: tier + entitlements.plan (no top-level plan). */
+const access = (plan: string | null) => ({ tier: plan ? 'active' : 'free', entitlements: { plan: plan ?? 'free' } });
+
 /** A server that answers with each plan in turn, then repeats the last one. */
 function server(plans: (string | null)[]) {
   const calls: { url: string; method: string }[] = [];
   const fetch: FetchLike = async (url, init) => {
     calls.push({ url, method: init?.method ?? 'GET' });
     const plan = plans[Math.min(calls.length - 1, plans.length - 1)] ?? null;
-    return { ok: true, json: async () => ({ plan }) };
+    return { ok: true, json: async () => access(plan) };
   };
   return { fetch, calls };
 }
@@ -58,7 +61,7 @@ test('confirm: a failed read is "not yet", never a success', async () => {
   const confirm = createPlanConfirmation({
     fetch: async () => (++n === 1
       ? { ok: false, json: async () => ({}) }
-      : { ok: true, json: async () => ({ plan: 'pro' }) }),
+      : { ok: true, json: async () => access('pro') }),
     sleep: c.sleep,
     now: c.now,
   });
@@ -91,7 +94,7 @@ test('confirm: retry re-asks the server and never re-buys', async () => {
       calls.push(url);
       n++;
       const plan = n > 21 ? 'plus' : null;
-      return { ok: true, json: async () => ({ plan }) };
+      return { ok: true, json: async () => access(plan) };
     },
     sleep: c.sleep,
     now: c.now,
@@ -137,7 +140,7 @@ test('confirm: a repeat tap joins the wait in flight instead of polling twice', 
     fetch: async (url) => {
       calls.push(url);
       await gate;
-      return { ok: true, json: async () => ({ plan: 'plus' }) };
+      return { ok: true, json: async () => access('plus') };
     },
     sleep: c.sleep,
     now: c.now,
@@ -160,7 +163,7 @@ test('confirm: retry while a wait is in flight is ignored too', async () => {
     fetch: async () => {
       reads++;
       await gate;
-      return { ok: true, json: async () => ({ plan: 'pro' }) };
+      return { ok: true, json: async () => access('pro') };
     },
     sleep: c.sleep,
     now: c.now,
@@ -172,4 +175,22 @@ test('confirm: retry while a wait is in flight is ignored too', async () => {
   release();
   await waiting;
   assert.equal(reads, 1);
+});
+
+test('confirm: a Plus purchase resolves to success from the real /api/access body, not slow', async () => {
+  const c = clock();
+  // A Pro user buys Plus: the first reads still say Pro, then the webhook lands.
+  const s = server(['pro', 'pro', 'plus']);
+  const confirm = createPlanConfirmation({ fetch: s.fetch, sleep: c.sleep, now: c.now, expect: 'plus' });
+  assert.deepEqual(await confirm.start(), { status: 'success', plan: 'plus' });
+  assert.equal(s.calls.length, 3);
+});
+
+test('confirm: planOf reads entitlements.plan, falls back to the tier, free is null', () => {
+  assert.equal(planOf({ tier: 'active', entitlements: { plan: 'plus' } }), 'plus');
+  assert.equal(planOf({ tier: 'founder' }), 'plus');
+  assert.equal(planOf({ tier: 'trialing' }), 'pro');
+  assert.equal(planOf({ tier: 'free', entitlements: { plan: 'free' } }), null);
+  assert.equal(planOf({ plan: 'plus' }), null, 'a top-level plan is not the access shape');
+  assert.equal(planOf(null), null);
 });

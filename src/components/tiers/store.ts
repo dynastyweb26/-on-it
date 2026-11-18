@@ -149,3 +149,11 @@ export function usePlanPaywall(): PlanFeature | null {
 export function usePhotosNotice(): (SkippedPhotos & { key: number }) | null {
   return useSyncExternalStore(subscribe, () => state.photos, () => null);
 }
+
+/** /dev fixtures only: seed the plan so the real paywall can be opened as
+ *  Free, Pro or Plus without an account. Production never calls it (the
+ *  /dev pages 404 there). */
+export function seedPlanTiersForDev(tiers: PlanTiers): void {
+  if (process.env.VERCEL_ENV === 'production') return;
+  set({ tiers: { ...tiers, loaded: true } });
+}

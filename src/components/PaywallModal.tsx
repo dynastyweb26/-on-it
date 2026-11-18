@@ -26,12 +26,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { paywallDismissible } from '@/lib/popups/status';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/Icon';
 import { subscribeAccess } from '@/lib/upgrade-return';
 import ShowcaseStep from '@/components/paywall/ShowcaseStep';
 import TrialStep from '@/components/paywall/TrialStep';
 import PlanStep from '@/components/paywall/PlanStep';
 import FitToHeight from '@/components/paywall/FitToHeight';
+import TiersPlanPage from '@/components/paywall/TiersPlanPage';
+import { usePlanTiers } from '@/components/tiers/store';
+import { NEXT_PUBLIC_TIERS } from '@/lib/feature-flags';
+import { entryForVariant } from '@/lib/paywall-plan-view';
+import type { PaywallEntry } from '@/lib/paywall-entry';
 import { startSubscription, type CheckoutReturn } from '@/lib/subscription/start';
 import { RESTORE_UNAVAILABLE, restorePurchases } from '@/lib/subscription/restore';
 import { trialDates } from '@/lib/trial';
@@ -60,12 +66,15 @@ const DEFAULT_RETURN: Record<PaywallVariant, CheckoutReturn> = {
   winback: 'chat',
 };
 
-export default function PaywallModal({ onClose, variant = 'invoice', returnTo, reason }: {
+export default function PaywallModal({ onClose, variant = 'invoice', returnTo, reason, entry }: {
   onClose: () => void;
   variant?: PaywallVariant;
   returnTo?: CheckoutReturn;
   /** Replaces the variant's reason pill (the soft prompts open a wall nobody hit a limit on). */
   reason?: string;
+  /** Tiers (flag on): which entry point opened the wall (lib/paywall-entry):
+   *  page 3's top line and preselected plan. Defaults from the variant. */
+  entry?: PaywallEntry;
 }) {
   const back: CheckoutReturn = returnTo ?? DEFAULT_RETURN[variant];
   const pageRef = useRef<HTMLDivElement>(null);
@@ -124,7 +133,22 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // the trial step and every trial/price promise on the plan step go with the
   // CTA: no replacement copy, no dead button (subscribable below).
   const subscribable = subsOn !== false;
-  const steps = stepsFor(variant, state, subscribable);
+  // Tiers (flag on): page 3 is the two-plan page (design/tiers 01). A Pro
+  // viewer has nothing to try or demo: they land straight on Move up to Plus (1B).
+  const planTiers = usePlanTiers();
+  const tiersOn = NEXT_PUBLIC_TIERS;
+  const viewerPlan = planTiers.plan ?? 'free';
+  // A Plus user has nothing to buy: the wall never shows for them. Every entry
+  // point already hides itself for Plus; this is the last guard: close and go
+  // to Settings > Plan instead.
+  const router = useRouter();
+  const plusViewer = tiersOn && planTiers.loaded && viewerPlan === 'plus';
+  useEffect(() => {
+    if (!plusViewer) return;
+    onCloseRef.current();
+    router.push('/settings/plan');
+  }, [plusViewer, router]);
+  const steps = tiersOn && viewerPlan === 'pro' ? (['plan'] as const).slice() : stepsFor(variant, state, subscribable);
   const [step, setStep] = useState(0);
   // A step can disappear when the check answers (trial → plan): clamp, never
   // render a step that isn't in this wall's list.
@@ -232,7 +256,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
   // transform, a filter), so it covered only the area under the app header and
   // left the header (and its tour button) showing and tappable above the wall.
   // Mounted only after a tap, never during SSR, so document exists here.
-  if (typeof document === 'undefined') return null;
+  if (typeof document === 'undefined' || plusViewer) return null;
   return createPortal(
     <div
       ref={pageRef}
@@ -289,7 +313,18 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
         {/* The step. Showcase and trial are single full-screen pages: they scale
             to fit the visible height and never scroll (FitToHeight). The plan
             step keeps its own scroller (the code row, Free vs On It). */}
-        {current === 'plan' ? (
+        {current === 'plan' && tiersOn ? (
+          <TiersPlanPage
+            entry={entry ?? entryForVariant(variant)}
+            reason={reason}
+            viewerPlan={viewerPlan}
+            catalog={planTiers.catalog}
+            trialEligible={trialEligible === true}
+            returnTo={back}
+            onBusy={setBusy}
+            onRedeemed={() => { setTimeout(onClose, 1200); }}
+          />
+        ) : current === 'plan' ? (
           <div
             ref={scrollRef}
             className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -316,6 +351,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
             carries the CTA, the nothing-charged line, the two-line disclosure
             and Terms/Privacy, which the old fixed 89px cut off on a short
             laptop viewport. The step above it is the scroller (min-h-0 flex-1). */}
+        {!(current === 'plan' && tiersOn) && (
         <div
           data-kb-hide=""
           className="flex shrink-0 flex-col items-center gap-2.5 border-t border-[#f0e7d8] bg-background px-5 pt-3.5 xl:px-6 xl:pt-[14px] xl:[--pw-pb:18px]"
@@ -406,6 +442,7 @@ export default function PaywallModal({ onClose, variant = 'invoice', returnTo, r
             </>
           )}
         </div>
+        )}
       </div>
     </div>,
     document.body,
