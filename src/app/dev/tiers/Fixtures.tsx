@@ -10,6 +10,10 @@ import { planLock } from '@/lib/plan-lock';
 import { includedChip, lockActions, lockSheetCopy, type LockDoc } from '@/lib/plan-lock-view';
 import type { PlanFeature } from '@/lib/plan-lock';
 import { PlanScreenView } from '@/components/tiers/PlanScreen';
+import TiersPlanPage from '@/components/paywall/TiersPlanPage';
+import type { PaywallEntry } from '@/lib/paywall-entry';
+import type { PayState } from '@/lib/paywall-plan-view';
+import { PLUS_STORE_ONLY } from '@/lib/subscription/start';
 import { planCardFor, type PlanCardInput } from '@/lib/plan-card';
 import { planAction, planCardView, manageLabel, usageRows, type UsageInput } from '@/lib/plan-screen-view';
 
@@ -79,6 +83,17 @@ function Plan({ input, usage, state }: { input: PlanCardInput; usage: UsageInput
   );
 }
 
+type PageRow = [string, PaywallEntry | null, 'free' | 'pro', boolean, PayState, string];
+const PAGES: PageRow[] = [
+  ['pw-free-invoice', 'invoice', 'free', true, 'idle', '1A free · from the 4th invoice, Pro preselected'],
+  ['pw-free-bank', 'bank', 'free', true, 'idle', '1A free · from the bank lock, Plus preselected'],
+  ['pw-returning', 'invoice', 'free', false, 'idle', 'returning customer · today’s Subscribe wording, no trial'],
+  ['pw-pro', 'bank', 'pro', false, 'idle', '1B pro · move up to Plus'],
+  ['pw-pending', 'invoice', 'free', true, 'pending', 'pending · picker frozen at 55%'],
+  ['pw-confirming', 'invoice', 'free', true, 'confirming', 'confirming · store said yes, server hasn’t'],
+  ['pw-slow', 'invoice', 'free', true, 'slow', 'confirming > 20s · try again re-asks the server'],
+  ['pw-failed', 'bank', 'free', true, 'failed', 'failed · Plus on the web (store only), CTA stays live'],
+];
 function Label({ children }: { children: string }) {
   return <div style={{ font: "500 10.5px ui-monospace, Menlo, monospace", color: '#6b6257', margin: '6px 0 18px' }}>{children}</div>;
 }
@@ -139,6 +154,25 @@ export default function Fixtures() {
         <Label>loading · skeleton, shimmer 1.4s</Label>
         <div data-fixture="plan-load-error"><PlanScreenView state="error" onRetry={() => {}} /></div>
         <Label>load error · retry</Label>
+        <h1 style={{ font: '800 20px var(--font-montserrat)', margin: '24px 0 16px' }}>01 Paywall page 3</h1>
+        {PAGES.map(([id, entry, plan, trial, state, label]) => (
+          <div key={id} data-fixture={id}>
+            <div style={{ height: 780, display: 'flex', flexDirection: 'column', border: '1px solid #eadfcc', borderRadius: 24, overflow: 'hidden', background: '#fff8f0' }}>
+              <TiersPlanPage
+                entry={entry}
+                viewerPlan={plan}
+                catalog={PLAN_CATALOG}
+                trialEligible={trial}
+                returnTo="chat"
+                onBusy={() => {}}
+                onRedeemed={() => {}}
+                initialState={state}
+                initialError={state === 'failed' ? PLUS_STORE_ONLY : null}
+              />
+            </div>
+            <Label>{label}</Label>
+          </div>
+        ))}
       </div>
     </main>
   );
